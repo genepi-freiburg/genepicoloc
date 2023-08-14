@@ -1,0 +1,11 @@
+Package: genepicoloc
+Title: What the Package Does (One Line, Title Case)
+Version: 0.0.0.9000
+Authors@R: 
+    person("Oleg", "Borisov", , "oleg.borisov@uniklinik-freiburg.de", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0001-8700-4335"))
+Description: R package to scale up genetic colocalization analysis.
+License: `use_mit_license()`
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
