@@ -1,7 +1,7 @@
 # test code
-#' @title Query UKB GWAS
-#' @description Query UK Biobank GWAS data to extract a region of interest
-#' @param sumstats_file path to UKB sumstats.
+#' @title Query finngen GWAS
+#' @description Query finngen GWAS data to extract a region of interest
+#' @param sumstats_file path to finngen sumstats.
 #' @param annotation_file annotation file with number of samples for each GWAS.
 #' @param CHR_var CHR (as.character "1", "2", ..., "X").
 #' @param BP_START_var start of region, integer
@@ -14,7 +14,8 @@ query_finngen_GWAS <- function(sumstats_file,
                            CHR_var, BP_START_var, BP_STOP_var) {
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
-                                            BP_STOP_var), intern = T),  header = T)
+                                            BP_STOP_var), intern = T),  header = T, stringsAsFactors = FALSE, 
+                         colClasses = c(alt = "character", ref= "character"))
   
   if (nrow(sumstats) == 0) { return(NA) }
   # format
@@ -27,3 +28,62 @@ query_finngen_GWAS <- function(sumstats_file,
   return(sumstats)
 }
 
+
+#' @title Query GTEx v37 GWAS
+#' @description Query GTEx v37 GWAS data to extract a region of interest
+#' @param sumstats_file path to GTEx v37 sumstats.
+#' @param annotation_file annotation file with number of samples for each GWAS.
+#' @param CHR_var CHR (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats.
+#' @export
+
+query_GTEXv37_GWAS <- function(sumstats_file,
+                               CHR_var, BP_START_var, BP_STOP_var) {
+  sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
+                                            CHR_var, ":", BP_START_var, "-",
+                                            BP_STOP_var), intern = T),  header = T,  stringsAsFactors = FALSE, 
+                         colClasses = c(alt = "character", ref= "character"))
+  
+  if (nrow(sumstats) == 0) { return(NA) }
+  # format
+  sumstats$Name <- paste0("chr", sumstats$chr, ":", sumstats$pos, ":", sumstats$ref, ":", sumstats$alt)
+  sumstats$rsids<- NA
+  sumstats <- sumstats[,c("Name", "rsids", "chr", "pos", "alt", "ref", "slope", "slope_se", "pval_nominal", "maf")]
+  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF")
+  # checks
+  stopifnot(all(gsub(".*:.*:.*:(.*)", "\\1", sumstats$Name) == sumstats$A1 &
+                  all(gsub(".*:.*:(.*):.*", "\\1", sumstats$Name) == sumstats$A2)))
+  return(sumstats)
+}
+
+
+#' @title Query GTEx v38 GWAS
+#' @description Query GTEx v38 GWAS data to extract a region of interest
+#' @param sumstats_file path to GTEx v37 sumstats.
+#' @param annotation_file annotation file with number of samples for each GWAS.
+#' @param CHR_var CHR (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats.
+#' @export
+
+query_GTEXv38_GWAS <- function(sumstats_file,
+                               CHR_var, BP_START_var, BP_STOP_var) {
+  sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " chr",
+                                            CHR_var, ":", BP_START_var, "-",
+                                            BP_STOP_var), intern = T),  header = F,  stringsAsFactors = FALSE, 
+                         colClasses = c(V5 = "character", V6= "character"))
+  
+  if (nrow(sumstats) == 0) { return(NA) }
+  # format
+  sumstats$Name <- paste0(sumstats$V1, ":", sumstats$V4, ":", sumstats$V5, ":", sumstats$V6)
+  sumstats$rsids<- NA
+  sumstats <- sumstats[,c("Name", "rsids", "V19", "V4", "V6", "V5", "V15", "V16", "V14", "V10")]
+  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF")
+  # checks
+  stopifnot(all(gsub(".*:.*:.*:(.*)", "\\1", sumstats$Name) == sumstats$A1 &
+                  all(gsub(".*:.*:(.*):.*", "\\1", sumstats$Name) == sumstats$A2)))
+  return(sumstats)
+}
