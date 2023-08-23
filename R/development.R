@@ -1,4 +1,11 @@
-# test code
+# TODO
+# - Add check for reference allele
+# - Split between mandatory and optional columns
+#   - mandatory columns for binary traits: ID, BETA, SE 
+#   - mandatory columns for quantitative traits: ID, BETA, SE 
+# - Add input option for sdY
+# - Add to the file with internal examples
+
 #' @title Query finngen GWAS
 #' @description Query finngen GWAS data to extract a region of interest
 #' @param sumstats_file path to finngen sumstats.
