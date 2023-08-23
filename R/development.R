@@ -15,9 +15,9 @@
 #' @param BP_START_var start of region, integer
 #' @param BP_STOP_var end of region, integer
 #' @return data frame with extracted sumstats.
+#' @examples
+#' query_finngen_GWAS(sumstats_file = "finngen_R9_E4_DM2REN.gz", CHR_var = "1", BP_START_var = 100000, BP_STOP_var= 110000)
 #' @export
-
-
 query_finngen_GWAS <- function(sumstats_file,
                            CHR_var, BP_START_var, BP_STOP_var) {
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
