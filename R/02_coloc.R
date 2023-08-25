@@ -42,7 +42,7 @@ run_coloc <- function(sumstats_df_1, sumstats_1_type,
 #' @examples
 #' under development
 #' sumstats=read.table('CAD.colocalization.tsv.gz', sep='\t',header=T)
-#' get_coloc_regions(sumstats, p_value_name = "P", CHR_name = "CHR", BP_name = "BP", p_threshold = 5e-20, halfwindow = 500000, log_name = "log.txt")
+#' get_coloc_regions(sumstats, p_value_name = "P.value", p_threshold = 5e-100)
 #' @export
 get_coloc_regions <- function(sumstats,
                               p_value_name = "P",
