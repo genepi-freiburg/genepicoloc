@@ -40,23 +40,29 @@ run_coloc <- function(sumstats_df_1, sumstats_1_type,
 #' @param log_name iteration log will be written to this file
 #' @return data frame with extracted regions
 #' @examples
-#' run_coloc()
+#' under development
+#' sumstats=read.table('CAD.colocalization.tsv.gz', sep='\t',header=T)
+#' get_coloc_regions(sumstats, p_value_name = "P", CHR_name = "CHR", BP_name = "BP", p_threshold = 5e-20, halfwindow = 500000, log_name = "log.txt")
 #' @export
 get_coloc_regions <- function(sumstats,
+                              p_value_name = "P",
+                              CHR_name = "CHR",
+                              BP_name = "BP",
                               p_threshold = 5e-8,
-                              log_name) {
+                              halfwindow = 500000,
+                              log_name = "log.txt") {
   # set up variables
   coloc_regions <- data.frame()
+  # function-specific constants
   region_var <- 1
-  halfwindow <- 500000
   comment_var <- "PASS"
   fileConn <- file(log_name, "w")
   sink(fileConn)
   # start iterations
-  while(min(sumstats$P, na.rm = T) < 5e-8) {
-    min_p_row <- sumstats[which.min(sumstats$P),]
-    CHR_var <- min_p_row$CHR
-    BP_var <- min_p_row$BP
+  while(min(sumstats[[p_value_name]], na.rm = T) < p_threshold) {
+    min_p_row <- sumstats[which.min(sumstats[[p_value_name]]),]
+    CHR_var <- min_p_row[[CHR_name]]
+    BP_var <- min_p_row[[BP_name]]
     BP_START_var <- BP_var - halfwindow
     BP_STOP_var <- BP_var + halfwindow
     print(paste0("Solving region ", region_var))
@@ -66,8 +72,8 @@ get_coloc_regions <- function(sumstats,
     } else {
       coloc_regions_filtered <- coloc_regions
     }
-    if (CHR_var %in% coloc_regions_filtered$CHR) {
-      closest_region <- subset(coloc_regions_filtered, coloc_regions_filtered$CHR == CHR_var)
+    if (CHR_var %in% coloc_regions_filtered[[CHR_name]]) {
+      closest_region <- subset(coloc_regions_filtered, coloc_regions_filtered[[CHR_name]] == CHR_var)
       closest_region <- closest_region[which.min(sapply(closest_region$BP, function(x) abs(x - BP_var))),]
       print(paste0("Closest region so far: region=", closest_region$region, ", ", closest_region$CHR, ":", closest_region$BP_START, "-", closest_region$BP_STOP))
       if (abs(closest_region$BP_START - BP_var) < halfwindow |
@@ -89,7 +95,7 @@ get_coloc_regions <- function(sumstats,
     }
     coloc_regions <- rbind(coloc_regions, data.frame(region = region_var, min_p_row, BP_START = BP_START_var, BP_STOP = BP_STOP_var, comment = comment_var))
     old_indeces <- 1:nrow(sumstats)
-    indeces <- which(sumstats$CHR == CHR_var & sumstats$BP >= BP_START_var & sumstats$BP <= BP_STOP_var)
+    indeces <- which(sumstats[[CHR_name]] == CHR_var & sumstats[[BP_name]] >= BP_START_var & sumstats[[BP_name]] <= BP_STOP_var)
     new_indeces <- old_indeces[! old_indeces %in% indeces]
     stopifnot(nrow(sumstats) - length(indeces) == length(new_indeces))
     sumstats <- sumstats[new_indeces,]
