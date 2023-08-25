@@ -5,7 +5,15 @@
 \title{Find significant regions in sumstats and merge close regions if needed
 from a list of external sumstats.}
 \usage{
-get_coloc_regions(sumstats, p_threshold = 5e-08, log_name)
+get_coloc_regions(
+  sumstats,
+  p_value_name = "P",
+  CHR_name = "CHR",
+  BP_name = "BP",
+  p_threshold = 5e-08,
+  halfwindow = 5e+05,
+  log_name = "log.txt"
+)
 }
 \arguments{
 \item{sumstats}{data frame with sumstats. Mandatory columns: CHR, BP, P}
@@ -22,5 +30,7 @@ Find significant regions in sumstats and merge close regions if needed
 from a list of external sumstats.
 }
 \examples{
-run_coloc()
+under development
+sumstats=read.table('CAD.colocalization.tsv.gz', sep='\t',header=T)
+get_coloc_regions(sumstats, p_value_name = "P.value", p_threshold = 5e-100)
 }
