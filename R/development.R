@@ -101,3 +101,24 @@ query_GTEXv8_GWAS <- function(sumstats_file,
                   all(gsub(".*:.*:(.*):.*", "\\1", sumstats$Name) == sumstats$A2)))
   return(sumstats)
 }
+
+
+
+query_Spanish_GWAS <- function(sumstats_file,
+                              CHR_var, BP_START_var, BP_STOP_var) {
+  sumstats <- read.csv(sumstats_file)
+  sumstats<- subset(sumstats, CHR== CHR_var & pos>= BP_START_var & pos<=BP_STOP_var)
+  if (nrow(sumstats) == 0) { return(NA) }
+  # format
+  sumstats$Name <- paste0("chr", sumstats$CHR, ":", sumstats$pos, ":", sumstats$REF.0, ":", sumstats$ALT.1)
+  sumstats$rsids<- NA
+  sumstats <- sumstats[,c("Name", "rsids", "CHR", "pos", "ALT.1.", "REF.0.", "beta", "se", "pvalue", "MAF")]
+  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF")
+  # checks
+  stopifnot(all(gsub(".*:.*:.*:(.*)", "\\1", sumstats$Name) == sumstats$A1 &
+                  all(gsub(".*:.*:(.*):.*", "\\1", sumstats$Name) == sumstats$A2)))
+  return(sumstats)
+}
+
+
+
