@@ -7,6 +7,7 @@
 # - Add to the file with internal examples
 # - Add colClasses, e.g., `colClasses = c(alt = "character", ref= "character")`
 # - Check there are no NAs in betas
+# - Phenotype (genes) in GTEX: ENSG00000198744.5 is not a real gene. It is ENSG00000198744
 
 #' @title Query finngen GWAS
 #' @description Query finngen GWAS data to extract a region of interest
@@ -17,7 +18,7 @@
 #' @param BP_STOP_var end of region, integer
 #' @return data frame with extracted sumstats.
 #' @examples
-#' query_finngen_GWAS(sumstats_file = "finngen_R9_E4_DM2REN.gz", CHR_var = "1", BP_START_var = 100000, BP_STOP_var= 110000)
+#' query_finngen_GWAS(sumstats_file = "finngen_R9_E4_DM2REN.gz", CHR_var = "1", BP_START_var = 100000, BP_STOP_var = 110000)
 #' @export
 query_finngen_GWAS <- function(sumstats_file,
                            CHR_var, BP_START_var, BP_STOP_var) {
@@ -46,24 +47,26 @@ query_finngen_GWAS <- function(sumstats_file,
 #' @param BP_START_var start of region, integer
 #' @param BP_STOP_var end of region, integer
 #' @return data frame with extracted sumstats.
+#' #' @examples
+#' query_GTEXv7_GWAS(sumstats_file = "Whole_Blood.allpairs_tmp_CHR_BP_sorted.txt.gz", CHR_var = "1", BP_START_var = 1000000, 
+#' BP_STOP_var = 1010000, phenotype_id_var = "ENSG00000177757.1")
 #' @export
 
 query_GTEXv7_GWAS <- function(sumstats_file,
-                               CHR_var, BP_START_var, BP_STOP_var) {
+                               CHR_var, BP_START_var, BP_STOP_var,
+                              phenotype_id_var) {
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T),  header = T,  stringsAsFactors = FALSE, 
                          colClasses = c(alt = "character", ref= "character"))
-  sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
-                                            CHR_var, ":", BP_START_var, "-",
-                                            BP_STOP_var), intern = T),  header = T,  stringsAsFactors = T)
   
   if (nrow(sumstats) == 0) { return(NA) }
   # format
   sumstats$Name <- paste0("chr", sumstats$chr, ":", sumstats$pos, ":", sumstats$ref, ":", sumstats$alt)
   sumstats$rsids<- NA
-  sumstats <- sumstats[,c("Name", "rsids", "chr", "pos", "alt", "ref", "slope", "slope_se", "pval_nominal", "maf")]
-  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF")
+  sumstats <- sumstats[,c("Name", "rsids", "chr", "pos", "alt", "ref", "slope", "slope_se", "pval_nominal", 
+                          "maf", "ma_samples", "gene_id")]
+  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N", "Phenotype")
   # checks
   stopifnot(all(gsub(".*:.*:.*:(.*)", "\\1", sumstats$Name) == sumstats$A1 &
                   all(gsub(".*:.*:(.*):.*", "\\1", sumstats$Name) == sumstats$A2)))
@@ -79,6 +82,9 @@ query_GTEXv7_GWAS <- function(sumstats_file,
 #' @param BP_START_var start of region, integer
 #' @param BP_STOP_var end of region, integer
 #' @return data frame with extracted sumstats.
+#' #' #' @examples
+#' query_GTEXv8_GWAS(sumstats_file = "GTEx_V8.gz", CHR_var = "X", BP_START_var = 20000, 
+#' BP_STOP_var = 28000, phenotype_id_var = "ENSG00000167393.17")
 #' @export
 
 query_GTEXv8_GWAS <- function(sumstats_file,
@@ -104,6 +110,7 @@ query_GTEXv8_GWAS <- function(sumstats_file,
 }
 
 
+####
 
 query_Spanish_GWAS <- function(sumstats_file,
                               CHR_var, BP_START_var, BP_STOP_var) {
@@ -113,8 +120,8 @@ query_Spanish_GWAS <- function(sumstats_file,
   # format
   sumstats$Name <- paste0("chr", sumstats$CHR, ":", sumstats$pos, ":", sumstats$REF.0, ":", sumstats$ALT.1)
   sumstats$rsids<- NA
-  sumstats <- sumstats[,c("Name", "rsids", "CHR", "pos", "ALT.1.", "REF.0.", "beta", "se", "pvalue", "MAF")]
-  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF")
+  sumstats <- sumstats[,c("Name", "rsids", "CHR", "pos", "ALT.1.", "REF.0.", "beta", "se", "pvalue", "MAF", "N")]
+  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N")
   # checks
   stopifnot(all(gsub(".*:.*:.*:(.*)", "\\1", sumstats$Name) == sumstats$A1 &
                   all(gsub(".*:.*:(.*):.*", "\\1", sumstats$Name) == sumstats$A2)))
