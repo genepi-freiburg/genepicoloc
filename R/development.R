@@ -8,6 +8,7 @@
 # - Add colClasses, e.g., `colClasses = c(alt = "character", ref= "character")`
 # - Check there are no NAs in betas
 # - Phenotype (genes) in GTEX: ENSG00000198744.5 is not a real gene. It is ENSG00000198744
+# - Check chr X codification
 
 #' @title Query finngen GWAS
 #' @description Query finngen GWAS data to extract a region of interest
@@ -22,6 +23,7 @@
 #' @export
 query_finngen_GWAS <- function(sumstats_file,
                            CHR_var, BP_START_var, BP_STOP_var) {
+  if (CHR_var == "X") {CHR_var <- 23}
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T),  header = T, stringsAsFactors = FALSE, 
@@ -29,6 +31,7 @@ query_finngen_GWAS <- function(sumstats_file,
   
   if (nrow(sumstats) == 0) { return(NA) }
   # format
+  sumstats$X.chrom[sumstats$X.chrom == 23] <- "X"
   sumstats$Name <- paste0("chr", sumstats$X.chrom, ":", sumstats$pos, ":", sumstats$ref, ":", sumstats$alt)
   sumstats <- sumstats[,c("Name", "rsids", "X.chrom", "pos", "alt", "ref", "beta", "sebeta", "pval", "af_alt")]
   colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF")
