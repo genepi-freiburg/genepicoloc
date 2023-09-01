@@ -1,35 +1,98 @@
-#' Runs coloc between GCKD pQTL and every sumstats
-#' from a list of external sumstats.
-#'
-#' @param sumstats_df_1 data frame.
-#' @param sumstats_1_type quant by default.
-#' @param sumstats_df_2 data frame.
-#' @param sumstats_2_type quant by default.
-#' @return data.table with results of coloc
+#' Apply "coloc" to extracted regions from 2 summary statistics
+#' @param sumstats_1_df data frame.
+#' @param sumstats_1_type quant or cc.
+#' @param sumstats_1_df data frame.
+#' @param sumstats_2_type quant or cc.
+#' @return results of coloc
 #' @examples
 #' run_coloc()
 #' @export
-run_coloc <- function(sumstats_df_1, sumstats_1_type,
-                      sumstats_df_2, sumstats_2_type) {
-  sumstats_df_1_coloc <- list(beta=sumstats_df_1$BETA,
-                              varbeta=(sumstats_df_1$SE)^2,
-                              snp=sumstats_df_1$Name,
+run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY = NA,
+                      sumstats_2_df, sumstats_2_type, sumstats_2_sdY = NA) {
+  sumstats_df_1_coloc <- list(beta=sumstats_1_df$BETA,
+                              varbeta=(sumstats_1_df$SE)^2,
+                              snp=sumstats_1_df$Name,
                               type=sumstats_1_type)
   if (sumstats_1_type == "quant") {
-    sumstats_df_1_coloc$MAF <- sumstats_df_1$AF
-    sumstats_df_1_coloc$N <- sumstats_df_1$N
+    if (!is.na(sumstats_1_sdY)) {
+      sumstats_df_1_coloc$sdY <- sumstats_1_sdY
+    } else
+      sumstats_df_1_coloc$MAF <- sumstats_1_df$AF
+    sumstats_df_1_coloc$N <- sumstats_1_df$N
   }
-  sumstats_df_2_coloc <- list(beta=sumstats_df_2$BETA,
-                              varbeta=(sumstats_df_2$SE)^2,
-                              snp=sumstats_df_2$Name,
+  sumstats_df_2_coloc <- list(beta=sumstats_2_df$BETA,
+                              varbeta=(sumstats_2_df$SE)^2,
+                              snp=sumstats_2_df$Name,
                               type=sumstats_2_type)
   if (sumstats_2_type == "quant") {
-    sumstats_df_2_coloc$MAF <- sumstats_df_2$AF
-    sumstats_df_2_coloc$N <- sumstats_df_2$N
+    if (!is.na(sumstats_2_sdY)) {
+      sumstats_df_2_coloc$sdY <- sumstats_2_sdY
+    } else
+      sumstats_df_2_coloc$MAF <- sumstats_2_df$AF
+    sumstats_df_2_coloc$N <- sumstats_2_df$N
   }
   coloc_res <- coloc.abf(dataset1=sumstats_df_1_coloc, dataset2=sumstats_df_2_coloc)
   return(coloc_res)
 }
+
+wrapper_run_coloc <- function(...,
+                              mclapply_use = F,
+                              remove_full_results = T,
+                              N_top_SNPs = 5,
+                              add_annotation = T) {
+  extra_args <- list(...)
+  if (mclapply_use) {
+    extra_args <- unlist(extra_args, recursive = FALSE)
+  }
+  if (length(extra_args) > 0) {
+    for (i in 1:length(extra_args)) {
+      if (names(extra_args)[i] == "") {
+        assign(names(extra_args[[i]]), extra_args[[i]])
+      } else {
+        assign(names(extra_args)[i], extra_args[[i]])
+      }
+    }
+  } else {
+    stop("ellipsis arguments are empty")
+  }
+  region_list <- list(CHR_var, BP_START_var, BP_STOP_var)
+  sumstats_1_df <- do.call(sumstats_1_function, c(list(sumstats_1_file), region_list, extra_args))
+  sumstats_2_df <- do.call(sumstats_2_function, c(list(sumstats_2_file), region_list, extra_args))
+  coloc_output <- run_coloc(sumstats_1_df = sumstats_1_df,
+                            sumstats_1_type = sumstats_1_type,
+                            sumstats_1_sdY = sumstats_1_sdY,
+                            sumstats_2_df = sumstats_2_df,
+                            sumstats_2_type = sumstats_2_type,
+                            sumstats_2_sdY = sumstats_2_sdY)
+  if (add_annotation) {
+    results_top <- coloc_output$results[,c("snp", "SNP.PP.H4")]
+    results_top <- head(results_top[order(results_top$SNP.PP.H4, decreasing = T),], N_top_SNPs)
+    Top_coloc_SNP <- paste(results_top$snp, collapse = ", ")
+    SNP.PP.H4 <- results_top$SNP.PP.H4
+    SNP.PP.H4 <- ifelse(SNP.PP.H4 < 0.01, format(SNP.PP.H4, scientific = TRUE, digits = 2),
+                        sprintf("%.2f", round(SNP.PP.H4, 2)))
+    SNP.PP.H4 <- paste(SNP.PP.H4, collapse = ", ")
+    priors <- paste(coloc_output$priors, collapse=", ")
+    region_df <- data.frame(sumstats_1_file = sumstats_1_file,
+                            sumstats_2_file = sumstats_2_file,
+                            CHR_var = CHR_var,
+                            BP_START_var = BP_START_var,
+                            BP_STOP_var = BP_STOP_var)
+    annotation_df <- data.frame(sumstats_1_min_P = min(sumstats_1_df$P, na.rm=T),
+                                sumstats_2_min_P = min(sumstats_2_df$P, na.rm=T),
+                                Top_coloc_SNP = Top_coloc_SNP,
+                                Top_coloc_SNP.PP.H4 = SNP.PP.H4,
+                                priors = priors)
+    coloc_output$summary_df <- data.frame(region_df,
+                                          data.frame(t(coloc_output$summary)),
+                                          annotation_df)
+  }
+  if (remove_full_results) {
+    coloc_output$results <- NULL
+  }
+  return(coloc_output$summary_df)
+}
+
 
 
 #' Find significant regions in sumstats and merge close regions if needed
