@@ -4,10 +4,10 @@
 # - Add check for reference allele (first allele should be reference)
 # - Add check that A1 is alternative allele (first allele should be reference)
 # checks: duplicated SNPs
+# - Add input option for sdY
 # - Split between mandatory and optional columns
 #   - mandatory columns for binary traits: ID, BETA, SE 
 #   - mandatory columns for quantitative traits: ID, BETA, SE 
-# - Add input option for sdY
 # - Add to the file with internal examples
 # - Add colClasses, e.g., `colClasses = c(alt = "character", ref= "character")`
 # - Check there are no NAs in betas
