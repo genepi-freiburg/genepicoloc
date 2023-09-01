@@ -1,7 +1,7 @@
 #' @title Query GCKD pGWAS
 #' @description Internal function, under development
-#' @param sumstats_file path to GCKD Olink sumstats.
-#' @param CHR_var CHR (as.character "1", "2", ..., "X").
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
 #' @param BP_START_var start of region, integer
 #' @param BP_STOP_var end of region, integer
 #' @return data frame with extracted sumstats
@@ -24,10 +24,32 @@ query_GCKD_pGWAS <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var) 
   return(sumstats)
 }
 
+#' @title Query GCKD pGWAS meta
+#' @description Internal function, under development
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats
+#' @export
+query_GCKD_pGWAS_meta <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var) {
+  sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
+                                            CHR_var, ":", BP_START_var, "-",
+                                            BP_STOP_var), intern = T), header = T)
+  if (nrow(sumstats) == 0) { return(NA) }
+  # format
+  sumstats$rsID <- NA
+  sumstats$N <- 1250
+  sumstats <- sumstats[,c("SNP", "rsID", "chr", "position", "noncoded_all", "coded_all", "beta", "SE", "pval", "AF_coded_all", "n_total")]
+  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N")
+  # output
+  return(sumstats)
+}
+
 #' @title Query GCKD mGWAS plasma or urine
 #' @description Internal function, under development
-#' @param sumstats_file path to sumstats.
-#' @param CHR_var CHR (as.character "1", "2", ..., "X").
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
 #' @param BP_START_var start of region, integer
 #' @param BP_STOP_var end of region, integer
 #' @return data frame with extracted sumstats
@@ -51,8 +73,8 @@ query_GCKD_mGWAS <- function(sumstats_file,
 
 #' @title query TAS
 #' @description Internal function, under development
-#' @param sumstats_file path to sumstats.
-#' @param CHR_var CHR (as.character "1", "2", ..., "X").
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
 #' @param BP_START_var start of region, integer
 #' @param BP_STOP_var end of region, integer
 #' @return data frame with extracted sumstats
@@ -80,8 +102,8 @@ query_TAS <- function(sumstats_file,
 
 #' @title query CAD
 #' @description Internal function, under development
-#' @param sumstats_file path to sumstats.
-#' @param CHR_var CHR (as.character "1", "2", ..., "X").
+##' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
 #' @param BP_START_var start of region, integer
 #' @param BP_STOP_var end of region, integer
 #' @return data frame with extracted sumstats
