@@ -4,18 +4,16 @@
 \alias{query_UKB_GWAS}
 \title{Query UKB GWAS}
 \usage{
-query_UKB_GWAS(sumstats_file, CHR_var, BP_START_var, BP_STOP_var)
+query_UKB_GWAS(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, ...)
 }
 \arguments{
-\item{sumstats_file}{path to UKB sumstats.}
+\item{sumstats_file}{path tabix-indexed sumstats.}
 
-\item{CHR_var}{CHR (as.character "1", "2", ..., "X").}
+\item{CHR_var}{chromosome (as.character "1", "2", ..., "X").}
 
 \item{BP_START_var}{start of region, integer}
 
 \item{BP_STOP_var}{end of region, integer}
-
-\item{annotation_file}{annotation file with number of samples for each GWAS.}
 }
 \value{
 data frame with extracted sumstats.

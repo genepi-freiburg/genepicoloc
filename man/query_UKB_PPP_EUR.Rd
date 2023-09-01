@@ -4,12 +4,12 @@
 \alias{query_UKB_PPP_EUR}
 \title{query UKB PPP pGWAS}
 \usage{
-query_UKB_PPP_EUR(sumstats_file, CHR_var, BP_START_var, BP_STOP_var)
+query_UKB_PPP_EUR(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, ...)
 }
 \arguments{
-\item{sumstats_file}{path to sumstats.}
+\item{sumstats_file}{path tabix-indexed sumstats.}
 
-\item{CHR_var}{CHR (as.character "1", "2", ..., "X").}
+\item{CHR_var}{chromosome (as.character "1", "2", ..., "X").}
 
 \item{BP_START_var}{start of region, integer}
 

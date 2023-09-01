@@ -9,13 +9,14 @@ query_Ferkingstad_pGWAS(
   CHR_var,
   BP_START_var,
   BP_STOP_var,
-  assocvariants_annotate_file
+  assocvariants_annotate_file,
+  ...
 )
 }
 \arguments{
-\item{sumstats_file}{path to sumstats sumstats.}
+\item{sumstats_file}{path tabix-indexed sumstats.}
 
-\item{CHR_var}{CHR (as.character "1", "2", ..., "X").}
+\item{CHR_var}{chromosome (as.character "1", "2", ..., "X").}
 
 \item{BP_START_var}{start of region, integer}
 
@@ -27,6 +28,5 @@ query_Ferkingstad_pGWAS(
 data frame with extracted sumstats
 }
 \description{
-Query Ferkingstad pGWAS (FpG) data to extract
-every pQTL region according to GCKD
+Query Ferkingstad pGWAS (FpG) data
 }

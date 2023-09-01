@@ -2,26 +2,29 @@
 % Please edit documentation in R/02_coloc.R
 \name{run_coloc}
 \alias{run_coloc}
-\title{Runs coloc between GCKD pQTL and every sumstats
-from a list of external sumstats.}
+\title{Apply "coloc" to extracted regions from 2 summary statistics}
 \usage{
-run_coloc(sumstats_df_1, sumstats_1_type, sumstats_df_2, sumstats_2_type)
+run_coloc(
+  sumstats_1_df,
+  sumstats_1_type,
+  sumstats_1_sdY = NA,
+  sumstats_2_df,
+  sumstats_2_type,
+  sumstats_2_sdY = NA
+)
 }
 \arguments{
-\item{sumstats_df_1}{data frame.}
+\item{sumstats_1_df}{data frame.}
 
-\item{sumstats_1_type}{quant by default.}
+\item{sumstats_1_type}{quant or cc.}
 
-\item{sumstats_df_2}{data frame.}
-
-\item{sumstats_2_type}{quant by default.}
+\item{sumstats_2_type}{quant or cc.}
 }
 \value{
-data.table with results of coloc
+results of coloc
 }
 \description{
-Runs coloc between GCKD pQTL and every sumstats
-from a list of external sumstats.
+Apply "coloc" to extracted regions from 2 summary statistics
 }
 \examples{
 run_coloc()
