@@ -6,7 +6,7 @@
 #' @param BP_STOP_var end of region, integer
 #' @return data frame with extracted sumstats
 #' @export
-query_GCKD_pGWAS <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var) {
+query_GCKD_pGWAS <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, ...) {
   sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T), header = T)
@@ -32,7 +32,7 @@ query_GCKD_pGWAS <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var) 
 #' @param BP_STOP_var end of region, integer
 #' @return data frame with extracted sumstats
 #' @export
-query_GCKD_pGWAS_meta <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var) {
+query_GCKD_pGWAS_meta <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, ...) {
   sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T), header = T)
@@ -55,7 +55,7 @@ query_GCKD_pGWAS_meta <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_
 #' @return data frame with extracted sumstats
 #' @export
 query_GCKD_mGWAS <- function(sumstats_file,
-                             CHR_var, BP_START_var, BP_STOP_var) {
+                             CHR_var, BP_START_var, BP_STOP_var, ...) {
   sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T), header = T)
@@ -80,7 +80,7 @@ query_GCKD_mGWAS <- function(sumstats_file,
 #' @return data frame with extracted sumstats
 #' @export
 query_TAS <- function(sumstats_file,
-                      CHR_var, BP_START_var, BP_STOP_var) {
+                      CHR_var, BP_START_var, BP_STOP_var, ...) {
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var),
@@ -109,7 +109,7 @@ query_TAS <- function(sumstats_file,
 #' @return data frame with extracted sumstats
 #' @export
 query_CAD <- function(sumstats_file,
-                      CHR_var, BP_START_var, BP_STOP_var) {
+                      CHR_var, BP_START_var, BP_STOP_var, ...) {
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var),

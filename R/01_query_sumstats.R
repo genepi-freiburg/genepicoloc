@@ -7,11 +7,11 @@
 #' @return data frame with extracted sumstats.
 #' @export
 query_UKB_GWAS <- function(sumstats_file,
-                           CHR_var, BP_START_var, BP_STOP_var) {
+                           CHR_var, BP_START_var, BP_STOP_var, ...) {
   sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T), sep = "\t", header = T)
-  if (nrow(sumstats) == 0) { return(NA) }
+  if (nrow(sumstats) == 0) { stop("UKB GWAS sumstats has 0 lines") }# return(NA)
   # format
   sumstats$Name <- paste0("chr", sumstats$chrom, ":", sumstats$pos, ":", sumstats$ref, ":", sumstats$alt)
   sumstats <- sumstats[,c("Name", "rsids", "chrom", "pos", "alt", "ref", "beta", "sebeta", "pval", "af")]
@@ -23,7 +23,7 @@ query_UKB_GWAS <- function(sumstats_file,
 }
 
 #' @title query Ferkingstad pGWAS
-#' @description Query Ferkingstad pGWAS (FpG) data to extract
+#' @description Query Ferkingstad pGWAS (FpG) data
 #' @param sumstats_file path tabix-indexed sumstats.
 #' @param CHR_var chromosome (as.character "1", "2", ..., "X").
 #' @param BP_START_var start of region, integer
@@ -33,7 +33,7 @@ query_UKB_GWAS <- function(sumstats_file,
 #' @export
 query_Ferkingstad_pGWAS <- function(sumstats_file,
                                     CHR_var, BP_START_var, BP_STOP_var,
-                                    assocvariants_annotate_file) {
+                                    assocvariants_annotate_file, ...) {
   sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file,
                                             " chr", CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T), header = T)
@@ -65,11 +65,13 @@ query_Ferkingstad_pGWAS <- function(sumstats_file,
 #' @return data frame with extracted sumstats
 #' @export
 query_UKB_PPP_EUR <- function(sumstats_file,
-                              CHR_var, BP_START_var, BP_STOP_var) {
+                              CHR_var, BP_START_var, BP_STOP_var, ...) {
+  if (CHR_var == "X") {CHR_var <- "23"}
   sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T), header = T)
-  if (nrow(sumstats) == 0) { return(sumstats) }
+  sumstats$CHROM[sumstats$CHROM == "23"] <- "X"
+  if (nrow(sumstats) == 0) { stop("UKB_PPP_EUR sumstats has 0 lines") }
   # format
   sumstats$ID <- paste0("chr", sumstats$CHROM, ":", sumstats$GENPOS, ":", sumstats$ALLELE0, ":", sumstats$ALLELE1)
   sumstats$rsID <- NA
@@ -92,7 +94,7 @@ query_UKB_PPP_EUR <- function(sumstats_file,
 #' @return data frame with extracted sumstats
 #' @export
 query_ARIC_pGWAS <- function(sumstats_file,
-                             CHR_var, BP_START_var, BP_STOP_var) {
+                             CHR_var, BP_START_var, BP_STOP_var, ...) {
   sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var, " | sed 's/\\#CHROM/CHROM/g'"),
@@ -126,7 +128,7 @@ query_ARIC_pGWAS <- function(sumstats_file,
 #' @return data frame with extracted sumstats
 #' @export
 query_CKD_pGWAS <- function(sumstats_file,
-                            CHR_var, BP_START_var, BP_STOP_var) {
+                            CHR_var, BP_START_var, BP_STOP_var, ...) {
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var),
@@ -155,8 +157,8 @@ query_CKD_pGWAS <- function(sumstats_file,
 #' query_finngen_GWAS(sumstats_file = "finngen_R9_E4_DM2REN.gz", CHR_var = "1", BP_START_var = 100000, BP_STOP_var = 110000)
 #' @export
 query_finngen_GWAS <- function(sumstats_file,
-                               CHR_var, BP_START_var, BP_STOP_var) {
-  if (CHR_var == "X") {CHR_var <- 23}
+                               CHR_var, BP_START_var, BP_STOP_var, ...) {
+  if (CHR_var == "X") {CHR_var <- "23"}
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T),  header = T, stringsAsFactors = FALSE, 
@@ -164,7 +166,7 @@ query_finngen_GWAS <- function(sumstats_file,
   
   if (nrow(sumstats) == 0) { return(NA) }
   # format
-  sumstats$X.chrom[sumstats$X.chrom == 23] <- "X"
+  sumstats$X.chrom[sumstats$X.chrom == "23"] <- "X"
   sumstats$Name <- paste0("chr", sumstats$X.chrom, ":", sumstats$pos, ":", sumstats$ref, ":", sumstats$alt)
   sumstats <- sumstats[,c("Name", "rsids", "X.chrom", "pos", "alt", "ref", "beta", "sebeta", "pval", "af_alt")]
   colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF")
@@ -189,7 +191,7 @@ query_finngen_GWAS <- function(sumstats_file,
 
 query_GTEXv7_GWAS <- function(sumstats_file,
                               CHR_var, BP_START_var, BP_STOP_var,
-                              phenotype_id_var) {
+                              phenotype_id_var, ...) {
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T),  header = T,  stringsAsFactors = FALSE, 
@@ -222,7 +224,7 @@ query_GTEXv7_GWAS <- function(sumstats_file,
 #' @export
 query_GTEXv8_GWAS <- function(sumstats_file,
                               CHR_var, BP_START_var, BP_STOP_var,
-                              phenotype_id_var) {
+                              phenotype_id_var, ...) {
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " chr",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T),  header = F,  stringsAsFactors = FALSE, 
