@@ -1,9 +1,43 @@
-#' Apply "coloc" to extracted regions from 2 summary statistics
+#' Create data.frame with input parameters for coloc
+#' @param sumstats_number 1 or 2 (pair of sumstats for coloc).
+#' @param sumstats_path path to folder with indexed sumstats.
+#' @param sumstats_pattern usually "gz$".
+#' @param grep_invert expression to exclude some found files
+#' (e.g., annotation files in the same folder).
+#' @param sumstats_function function name to query sumstats.
+#' @param sumstats_type quant or cc.
+#' @param sumstats_sdY sdY for quant traits,
+#' by default NA and estimated from BETA and MAF.
+#' @return data.frame with input parameters for coloc
+#' @examples
+#' create_coloc_params_df()
+#' @export
+create_coloc_params_df <- function(sumstats_number = 2,
+                                   sumstats_path,
+                                   sumstats_pattern = "gz$",
+                                   grep_invert = NULL,
+                                   sumstats_function,
+                                   sumstats_type,
+                                   sumstats_sdY = NA) {
+  files <- list.files(sumstats_path, pattern = sumstats_pattern, full.names = T)
+  if (length(files) == 0) {stop("No sumstats found under given path")}
+  if (!is.null(grep_invert)) {
+    files <- grep(grep_invert, files, value = T, invert = T)
+  }
+  params_df <- data.frame(matrix(nrow = length(files), ncol = 0))
+  params_df[[paste0("sumstats_", sumstats_number, "_file")]] <- files
+  params_df[[paste0("sumstats_", sumstats_number, "_function")]] <- sumstats_function
+  params_df[[paste0("sumstats_", sumstats_number, "_type")]] <- sumstats_type
+  params_df[[paste0("sumstats_", sumstats_number, "_sdY")]] <- sumstats_sdY
+  return(params_df)
+}
+
+#' Run coloc function using 2 extracted regions
 #' @param sumstats_1_df data frame.
 #' @param sumstats_1_type quant or cc.
 #' @param sumstats_1_df data frame.
 #' @param sumstats_2_type quant or cc.
-#' @return results of coloc
+#' @return results of coloc.abf function
 #' @examples
 #' run_coloc()
 #' @export
@@ -35,64 +69,72 @@ run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY = NA,
   return(coloc_res)
 }
 
-wrapper_run_coloc <- function(...,
-                              mclapply_use = F,
-                              remove_full_results = T,
-                              N_top_SNPs = 5,
-                              add_annotation = T) {
+#' Query sumstats and run coloc, supports multithreading / slurm.
+#' @param args_list list of input arguments for coloc
+#' usually created using 'create_coloc_params_df' function 
+#' @param ellipsis with additional arguments (e.g., annotation files).
+#' @return results of coloc.abf function
+#' @examples
+#' run_coloc()
+#' @export
+coloc_wrapper <- function(args_list, ...) {
   extra_args <- list(...)
-  if (mclapply_use) {
-    extra_args <- unlist(extra_args, recursive = FALSE)
-  }
-  if (length(extra_args) > 0) {
-    for (i in 1:length(extra_args)) {
-      if (names(extra_args)[i] == "") {
-        assign(names(extra_args[[i]]), extra_args[[i]])
-      } else {
-        assign(names(extra_args)[i], extra_args[[i]])
-      }
-    }
-  } else {
-    stop("ellipsis arguments are empty")
+  for (i in names(args_list)) {
+    assign(i, args_list[[i]])
   }
   region_list <- list(CHR_var, BP_START_var, BP_STOP_var)
-  sumstats_1_df <- do.call(sumstats_1_function, c(list(sumstats_1_file), region_list, extra_args))
+  sumstats_1_df <- do.call(sumstats_1_function, c(list(sumstats_1_file), region_list, extra_args)) # extra_args
+  sumstats_1_min_P <- min(sumstats_1_df$P, na.rm=T)
   sumstats_2_df <- do.call(sumstats_2_function, c(list(sumstats_2_file), region_list, extra_args))
+  sumstats_2_min_P <- min(sumstats_2_df$P, na.rm=T)
   coloc_output <- run_coloc(sumstats_1_df = sumstats_1_df,
                             sumstats_1_type = sumstats_1_type,
                             sumstats_1_sdY = sumstats_1_sdY,
                             sumstats_2_df = sumstats_2_df,
                             sumstats_2_type = sumstats_2_type,
                             sumstats_2_sdY = sumstats_2_sdY)
-  if (add_annotation) {
-    results_top <- coloc_output$results[,c("snp", "SNP.PP.H4")]
-    results_top <- head(results_top[order(results_top$SNP.PP.H4, decreasing = T),], N_top_SNPs)
-    Top_coloc_SNP <- paste(results_top$snp, collapse = ", ")
-    SNP.PP.H4 <- results_top$SNP.PP.H4
-    SNP.PP.H4 <- ifelse(SNP.PP.H4 < 0.01, format(SNP.PP.H4, scientific = TRUE, digits = 2),
-                        sprintf("%.2f", round(SNP.PP.H4, 2)))
-    SNP.PP.H4 <- paste(SNP.PP.H4, collapse = ", ")
-    priors <- paste(coloc_output$priors, collapse=", ")
-    region_df <- data.frame(sumstats_1_file = sumstats_1_file,
-                            sumstats_2_file = sumstats_2_file,
-                            CHR_var = CHR_var,
-                            BP_START_var = BP_START_var,
-                            BP_STOP_var = BP_STOP_var)
-    annotation_df <- data.frame(sumstats_1_min_P = min(sumstats_1_df$P, na.rm=T),
-                                sumstats_2_min_P = min(sumstats_2_df$P, na.rm=T),
-                                Top_coloc_SNP = Top_coloc_SNP,
-                                Top_coloc_SNP.PP.H4 = SNP.PP.H4,
-                                priors = priors)
-    coloc_output$summary_df <- data.frame(region_df,
-                                          data.frame(t(coloc_output$summary)),
-                                          annotation_df)
-  }
+  coloc_output$region <- data.frame(CHR_var = CHR_var,
+                                    BP_START_var = BP_START_var,
+                                    BP_STOP_var = BP_STOP_var,
+                                    sumstats_1_file = sumstats_1_file,
+                                    sumstats_1_min_P = sumstats_1_min_P,
+                                    sumstats_2_file = sumstats_2_file,
+                                    sumstats_2_min_P = sumstats_2_min_P)
+  return(coloc_output)
+}
+
+
+#' Process results of coloc_wrapper function.
+#' @param coloc_output output of coloc_wrapper function.
+#' @param N_top_SNPs Number of SNPs with highest PP.H4 to output.
+#' @param remove_full_results Should data.frame with full coloc output be removed?
+#' Usually TRUE, in this case only first SNPs are used in output.
+#' @return results of coloc.abf function
+#' @examples
+#' run_coloc()
+#' @export
+process_wrapper <- function(coloc_output,
+                            N_top_SNPs = 5,
+                            remove_full_results = T) {
+  results_top <- coloc_output$results[,c("snp", "SNP.PP.H4")]
+  results_top <- head(results_top[order(results_top$SNP.PP.H4, decreasing = T),], N_top_SNPs)
+  Top_coloc_SNP <- paste(results_top$snp, collapse = ", ")
+  SNP.PP.H4 <- results_top$SNP.PP.H4
+  SNP.PP.H4 <- ifelse(SNP.PP.H4 < 0.01, format(SNP.PP.H4, scientific = TRUE, digits = 2),
+                      sprintf("%.2f", round(SNP.PP.H4, 2)))
+  SNP.PP.H4 <- paste(SNP.PP.H4, collapse = ", ")
+  priors <- paste(coloc_output$priors, collapse=", ")
+  annotation_df <- data.frame(Top_coloc_SNP = Top_coloc_SNP,
+                              Top_coloc_SNP.PP.H4 = SNP.PP.H4,
+                              priors = priors)
+  coloc_output$summary_df <- data.frame(coloc_output$region,
+                                        data.frame(t(coloc_output$summary)),
+                                        annotation_df)
   if (remove_full_results) {
     coloc_output$results <- NULL
   }
   return(coloc_output$summary_df)
 }
-
 
 
 #' Find significant regions in sumstats and merge close regions if needed
