@@ -77,7 +77,9 @@ run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY = NA,
 #' @examples
 #' run_coloc()
 #' @export
-coloc_wrapper <- function(args_list, ...) {
+coloc_wrapper <- function(args_list,
+                          do_process_wrapper = T,
+                          ...) {
   extra_args <- list(...)
   for (i in names(args_list)) {
     assign(i, args_list[[i]])
@@ -100,6 +102,9 @@ coloc_wrapper <- function(args_list, ...) {
                                     sumstats_1_min_P = sumstats_1_min_P,
                                     sumstats_2_file = sumstats_2_file,
                                     sumstats_2_min_P = sumstats_2_min_P)
+  if (do_process_wrapper) {
+    coloc_output <- process_wrapper(coloc_output)
+  }
   return(coloc_output)
 }
 
@@ -134,6 +139,35 @@ process_wrapper <- function(coloc_output,
     coloc_output$results <- NULL
   }
   return(coloc_output$summary_df)
+}
+
+coloc_wrapper_02 <- function(params_df_1,
+                             params_df_2,
+                             EXPERIMENT,
+                             chunk_size = 10000,
+                             do_process_wrapper = T,
+                             extra_arguments) {
+  params_df <- merge(params_df_1, params_df_2)
+  system(paste0("mkdir -p ", EXPERIMENT, "/resultsRDS"))
+  params_chunks <- params_df_to_chunks(params_df, chunk_size = chunk_size)
+  coloc_out_list <- lapply(1:length(params_chunks), function(i) {
+    params_list <- params_df_to_list(params_chunks[[i]])
+    coloc_slr_job <- slurm_map(x = params_list,
+                               coloc_wrapper,
+                               do_process_wrapper = do_process_wrapper,
+                               extra_arguments,
+                               nodes = 40, cpus_per_node = 5,
+                               jobname = paste0("coloc_", i), submit = TRUE,
+                               slurm_options = list(time = "12:00:00", share = TRUE))
+    coloc_out <- get_slurm_out(coloc_slr_job, outtype = "raw", wait = TRUE, ncores = NULL)
+    # cleanup_files(coloc_slr_job, wait = TRUE)
+    # coloc_out <- mclapply(params_list, coloc_wrapper, mc.cores = 10)
+    # coloc_out <- mclapply(coloc_out, process_wrapper, mc.cores = 10)
+    saveRDS(coloc_out, paste0("resultsRDS/batch_", i, "_coloc.RDS"))
+    # return(coloc_out)
+  })
+  # return(coloc_out_list)
+  # coloc_out_df <- do.call(rbind, )
 }
 
 
