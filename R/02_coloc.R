@@ -78,12 +78,13 @@ run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY = NA,
 #' run_coloc()
 #' @export
 coloc_wrapper <- function(args_list,
-                          do_process_wrapper = T,
-                          ...) {
+                          ...,
+                          do_process_wrapper = T) {
   extra_args <- list(...)
   for (i in names(args_list)) {
     assign(i, args_list[[i]])
   }
+  print(get(sumstats_2_function))
   region_list <- list(CHR_var, BP_START_var, BP_STOP_var)
   sumstats_1_df <- do.call(sumstats_1_function, c(list(sumstats_1_file), region_list, extra_args)) # extra_args
   sumstats_1_min_P <- min(sumstats_1_df$P, na.rm=T)

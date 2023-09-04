@@ -71,7 +71,7 @@ query_UKB_PPP_EUR <- function(sumstats_file,
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T), header = T)
   sumstats$CHROM[sumstats$CHROM == "23"] <- "X"
-  if (nrow(sumstats) == 0) { stop("UKB_PPP_EUR sumstats has 0 lines") }
+  if (nrow(sumstats) == 0) { stop("sumstats has 0 lines") }
   # format
   sumstats$ID <- paste0("chr", sumstats$CHROM, ":", sumstats$GENPOS, ":", sumstats$ALLELE0, ":", sumstats$ALLELE1)
   sumstats$rsID <- NA
