@@ -56,9 +56,11 @@ query_GCKD_pGWAS_meta <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_
 #' @export
 query_GCKD_mGWAS <- function(sumstats_file,
                              CHR_var, BP_START_var, BP_STOP_var, ...) {
+  if (CHR_var == "X") {CHR_var <- "23"}
   sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T), header = T)
+  sumstats$CHROM[sumstats$CHROM == "23"] <- "X"
   if (nrow(sumstats) == 0) { return(NA) }
   # format
   sumstats$rsID <- NA
