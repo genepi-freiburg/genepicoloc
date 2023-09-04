@@ -2,7 +2,7 @@
 % Please edit documentation in R/02_coloc.R
 \name{run_coloc}
 \alias{run_coloc}
-\title{Apply "coloc" to extracted regions from 2 summary statistics}
+\title{Run coloc function using 2 extracted regions}
 \usage{
 run_coloc(
   sumstats_1_df,
@@ -21,10 +21,10 @@ run_coloc(
 \item{sumstats_2_type}{quant or cc.}
 }
 \value{
-results of coloc
+results of coloc.abf function
 }
 \description{
-Apply "coloc" to extracted regions from 2 summary statistics
+Run coloc function using 2 extracted regions
 }
 \examples{
 run_coloc()
