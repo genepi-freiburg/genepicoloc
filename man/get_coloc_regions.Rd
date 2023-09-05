@@ -7,16 +7,17 @@ from a list of external sumstats.}
 \usage{
 get_coloc_regions(
   sumstats,
-  p_value_name = "P",
   CHR_name = "CHR",
   BP_name = "BP",
+  p_value_name = "P",
   p_threshold = 5e-08,
   halfwindow = 5e+05,
-  log_name = "log.txt"
+  log_name = "log.txt",
+  regions_name = "regions.txt"
 )
 }
 \arguments{
-\item{sumstats}{data frame with sumstats. Mandatory columns: CHR, BP, P}
+\item{sumstats}{data frame read with read_sumstats_1(). Mandatory columns: CHR, BP, P}
 
 \item{p_threshold}{search for regions until no more variants below this threshold remains}
 
