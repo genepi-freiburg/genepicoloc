@@ -84,7 +84,6 @@ coloc_wrapper <- function(args_list,
   for (i in names(args_list)) {
     assign(i, args_list[[i]])
   }
-  print(get(sumstats_2_function))
   region_list <- list(CHR_var, BP_START_var, BP_STOP_var)
   sumstats_1_df <- do.call(sumstats_1_function, c(list(sumstats_1_file), region_list, extra_args)) # extra_args
   sumstats_1_min_P <- min(sumstats_1_df$P, na.rm=T)
@@ -149,7 +148,7 @@ coloc_wrapper_02 <- function(params_df_1,
                              do_process_wrapper = T,
                              extra_arguments) {
   params_df <- merge(params_df_1, params_df_2)
-  system(paste0("mkdir -p ", EXPERIMENT, "/resultsRDS"))
+  system(paste0("mkdir -p resultsRDS"))
   params_chunks <- params_df_to_chunks(params_df, chunk_size = chunk_size)
   coloc_out_list <- lapply(1:length(params_chunks), function(i) {
     params_list <- params_df_to_list(params_chunks[[i]])
@@ -172,10 +171,40 @@ coloc_wrapper_02 <- function(params_df_1,
 }
 
 
+#' Read sumstats 1 and format columns
+#' @param sumstats_file path to sumstats file
+#' @param CHR_name name of the column with chromosomes
+#' @param BP_name name of the column with positions
+#' @param p_value_name name of the column with p-values
+#' @param read_method either data.table (preferable, if available) or data.frame
+#' @return data frame with formatted columns
+#' @examples
+#' under development
+#' @export
+read_sumstats_1 <- function(sumstats_file,
+                            CHR_name = "CHR",
+                            BP_name = "BP",
+                            p_value_name = "P",
+                            other_columns,
+                            read_method = "data.table") {
+  if (read_method == "data.table") {
+    sumstats <- data.table::fread(sumstats_file)
+    sumstats <- as.data.frame(sumstats)
+  }
+  if (read_method == "data.frame") {
+    sumstats <- read.delim(sumstats_file, header = T)
+  }
+  sumstats <- sumstats[,c(CHR_name, BP_name, p_value_name, other_columns)]
+  colnames(sumstats)[colnames(sumstats) == CHR_name] <- "CHR"
+  colnames(sumstats)[colnames(sumstats) == BP_name] <- "BP"
+  colnames(sumstats)[colnames(sumstats) == p_value_name] <- "P"
+  return(sumstats)
+}
+
 #' Find significant regions in sumstats and merge close regions if needed
 #' from a list of external sumstats.
 #'
-#' @param sumstats data frame with sumstats. Mandatory columns: CHR, BP, P
+#' @param sumstats data frame read with read_sumstats_1(). Mandatory columns: CHR, BP, P
 #' @param p_threshold search for regions until no more variants below this threshold remains
 #' @param log_name iteration log will be written to this file
 #' @return data frame with extracted regions
@@ -185,12 +214,16 @@ coloc_wrapper_02 <- function(params_df_1,
 #' get_coloc_regions(sumstats, p_value_name = "P.value", p_threshold = 5e-100)
 #' @export
 get_coloc_regions <- function(sumstats,
-                              p_value_name = "P",
                               CHR_name = "CHR",
                               BP_name = "BP",
+                              p_value_name = "P",
                               p_threshold = 5e-8,
                               halfwindow = 500000,
-                              log_name = "log.txt") {
+                              log_name = "log.txt",
+                              regions_name = "regions.txt") {
+  if(!all("CHR" %in% colnames(sumstats) &
+              "BP" %in% colnames(sumstats) &
+              "P" %in% colnames(sumstats))) {stop("Check column names")}
   # set up variables
   coloc_regions <- data.frame()
   # function-specific constants
@@ -245,6 +278,32 @@ get_coloc_regions <- function(sumstats,
   }
   # close log and return results
   sink(); close(fileConn)
-  return(coloc_regions)
+  coloc_regions_short <- coloc_regions[,c("CHR", "BP_START", "BP_STOP")]
+  colnames(coloc_regions_short) <- paste0(colnames(coloc_regions_short), "_var")
+  write.table(coloc_regions_short, regions_name, sep="\t", quote=F, row.names = F)
+  write.table(coloc_regions, gsub(".txt", "_full.txt", regions_name), sep="\t", quote=F, row.names = F)
+  return(coloc_regions_short)
 }
 
+#' Read sumstats 1 and format columns
+#' @param sumstats sumstats file created by read_sumstats_1()
+#' @param coloc_regions file created by get_coloc_regions()
+#' @return data frame with formatted columns
+#' @examples
+#' under development
+#' @export
+subset_sumstats_1 <- function(sumstats,
+                              coloc_regions) {
+  if(!all("CHR" %in% colnames(sumstats) &
+          "BP" %in% colnames(sumstats) &
+          "P" %in% colnames(sumstats))) {stop("Check column names")}
+  sumstats_filt_list <- lapply(1:nrow(coloc_regions), function(i) {
+    coloc_regions_format_i <- coloc_regions[i,]
+    subset(sumstats, CHR == coloc_regions_format_i$CHR_var &
+             BP >= coloc_regions_format_i$BP_START_var &
+             BP <= coloc_regions_format_i$BP_STOP_var)
+  })
+  sumstats_filt <- do.call(rbind, sumstats_filt_list)
+  # write.table(sumstats_filt, "sumstats_filt.tsv", quote=F, row.names = F, sep="\t")
+  return(sumstats_filt)
+}
