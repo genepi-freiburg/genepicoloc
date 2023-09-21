@@ -268,4 +268,22 @@ query_GTEXv8_GWAS <- function(sumstats_file,
   return(sumstats)
 }
 
+#' Query dbSNP_file to get REF and ALT
+#' @param dbSNP_file path to dbSNP_file
+#' @param CHR_var path to dbSNP_file
+#' @param BP_START_var path to dbSNP_file
+#' @param BP_STOP_var path to dbSNP_file
+#' @return data frame with rs to REF-ALT mapping
+#' @examples
+#' under development
+#' @export
+query_dbSNP <- function(dbSNP_file,
+                        CHR_var, BP_START_var, BP_STOP_var) {
+  rs_df <- read.table(text=system(
+    paste0("tabix -h ", dbSNP_file, " chr", CHR_var, ":",
+           BP_START_var, "-", BP_STOP_var),
+    intern = T), header = F)
+  return(rs_df)
+}
+
 
