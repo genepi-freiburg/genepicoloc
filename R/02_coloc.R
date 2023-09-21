@@ -222,8 +222,8 @@ get_coloc_regions <- function(sumstats,
                               log_name = "log.txt",
                               regions_name = "regions.txt") {
   if(!all("CHR" %in% colnames(sumstats) &
-              "BP" %in% colnames(sumstats) &
-              "P" %in% colnames(sumstats))) {stop("Check column names")}
+          "BP" %in% colnames(sumstats) &
+          "P" %in% colnames(sumstats))) {stop("Check column names")}
   # set up variables
   coloc_regions <- data.frame()
   # function-specific constants
@@ -282,6 +282,7 @@ get_coloc_regions <- function(sumstats,
   colnames(coloc_regions_short) <- paste0(colnames(coloc_regions_short), "_var")
   write.table(coloc_regions_short, regions_name, sep="\t", quote=F, row.names = F)
   write.table(coloc_regions, gsub(".txt", "_full.txt", regions_name), sep="\t", quote=F, row.names = F)
+  rownames(coloc_regions_short) <- NULL
   return(coloc_regions_short)
 }
 
@@ -292,18 +293,56 @@ get_coloc_regions <- function(sumstats,
 #' @examples
 #' under development
 #' @export
-subset_sumstats_1 <- function(sumstats,
-                              coloc_regions) {
+subset_sumstats_1 <- function(row,
+                              sumstats,
+                              remove_duplicates = T,
+                              do_match_rs = F,
+                              write_output = F,
+                              ...) {
+  CHR_var <- row["CHR_var"]
+  BP_START_var <- row["BP_START_var"]
+  BP_STOP_var <- row["BP_STOP_var"]
   if(!all("CHR" %in% colnames(sumstats) &
           "BP" %in% colnames(sumstats) &
           "P" %in% colnames(sumstats))) {stop("Check column names")}
-  sumstats_filt_list <- lapply(1:nrow(coloc_regions), function(i) {
-    coloc_regions_format_i <- coloc_regions[i,]
-    subset(sumstats, CHR == coloc_regions_format_i$CHR_var &
-             BP >= coloc_regions_format_i$BP_START_var &
-             BP <= coloc_regions_format_i$BP_STOP_var)
-  })
-  sumstats_filt <- do.call(rbind, sumstats_filt_list)
-  # write.table(sumstats_filt, "sumstats_filt.tsv", quote=F, row.names = F, sep="\t")
+  sumstats_filt <- subset(sumstats, CHR == CHR_var & BP >= BP_START_var & BP <= BP_STOP_var)
+  if (remove_duplicates) {
+    sumstats_filt <- unique(sumstats_filt)
+  }
+  if (do_match_rs) {
+    sumstats_filt <- match_rs(dbSNP_file = dbSNP_file,
+                              CHR_var = CHR_var,
+                              BP_START_var = BP_START_var,
+                              BP_STOP_var = BP_STOP_var)
+  }
+  if (write_output) {
+    write.table(sumstats_filt, "sumstats_filt.tsv", quote=F, row.names = F, sep="\t")
+  }
   return(sumstats_filt)
 }
+
+#' Match rsIDs between dbSNP and sumstats
+#' @param dbSNP_file path to dbSNP_file
+#' @param CHR_var path to dbSNP_file
+#' @param BP_START_var path to dbSNP_file
+#' @param BP_STOP_var path to dbSNP_file
+#' @return data frame with rs to REF-ALT mapping
+#' @examples
+#' under development
+#' @export
+match_rs <- function() {
+  rs_df <- query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var)
+  stopifnot(all(names(table(sapply(strsplit(rs_df$V3, "rs"), length))) == "2"))
+  rs_df <- subset(rs_df, V3 %in% sumstats_filt$SNP)
+  rs_df <- rs_df[,c(3,6)]
+  rs_df$REF <- gsub("chr[0-9]+:[0-9]+:(.*):.*", "\\1", rs_df$V6)
+  rs_df$ALT <- gsub("chr[0-9]+:[0-9]+:.*:(.*)", "\\1", rs_df$V6)
+  rs_df <- unique(rs_df)
+  sumstats_filt <- merge(sumstats_filt, by.x="SNP",
+                         rs_df, by.y="V3")
+  matched_alleles <- ((sumstats_filt$REF == sumstats_filt$A1) & (sumstats_filt$ALT == sumstats_filt$A2)) |
+    ((sumstats_filt$REF == sumstats_filt$A2) & (sumstats_filt$ALT == sumstats_filt$A1))
+  sumstats_filt <- sumstats_filt[matched_alleles,]
+  return(sumstats_filt)
+}
+
