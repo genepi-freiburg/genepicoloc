@@ -4,7 +4,14 @@
 \alias{subset_sumstats_1}
 \title{Read sumstats 1 and format columns}
 \usage{
-subset_sumstats_1(sumstats, coloc_regions)
+subset_sumstats_1(
+  row,
+  sumstats,
+  remove_duplicates = T,
+  do_match_rs = F,
+  write_output = F,
+  ...
+)
 }
 \arguments{
 \item{sumstats}{sumstats file created by read_sumstats_1()}
