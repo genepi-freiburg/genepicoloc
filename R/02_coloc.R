@@ -74,21 +74,24 @@ run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY = NA,
 #' @examples
 #' run_coloc()
 #' @export
-coloc_wrapper <- function(sumstats_1_file, sumstats_1_function,
-                          sumstats_2_file, sumstats_2_function,
-                          CHR_var, BP_START_var, BP_STOP_var,
+coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
+                          sumstats_1_file, sumstats_1_function,
                           sumstats_1_type, sumstats_1_sdY,
+                          sumstats_2_file, sumstats_2_function,
                           sumstats_2_type, sumstats_2_sdY,
                           ...,
                           do_process_wrapper = T) {
   extra_args <- list(...)
-  args_list <- list(CHR_var, BP_START_var, BP_STOP_var)
+  args_list <- list(CHR_var = CHR_var, BP_START_var = BP_START_var,
+                    BP_STOP_var = BP_STOP_var)
   if (length(extra_args) > 0) {
     args_list <- c(args_list, extra_args)
   }
-  sumstats_1_df <- do.call(sumstats_1_function, c(list(sumstats_1_file), args_list))
+  sumstats_1_df <- do.call(sumstats_1_function,
+                           c(list(sumstats_file = sumstats_1_file), args_list))
   sumstats_1_min_P <- min(sumstats_1_df$P, na.rm=T)
-  sumstats_2_df <- do.call(sumstats_2_function, c(list(sumstats_2_file), args_list))
+  sumstats_2_df <- do.call(sumstats_2_function,
+                           c(list(sumstats_file = sumstats_2_file), args_list))
   sumstats_2_min_P <- min(sumstats_2_df$P, na.rm=T)
   coloc_output <- run_coloc(sumstats_1_df = sumstats_1_df,
                             sumstats_1_type = sumstats_1_type,
@@ -145,18 +148,47 @@ process_wrapper <- function(coloc_output,
 #' slurm_wrapper
 #' @description under development
 #' @export
-slurm_wrapper <- function(params_df, EXPERIMENT,
-                          nodes = 4, cpus_per_node = 2) {
-  params_chunks <- params_df_to_chunks(params_df, chunk_size = chunk_size)
-  params_list <- params_df_to_list(params_chunks[[i]])
-  coloc_slr_job <- slurm_map(x = params_list,
-                             coloc_wrapper,
-                             do_process_wrapper = do_process_wrapper,
-                             extra_arguments,
-                             nodes = 40, cpus_per_node = 5,
-                             jobname = EXPERIMENT, submit = TRUE,
-                             slurm_options = list(time = "12:00:00", share = TRUE))
-  coloc_out <- get_slurm_out(coloc_slr_job, outtype = "raw", wait = TRUE, ncores = NULL)
+slurm_wrapper <- function(sumstats_1_args, sumstats_2_args,
+                          run_slurm = TRUE, global_objects = NULL,
+                          N_nodes = 20, N_cpus_per_node = 10,
+                          dry_run = T) {
+  EXPERIMENT <- sumstats_2_args$EXPERIMENT
+  extra_args <- sumstats_2_args$extra_args
+  if (!is.null(sumstats_2_args$annotate)) {
+    do_annotate <- sumstats_2_args$annotate$do_annotate
+    annotation_function <- sumstats_2_args$annotate$annotation_function
+    print(annotation_function)
+    annotation_function_args <- sumstats_2_args$annotate$annotation_function_args
+  } else {
+    do_annotate <- F
+  }
+  params_df <- Reduce(merge, list(sumstats_1_args$coloc_regions,
+                                  sumstats_1_args$slurm,
+                                  sumstats_2_args$slurm))
+  if (dry_run) {params_df <- params_df[1:5,]; EXPERIMENT <- paste0(EXPERIMENT, "_dryrun")}
+  if (run_slurm) {
+    coloc_slr_job <- slurm_apply(f = coloc_wrapper,
+                                 params = params_df,
+                                 extra_args,
+                                 nodes = N_nodes, cpus_per_node = N_cpus_per_node,
+                                 global_objects = global_objects,
+                                 jobname = EXPERIMENT, submit = TRUE,
+                                 slurm_options = list(time = "12:00:00", share = TRUE))
+    coloc_out <- get_slurm_out(coloc_slr_job, outtype = "raw", wait = TRUE, ncores = NULL)
+  } else if ("parallel" %in% rownames(installed.packages())) {
+    coloc_out <- parallel::mclapply(1:nrow(params_df),
+                          function(i) do.call(coloc_wrapper, c(params_df[i,], extra_args)),
+                          mc.cores = N_cpus_per_node)
+  } else {
+    stop("Single process execution is under development")
+    # coloc_out <- lapply(1:nrow(params_df), function(i) do.call(coloc_wrapper, params_df[i,]))
+  }
+  coloc_out <- do.call(rbind, coloc_out)
+  if (do_annotate) {
+    coloc_out <- do.call(annotation_function, c(annotation_function_args, list(coloc_out = coloc_out)))
+  }
+  return(coloc_out)
+  # cleanup_files(coloc_slr_job, wait = TRUE)
 }
 
 
@@ -190,13 +222,15 @@ read_sumstats_1 <- function(sumstats_file,
   return(sumstats)
 }
 
-#' Find significant regions in sumstats and merge close regions if needed
-#' from a list of external sumstats.
-#'
+#' Get coloc regions
 #' @param sumstats data frame read with read_sumstats_1(). Mandatory columns: CHR, BP, P
 #' @param p_threshold search for regions until no more variants below this threshold remains
 #' @param log_name iteration log will be written to this file
 #' @return data frame with extracted regions
+#' @description
+#' Find significant regions in sumstats and merge close regions if needed
+#' from a list of external sumstats.
+#' 
 #' @examples
 #' under development
 #' @export
@@ -206,8 +240,7 @@ get_coloc_regions <- function(sumstats,
                               p_value_name = "P",
                               p_threshold = 5e-8,
                               halfwindow = 500000,
-                              log_name = "log.txt",
-                              regions_name = "regions.txt") {
+                              log_name = NA) {
   if(!all("CHR" %in% colnames(sumstats) &
           "BP" %in% colnames(sumstats) &
           "P" %in% colnames(sumstats))) {stop("Check column names")}
@@ -216,8 +249,10 @@ get_coloc_regions <- function(sumstats,
   # function-specific constants
   region_var <- 1
   comment_var <- "PASS"
-  fileConn <- file(log_name, "w")
-  sink(fileConn)
+  if (!is.na(log_name)) {
+    fileConn <- file(log_name, "w")
+    sink(fileConn)
+  }
   # start iterations
   while(min(sumstats[[p_value_name]], na.rm = T) < p_threshold) {
     min_p_row <- sumstats[which.min(sumstats[[p_value_name]]),]
@@ -263,14 +298,19 @@ get_coloc_regions <- function(sumstats,
     comment_var <- "PASS"
     print("----------------")
   }
-  # close log and return results
-  sink(); close(fileConn)
-  coloc_regions_short <- coloc_regions[,c("CHR", "BP_START", "BP_STOP")]
-  colnames(coloc_regions_short) <- paste0(colnames(coloc_regions_short), "_var")
-  write.table(coloc_regions_short, regions_name, sep="\t", quote=F, row.names = F)
-  write.table(coloc_regions, gsub(".txt", "_full.txt", regions_name), sep="\t", quote=F, row.names = F)
-  rownames(coloc_regions_short) <- NULL
-  return(coloc_regions_short)
+  # close log
+  if (!is.na(log_name)) {
+    sink(); close(fileConn)
+  }
+  # return results
+  colnames(coloc_regions)[colnames(coloc_regions) == "CHR"] <- "CHR_var"
+  colnames(coloc_regions)[colnames(coloc_regions) == "BP_START"] <- "BP_START_var"
+  colnames(coloc_regions)[colnames(coloc_regions) == "BP_STOP"] <- "BP_STOP_var"
+  start_cols <- which(colnames(coloc_regions) %in% c("CHR_var", "BP_START_var", "BP_STOP_var"))
+  end_cols <- which(!colnames(coloc_regions) %in% c("CHR_var", "BP_START_var", "BP_STOP_var"))
+  coloc_regions <- coloc_regions[,c(start_cols, end_cols)]
+  rownames(coloc_regions) <- NULL
+  return(coloc_regions)
 }
 
 #' subset_sumstats_1
