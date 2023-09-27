@@ -4,7 +4,7 @@
 \alias{match_rs}
 \title{Match rsIDs between dbSNP and sumstats}
 \usage{
-match_rs()
+match_rs(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, sumstats)
 }
 \arguments{
 \item{dbSNP_file}{path to dbSNP_file}
@@ -14,6 +14,8 @@ match_rs()
 \item{BP_START_var}{path to dbSNP_file}
 
 \item{BP_STOP_var}{path to dbSNP_file}
+
+\item{sumstats}{name of data.frame}
 }
 \value{
 data frame with rs to REF-ALT mapping

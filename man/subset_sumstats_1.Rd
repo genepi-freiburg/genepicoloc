@@ -5,12 +5,13 @@
 \title{Read sumstats 1 and format columns}
 \usage{
 subset_sumstats_1(
-  row,
+  CHR_var,
+  BP_START_var,
+  BP_STOP_var,
   sumstats,
+  dbSNP_file = NULL,
   remove_duplicates = T,
-  do_match_rs = F,
-  write_output = F,
-  ...
+  do_match_rs = F
 )
 }
 \arguments{

@@ -4,7 +4,21 @@
 \alias{coloc_wrapper}
 \title{Query sumstats and run coloc, supports multithreading / slurm.}
 \usage{
-coloc_wrapper(args_list, ..., do_process_wrapper = T)
+coloc_wrapper(
+  sumstats_1_file,
+  sumstats_1_function,
+  sumstats_2_file,
+  sumstats_2_function,
+  CHR_var,
+  BP_START_var,
+  BP_STOP_var,
+  sumstats_1_type,
+  sumstats_1_sdY,
+  sumstats_2_type,
+  sumstats_2_sdY,
+  ...,
+  do_process_wrapper = T
+)
 }
 \arguments{
 \item{args_list}{list of input arguments for coloc
