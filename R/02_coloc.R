@@ -24,11 +24,8 @@ create_coloc_params_df <- function(sumstats_number = 2,
   if (!is.null(grep_invert)) {
     files <- grep(grep_invert, files, value = T, invert = T)
   }
-  params_df <- data.frame(matrix(nrow = length(files), ncol = 0))
-  params_df[[paste0("sumstats_", sumstats_number, "_file")]] <- files
-  params_df[[paste0("sumstats_", sumstats_number, "_function")]] <- sumstats_function
-  params_df[[paste0("sumstats_", sumstats_number, "_type")]] <- sumstats_type
-  params_df[[paste0("sumstats_", sumstats_number, "_sdY")]] <- sumstats_sdY
+  params_df <- data.frame(files)
+  colnames(params_df) <- paste0("sumstats_", sumstats_number, "_file")
   return(params_df)
 }
 
@@ -77,17 +74,21 @@ run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY = NA,
 #' @examples
 #' run_coloc()
 #' @export
-coloc_wrapper <- function(args_list,
+coloc_wrapper <- function(sumstats_1_file, sumstats_1_function,
+                          sumstats_2_file, sumstats_2_function,
+                          CHR_var, BP_START_var, BP_STOP_var,
+                          sumstats_1_type, sumstats_1_sdY,
+                          sumstats_2_type, sumstats_2_sdY,
                           ...,
                           do_process_wrapper = T) {
   extra_args <- list(...)
-  for (i in names(args_list)) {
-    assign(i, args_list[[i]])
+  args_list <- list(CHR_var, BP_START_var, BP_STOP_var)
+  if (length(extra_args) > 0) {
+    args_list <- c(args_list, extra_args)
   }
-  region_list <- list(CHR_var, BP_START_var, BP_STOP_var)
-  sumstats_1_df <- do.call(sumstats_1_function, c(list(sumstats_1_file), region_list, extra_args)) # extra_args
+  sumstats_1_df <- do.call(sumstats_1_function, c(list(sumstats_1_file), args_list))
   sumstats_1_min_P <- min(sumstats_1_df$P, na.rm=T)
-  sumstats_2_df <- do.call(sumstats_2_function, c(list(sumstats_2_file), region_list, extra_args))
+  sumstats_2_df <- do.call(sumstats_2_function, c(list(sumstats_2_file), args_list))
   sumstats_2_min_P <- min(sumstats_2_df$P, na.rm=T)
   coloc_output <- run_coloc(sumstats_1_df = sumstats_1_df,
                             sumstats_1_type = sumstats_1_type,
@@ -141,33 +142,21 @@ process_wrapper <- function(coloc_output,
   return(coloc_output$summary_df)
 }
 
-coloc_wrapper_02 <- function(params_df_1,
-                             params_df_2,
-                             EXPERIMENT,
-                             chunk_size = 10000,
-                             do_process_wrapper = T,
-                             extra_arguments) {
-  params_df <- merge(params_df_1, params_df_2)
-  system(paste0("mkdir -p resultsRDS"))
+#' slurm_wrapper
+#' @description under development
+#' @export
+slurm_wrapper <- function(params_df, EXPERIMENT,
+                          nodes = 4, cpus_per_node = 2) {
   params_chunks <- params_df_to_chunks(params_df, chunk_size = chunk_size)
-  coloc_out_list <- lapply(1:length(params_chunks), function(i) {
-    params_list <- params_df_to_list(params_chunks[[i]])
-    coloc_slr_job <- slurm_map(x = params_list,
-                               coloc_wrapper,
-                               do_process_wrapper = do_process_wrapper,
-                               extra_arguments,
-                               nodes = 40, cpus_per_node = 5,
-                               jobname = paste0("coloc_", i), submit = TRUE,
-                               slurm_options = list(time = "12:00:00", share = TRUE))
-    coloc_out <- get_slurm_out(coloc_slr_job, outtype = "raw", wait = TRUE, ncores = NULL)
-    # cleanup_files(coloc_slr_job, wait = TRUE)
-    # coloc_out <- mclapply(params_list, coloc_wrapper, mc.cores = 10)
-    # coloc_out <- mclapply(coloc_out, process_wrapper, mc.cores = 10)
-    saveRDS(coloc_out, paste0("resultsRDS/batch_", i, "_coloc.RDS"))
-    # return(coloc_out)
-  })
-  # return(coloc_out_list)
-  # coloc_out_df <- do.call(rbind, )
+  params_list <- params_df_to_list(params_chunks[[i]])
+  coloc_slr_job <- slurm_map(x = params_list,
+                             coloc_wrapper,
+                             do_process_wrapper = do_process_wrapper,
+                             extra_arguments,
+                             nodes = 40, cpus_per_node = 5,
+                             jobname = EXPERIMENT, submit = TRUE,
+                             slurm_options = list(time = "12:00:00", share = TRUE))
+  coloc_out <- get_slurm_out(coloc_slr_job, outtype = "raw", wait = TRUE, ncores = NULL)
 }
 
 
@@ -210,8 +199,6 @@ read_sumstats_1 <- function(sumstats_file,
 #' @return data frame with extracted regions
 #' @examples
 #' under development
-#' sumstats=read.table('CAD.colocalization.tsv.gz', sep='\t',header=T)
-#' get_coloc_regions(sumstats, p_value_name = "P.value", p_threshold = 5e-100)
 #' @export
 get_coloc_regions <- function(sumstats,
                               CHR_name = "CHR",
@@ -286,22 +273,14 @@ get_coloc_regions <- function(sumstats,
   return(coloc_regions_short)
 }
 
-#' Read sumstats 1 and format columns
-#' @param sumstats sumstats file created by read_sumstats_1()
-#' @param coloc_regions file created by get_coloc_regions()
-#' @return data frame with formatted columns
-#' @examples
-#' under development
+#' subset_sumstats_1
+#' @description under development
 #' @export
-subset_sumstats_1 <- function(row,
-                              sumstats,
+subset_sumstats_1 <- function(CHR_var, BP_START_var, BP_STOP_var,
+                              sumstats, dbSNP_file = NULL,
                               remove_duplicates = T,
-                              do_match_rs = F,
-                              write_output = F,
-                              ...) {
-  CHR_var <- row["CHR_var"]
-  BP_START_var <- row["BP_START_var"]
-  BP_STOP_var <- row["BP_STOP_var"]
+                              do_match_rs = F) {
+  sumstats <- get(sumstats)
   if(!all("CHR" %in% colnames(sumstats) &
           "BP" %in% colnames(sumstats) &
           "P" %in% colnames(sumstats))) {stop("Check column names")}
@@ -310,39 +289,38 @@ subset_sumstats_1 <- function(row,
     sumstats_filt <- unique(sumstats_filt)
   }
   if (do_match_rs) {
-    sumstats_filt <- match_rs(dbSNP_file = dbSNP_file,
+    sumstats_filt_rs_matched <- match_rs(dbSNP_file = dbSNP_file,
                               CHR_var = CHR_var,
                               BP_START_var = BP_START_var,
-                              BP_STOP_var = BP_STOP_var)
-  }
-  if (write_output) {
-    write.table(sumstats_filt, "sumstats_filt.tsv", quote=F, row.names = F, sep="\t")
+                              BP_STOP_var = BP_STOP_var,
+                              sumstats = sumstats)
+    # sumstats_filt_rs_unmatched <- subset(sumstats_filt_rs[!matched_alleles,], !SNP %in% sumstats_filt_rs_matched$SNP)
+    sumstats_filt <- sumstats_filt_rs_matched
   }
   return(sumstats_filt)
 }
 
-#' Match rsIDs between dbSNP and sumstats
-#' @param dbSNP_file path to dbSNP_file
-#' @param CHR_var path to dbSNP_file
-#' @param BP_START_var path to dbSNP_file
-#' @param BP_STOP_var path to dbSNP_file
-#' @return data frame with rs to REF-ALT mapping
-#' @examples
-#' under development
+
+#' match_rs
+#' @description under development
 #' @export
-match_rs <- function() {
+match_rs <- function(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var,
+                     sumstats) {
   rs_df <- query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var)
   stopifnot(all(names(table(sapply(strsplit(rs_df$V3, "rs"), length))) == "2"))
-  rs_df <- subset(rs_df, V3 %in% sumstats_filt$SNP)
+  rs_df <- subset(rs_df, V3 %in% sumstats$SNP)
   rs_df <- rs_df[,c(3,6)]
   rs_df$REF <- gsub("chr[0-9]+:[0-9]+:(.*):.*", "\\1", rs_df$V6)
   rs_df$ALT <- gsub("chr[0-9]+:[0-9]+:.*:(.*)", "\\1", rs_df$V6)
   rs_df <- unique(rs_df)
-  sumstats_filt <- merge(sumstats_filt, by.x="SNP",
-                         rs_df, by.y="V3")
-  matched_alleles <- ((sumstats_filt$REF == sumstats_filt$A1) & (sumstats_filt$ALT == sumstats_filt$A2)) |
-    ((sumstats_filt$REF == sumstats_filt$A2) & (sumstats_filt$ALT == sumstats_filt$A1))
-  sumstats_filt <- sumstats_filt[matched_alleles,]
-  return(sumstats_filt)
+  sumstats <- merge(sumstats, by.x="SNP",
+                    rs_df, by.y="V3")
+  matched_alleles <- ((sumstats$REF == sumstats$A1) & (sumstats$ALT == sumstats$A2)) |
+    ((sumstats$REF == sumstats$A2) & (sumstats$ALT == sumstats$A1))
+  sumstats <- sumstats[matched_alleles,]
+  sumstats <- sumstats[,c("V6", "SNP", "CHR", "BP", "A1", "A2", "b", "se", "P", "freq", "N")]
+  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N")
+  sumstats <- sumstats[order(sumstats$CHR, sumstats$POS),]
+  return(sumstats)
 }
 
