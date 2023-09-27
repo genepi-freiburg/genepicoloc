@@ -1,5 +1,4 @@
 #' @title Read sumstats 1
-#' @description Read sumstats 1
 #' @param sumstats_file path tabix-indexed sumstats.
 #' @param CHR_var chromosome (as.character "1", "2", ..., "X").
 #' @param BP_START_var start of region, integer
@@ -7,14 +6,17 @@
 #' @return data frame with extracted sumstats.
 #' @export
 query_sumstats_1 <- function(sumstats_file,
-                           CHR_var, BP_START_var, BP_STOP_var,
-                           ...,
-                           read_mode = "RDS") {
+                             CHR_var, BP_START_var, BP_STOP_var,
+                             read_mode = "RDS",
+                             ...) {
   if (read_mode == "RDS") {
     sumstats <- readRDS(sumstats_file)
   }
   if (read_mode == "read.csv") {
     sumstats <- read.csv(sumstats_file)
+  }
+  if (read_mode == "get") {
+    sumstats <- get(sumstats_file)
   }
   sumstats <- subset(sumstats, CHR == CHR_var & POS >= BP_START_var & POS <= BP_STOP_var)
   return(sumstats)
