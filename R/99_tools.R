@@ -2,7 +2,7 @@ params_df_to_list <- function(params_df) {
   split(params_df, seq(nrow(params_df)))
 }
 params_df_to_chunks <- function(params_df,
-                                chunk_size = 1e4) {
+                                chunk_size = 10000) {
   nrow_var <- nrow(params_df)
   N_chunks <- ceiling(nrow_var / chunk_size)
   params_chunks <- lapply(1:N_chunks, function(i) {
