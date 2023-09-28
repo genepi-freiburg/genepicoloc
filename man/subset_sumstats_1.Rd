@@ -2,7 +2,7 @@
 % Please edit documentation in R/02_coloc.R
 \name{subset_sumstats_1}
 \alias{subset_sumstats_1}
-\title{Read sumstats 1 and format columns}
+\title{subset_sumstats_1}
 \usage{
 subset_sumstats_1(
   CHR_var,
@@ -14,17 +14,6 @@ subset_sumstats_1(
   do_match_rs = F
 )
 }
-\arguments{
-\item{sumstats}{sumstats file created by read_sumstats_1()}
-
-\item{coloc_regions}{file created by get_coloc_regions()}
-}
-\value{
-data frame with formatted columns
-}
 \description{
-Read sumstats 1 and format columns
-}
-\examples{
 under development
 }

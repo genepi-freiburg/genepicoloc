@@ -5,18 +5,21 @@
 \title{Create data.frame with input parameters for coloc}
 \usage{
 create_coloc_params_df(
-  sumstats_number = 2,
+  EXPERIMENT,
   sumstats_path,
   sumstats_pattern = "gz$",
   grep_invert = NULL,
   sumstats_function,
   sumstats_type,
-  sumstats_sdY = NA
+  sumstats_sdY = NA,
+  extra_args,
+  do_annotate,
+  annotation_function,
+  annotation_function_args,
+  dry_run = F
 )
 }
 \arguments{
-\item{sumstats_number}{1 or 2 (pair of sumstats for coloc).}
-
 \item{sumstats_path}{path to folder with indexed sumstats.}
 
 \item{sumstats_pattern}{usually "gz$".}

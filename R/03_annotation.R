@@ -1,4 +1,6 @@
+#' olink annotation
 #' @param annotation_file path to annotation file
+#' @param coloc_out
 #' @return data.frame with processed annotation file.
 #' @examples
 #' Under development
@@ -30,6 +32,7 @@ olink_annotation <- function(olink_protein_map_3k_v1_file, coloc_out) {
   return(coloc_out)
 }
 
+#' somascan annotation
 #' @param annotation_file path to annotation file
 #' @return data.frame with processed annotation file.
 #' @examples
@@ -37,6 +40,7 @@ olink_annotation <- function(olink_protein_map_3k_v1_file, coloc_out) {
 #' @export
 somascan_annotation <- function(annotation_file, coloc_out) {
   annotation_df <- read.csv(annotation_file)
+  annotation_df$chr <- gsub("chr", "", annotation_df$chr)
   annotation_df$multiple_genes_per_protein <- 0
   # annotation_df[which(duplicated(annotation_df$SeqId)),]$multiple_genes_per_protein <- 1
   # selected_cols <- c("SeqId", "Protein..short.name.", "Protein..full.name.", "Gene",
@@ -62,6 +66,3 @@ somascan_annotation <- function(annotation_file, coloc_out) {
   }
   return(coloc_out)
 }
-
-
-

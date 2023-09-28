@@ -5,15 +5,15 @@
 \title{Query sumstats and run coloc, supports multithreading / slurm.}
 \usage{
 coloc_wrapper(
-  sumstats_1_file,
-  sumstats_1_function,
-  sumstats_2_file,
-  sumstats_2_function,
   CHR_var,
   BP_START_var,
   BP_STOP_var,
+  sumstats_1_file,
+  sumstats_1_function,
   sumstats_1_type,
   sumstats_1_sdY,
+  sumstats_2_file,
+  sumstats_2_function,
   sumstats_2_type,
   sumstats_2_sdY,
   ...,

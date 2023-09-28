@@ -2,27 +2,10 @@
 % Please edit documentation in R/02_coloc.R
 \name{match_rs}
 \alias{match_rs}
-\title{Match rsIDs between dbSNP and sumstats}
+\title{match_rs}
 \usage{
 match_rs(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, sumstats)
 }
-\arguments{
-\item{dbSNP_file}{path to dbSNP_file}
-
-\item{CHR_var}{path to dbSNP_file}
-
-\item{BP_START_var}{path to dbSNP_file}
-
-\item{BP_STOP_var}{path to dbSNP_file}
-
-\item{sumstats}{name of data.frame}
-}
-\value{
-data frame with rs to REF-ALT mapping
-}
 \description{
-Match rsIDs between dbSNP and sumstats
-}
-\examples{
 under development
 }

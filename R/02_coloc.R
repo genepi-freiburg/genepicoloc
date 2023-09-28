@@ -1,5 +1,4 @@
 #' Create data.frame with input parameters for coloc
-#' @param sumstats_number 1 or 2 (pair of sumstats for coloc).
 #' @param sumstats_path path to folder with indexed sumstats.
 #' @param sumstats_pattern usually "gz$".
 #' @param grep_invert expression to exclude some found files
@@ -12,21 +11,40 @@
 #' @examples
 #' create_coloc_params_df()
 #' @export
-create_coloc_params_df <- function(sumstats_number = 2,
+create_coloc_params_df <- function(EXPERIMENT,
                                    sumstats_path,
                                    sumstats_pattern = "gz$",
                                    grep_invert = NULL,
                                    sumstats_function,
                                    sumstats_type,
-                                   sumstats_sdY = NA) {
+                                   sumstats_sdY = NA,
+                                   extra_args,
+                                   do_annotate,
+                                   annotation_function,
+                                   annotation_function_args,
+                                   dry_run = F) {
+  # get all files
   files <- list.files(sumstats_path, pattern = sumstats_pattern, full.names = T)
   if (length(files) == 0) {stop("No sumstats found under given path")}
   if (!is.null(grep_invert)) {
     files <- grep(grep_invert, files, value = T, invert = T)
   }
-  params_df <- data.frame(files)
-  colnames(params_df) <- paste0("sumstats_", sumstats_number, "_file")
-  return(params_df)
+  if (dry_run) {files <- files[1:3]}
+  # params_df <- data.frame(files)
+  # colnames(params_df) <- paste0("sumstats_", sumstats_number, "_file")
+  list_out <- list(
+    EXPERIMENT = EXPERIMENT,
+    slurm = data.frame(sumstats_2_file = files,
+                       sumstats_2_function = sumstats_function,
+                       sumstats_2_type = sumstats_type,
+                       sumstats_2_sdY = sumstats_sdY),
+    extra_args = extra_args,
+    annotate = list(
+      do_annotate = do_annotate,
+      annotation_function = annotation_function,
+      annotation_function_args = annotation_function_args)
+  )
+  return(list_out)
 }
 
 #' Run coloc function using 2 extracted regions
@@ -89,9 +107,79 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
   }
   sumstats_1_df <- do.call(sumstats_1_function,
                            c(list(sumstats_file = sumstats_1_file), args_list))
-  sumstats_1_min_P <- min(sumstats_1_df$P, na.rm=T)
-  sumstats_2_df <- do.call(sumstats_2_function,
+  sumstats_2_obj <- do.call(sumstats_2_function,
                            c(list(sumstats_file = sumstats_2_file), args_list))
+  if (is.list(sumstats_2_obj) & (!is.data.frame(sumstats_2_obj))) {
+    sumstats_2_list <- lapply(sumstats_2_obj, function(x) {
+      df_out <- do.call(process_sumstats_2_df,
+              list(sumstats_1_df = sumstats_1_df,
+                   sumstats_2_df = x,
+                   CHR_var = CHR_var,
+                   BP_START_var = BP_START_var,
+                   BP_STOP_var = BP_STOP_var,
+                   sumstats_1_file = sumstats_1_file,
+                   sumstats_1_function = sumstats_1_function,
+                   sumstats_1_type = sumstats_1_type,
+                   sumstats_1_sdY = sumstats_1_sdY,
+                   sumstats_2_file = sumstats_2_file,
+                   sumstats_2_function = sumstats_2_function,
+                   sumstats_2_type = sumstats_2_type,
+                   sumstats_2_sdY = sumstats_2_sdY))
+      df_out$Phenotype <- unique(x$Phenotype)
+      return(df_out)
+    })
+    coloc_output <- do.call(rbind, sumstats_2_list)
+  } else if (is.list(sumstats_2_obj) & is.data.frame(sumstats_2_obj)) {
+    coloc_output <-
+      process_sumstats_2_df(sumstats_1_df = sumstats_1_df,
+                            sumstats_2_df = sumstats_2_obj,
+                            CHR_var = CHR_var,
+                            BP_START_var = BP_START_var,
+                            BP_STOP_var = BP_STOP_var,
+                            sumstats_1_file = sumstats_1_file,
+                            sumstats_1_function = sumstats_1_function,
+                            sumstats_1_type = sumstats_1_type,
+                            sumstats_1_sdY = sumstats_1_sdY,
+                            sumstats_2_file = sumstats_2_file,
+                            sumstats_2_function = sumstats_2_function,
+                            sumstats_2_type = sumstats_2_type,
+                            sumstats_2_sdY = sumstats_2_sdY)
+  }
+  return(coloc_output)
+}
+
+#' Process sumstats_2_df
+#' @param ellipsis with additional arguments.
+#' @export
+process_sumstats_2_df <- function(sumstats_1_df, sumstats_2_df,
+                                  CHR_var, BP_START_var, BP_STOP_var,
+                                  sumstats_1_file, sumstats_1_function,
+                                  sumstats_1_type, sumstats_1_sdY,
+                                  sumstats_2_file, sumstats_2_function,
+                                  sumstats_2_type, sumstats_2_sdY,
+                                  ...,
+                                  do_process_wrapper = T) {
+  if (nrow(sumstats_1_df) == 0 | nrow(sumstats_2_df) == 0) {
+    if (do_process_wrapper == F) {stop("Output is not consistent when nrow=0 and do_process_wrapper=F")}
+    if (is.data.frame(sumstats_1_df)) {
+      suppressWarnings({sumstats_1_min_P <- min(sumstats_1_df$P, na.rm=T)})
+    } else { sumstats_1_min_P <- NULL }
+    if (is.data.frame(sumstats_2_df)) {
+      suppressWarnings({sumstats_2_min_P <- min(sumstats_2_df$P, na.rm=T)})
+    } else { sumstats_2_min_P <- NULL }
+    coloc_output <- data.frame(CHR_var = CHR_var, BP_START_var = BP_START_var,
+                               BP_STOP_var = BP_STOP_var,
+                               sumstats_1_file = sumstats_1_file,
+                               sumstats_1_min_P = sumstats_1_min_P,
+                               sumstats_2_file = sumstats_2_file,
+                               sumstats_2_min_P	= sumstats_2_min_P,
+                               nsnps = 0,
+                               PP.H0.abf = NA, PP.H1.abf = NA, PP.H2.abf = NA,
+                               PP.H3.abf = NA, PP.H4.abf = NA, Top_coloc_SNP = NA,
+                               Top_coloc_SNP.PP.H4 = NA, priors = NA, Phenotype = NA)
+    return(coloc_output)
+  }
+  sumstats_1_min_P <- min(sumstats_1_df$P, na.rm=T)
   sumstats_2_min_P <- min(sumstats_2_df$P, na.rm=T)
   coloc_output <- run_coloc(sumstats_1_df = sumstats_1_df,
                             sumstats_1_type = sumstats_1_type,
@@ -111,7 +199,6 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
   }
   return(coloc_output)
 }
-
 
 #' Process results of coloc_wrapper function.
 #' @param coloc_output output of coloc_wrapper function.
@@ -145,19 +232,19 @@ process_wrapper <- function(coloc_output,
   return(coloc_output$summary_df)
 }
 
-#' slurm_wrapper
+#' slurm wrapper
 #' @description under development
 #' @export
 slurm_wrapper <- function(sumstats_1_args, sumstats_2_args,
                           run_slurm = TRUE, global_objects = NULL,
                           N_nodes = 20, N_cpus_per_node = 10,
-                          dry_run = T) {
+                          test_run = F,
+                          dry_run = T, write_results = T) {
   EXPERIMENT <- sumstats_2_args$EXPERIMENT
   extra_args <- sumstats_2_args$extra_args
   if (!is.null(sumstats_2_args$annotate)) {
     do_annotate <- sumstats_2_args$annotate$do_annotate
     annotation_function <- sumstats_2_args$annotate$annotation_function
-    print(annotation_function)
     annotation_function_args <- sumstats_2_args$annotate$annotation_function_args
   } else {
     do_annotate <- F
@@ -166,6 +253,10 @@ slurm_wrapper <- function(sumstats_1_args, sumstats_2_args,
                                   sumstats_1_args$slurm,
                                   sumstats_2_args$slurm))
   if (dry_run) {params_df <- params_df[1:5,]; EXPERIMENT <- paste0(EXPERIMENT, "_dryrun")}
+  if (test_run) {
+    coloc_out <- do.call(coloc_wrapper, c(params_df[1,], extra_args))
+    return(coloc_out)
+  }
   if (run_slurm) {
     coloc_slr_job <- slurm_apply(f = coloc_wrapper,
                                  params = params_df,
@@ -182,10 +273,15 @@ slurm_wrapper <- function(sumstats_1_args, sumstats_2_args,
   } else {
     stop("Single process execution is under development")
     # coloc_out <- lapply(1:nrow(params_df), function(i) do.call(coloc_wrapper, params_df[i,]))
+    coloc_out <- do.call(coloc_wrapper, c(params_df[2,], extra_args))
   }
+  print(str(coloc_out))
   coloc_out <- do.call(rbind, coloc_out)
   if (do_annotate) {
     coloc_out <- do.call(annotation_function, c(annotation_function_args, list(coloc_out = coloc_out)))
+  }
+  if (write_results) {
+    write.csv(coloc_out, paste0(EXPERIMENT, ".csv"), row.names = F)
   }
   return(coloc_out)
   # cleanup_files(coloc_slr_job, wait = TRUE)
@@ -325,9 +421,6 @@ subset_sumstats_1 <- function(CHR_var, BP_START_var, BP_STOP_var,
           "BP" %in% colnames(sumstats) &
           "P" %in% colnames(sumstats))) {stop("Check column names")}
   sumstats_filt <- subset(sumstats, CHR == CHR_var & BP >= BP_START_var & BP <= BP_STOP_var)
-  if (remove_duplicates) {
-    sumstats_filt <- unique(sumstats_filt)
-  }
   if (do_match_rs) {
     sumstats_filt_rs_matched <- match_rs(dbSNP_file = dbSNP_file,
                               CHR_var = CHR_var,
@@ -336,6 +429,9 @@ subset_sumstats_1 <- function(CHR_var, BP_START_var, BP_STOP_var,
                               sumstats = sumstats)
     # sumstats_filt_rs_unmatched <- subset(sumstats_filt_rs[!matched_alleles,], !SNP %in% sumstats_filt_rs_matched$SNP)
     sumstats_filt <- sumstats_filt_rs_matched
+  }
+  if (remove_duplicates) {
+    sumstats_filt <- unique(sumstats_filt)
   }
   return(sumstats_filt)
 }

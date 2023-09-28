@@ -2,8 +2,7 @@
 % Please edit documentation in R/02_coloc.R
 \name{get_coloc_regions}
 \alias{get_coloc_regions}
-\title{Find significant regions in sumstats and merge close regions if needed
-from a list of external sumstats.}
+\title{Get coloc regions}
 \usage{
 get_coloc_regions(
   sumstats,
@@ -12,8 +11,7 @@ get_coloc_regions(
   p_value_name = "P",
   p_threshold = 5e-08,
   halfwindow = 5e+05,
-  log_name = "log.txt",
-  regions_name = "regions.txt"
+  log_name = NA
 )
 }
 \arguments{
@@ -32,6 +30,4 @@ from a list of external sumstats.
 }
 \examples{
 under development
-sumstats=read.table('CAD.colocalization.tsv.gz', sep='\t',header=T)
-get_coloc_regions(sumstats, p_value_name = "P.value", p_threshold = 5e-100)
 }
