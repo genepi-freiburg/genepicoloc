@@ -33,7 +33,13 @@ create_coloc_params_df <- function(EXPERIMENT,
                             sumstats_2_type = sumstats_type,
                             sumstats_2_sdY = sumstats_sdY)
   params_df <- merge(sumstats_1_args, sumstats_2_args)
-  list_out <- list()
+  # This block is used for GTEXv8 study where sumstats are split by chr
+  # Potentially relevant for other studies
+  if (EXPERIMENT == "GTEXv8") {
+    GTEXv8_CHR_match <- params_df$CHR_var ==
+      gsub(".*chr([0-9X]+).*", "\\1", params_df$sumstats_2_file)
+    params_df <- params_df[GTEXv8_CHR_match,]
+  }
   list_out <- list(
     EXPERIMENT = EXPERIMENT,
     params_df = params_df)
@@ -207,7 +213,7 @@ process_wrapper <- function(coloc_output,
 #' @description under development
 #' @export
 parallel_wrapper <- function(sumstats_2_args,
-                             do_annotate = F, annotation_function = NULL,
+                             annotation_function = NULL,
                              annotation_function_args = NULL,
                              N_nodes = 10, N_cpus_per_node = 10,
                              do_rbind = T,

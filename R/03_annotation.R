@@ -105,3 +105,23 @@ GTEXv8_annotation <- function(annotation_file, coloc_out, ...) {
   }
   return(coloc_out)
 }
+
+
+#' GTEXv8 annotation
+#' @param annotation_file path to annotation file
+#' @return data.frame with processed annotation file.
+#' @examples
+#' Under development
+#' @export
+mGWAS_annotation <- function(annotation_file, coloc_out, ...) {
+  annotation_df <- read.csv(annotation_file)
+  colnames(annotation_df)[colnames(annotation_df) == "ID"] <- "metabolite"
+  coloc_out$metabolite <- gsub(".*[0-9]+-[0-9]+-[0-9]+_(.*_.*_.*)_.*_.*_.*_.*", "\\1", coloc_out$sumstats_2_file)
+  nrow_before <- nrow(coloc_out)
+  coloc_out <- merge(coloc_out, by = "metabolite",
+                     annotation_df[,c("metabolite", "BIOCHEMICAL")],
+                     sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+  if(nrow_before != nrow(coloc_out)) { stop("Merge produced different number of rows, check duplicates or missing annotations") }
+  return(coloc_out)
+}
+
