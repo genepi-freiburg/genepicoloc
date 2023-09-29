@@ -247,6 +247,7 @@ query_GTEXv8_GWAS <- function(sumstats_file,
     sumstats <- sumstats[,c("Name", "rsids", "V19", "V4", "V6", "V5", "V15", "V16", "V14", "V11", "V12", "V8")]
     colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N", "Phenotype")
     sumstats <- subset(sumstats, (!is.na(BETA)) & (!is.na(SE)) & (!is.na(P)))
+    sumstats <- subset(sumstats, (! BETA %in% c(Inf, -Inf)) & (! SE %in% c(Inf, -Inf)))
     if (length(unique(sumstats$Phenotype)) > 1) {stop("Phenotype not unique in output query")}
     return(sumstats)
   })

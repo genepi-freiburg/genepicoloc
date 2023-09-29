@@ -4,14 +4,7 @@
 \alias{query_GTEXv8_GWAS}
 \title{Query GTEx v8 GWAS}
 \usage{
-query_GTEXv8_GWAS(
-  sumstats_file,
-  CHR_var,
-  BP_START_var,
-  BP_STOP_var,
-  phenotype_id_var,
-  ...
-)
+query_GTEXv8_GWAS(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, ...)
 }
 \arguments{
 \item{sumstats_file}{path tabix-indexed sumstats.}

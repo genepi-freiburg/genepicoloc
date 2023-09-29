@@ -5,18 +5,18 @@
 \title{Create data.frame with input parameters for coloc}
 \usage{
 create_coloc_params_df(
-  EXPERIMENT,
   sumstats_path,
   sumstats_pattern = "gz$",
   grep_invert = NULL,
+  EXPERIMENT,
+  sumstats_1_args,
   sumstats_function,
   sumstats_type,
   sumstats_sdY = NA,
   extra_args,
-  do_annotate,
+  do_annotate = F,
   annotation_function,
-  annotation_function_args,
-  dry_run = F
+  annotation_function_args
 )
 }
 \arguments{

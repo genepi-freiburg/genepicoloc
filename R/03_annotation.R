@@ -41,7 +41,6 @@ olink_annotation <- function(olink_protein_map_3k_v1_file, coloc_out) {
 somascan_annotation <- function(annotation_file, coloc_out) {
   annotation_df <- read.csv(annotation_file)
   annotation_df$chr <- gsub("chr", "", annotation_df$chr)
-  annotation_df$multiple_genes_per_protein <- 0
   # annotation_df[which(duplicated(annotation_df$SeqId)),]$multiple_genes_per_protein <- 1
   # selected_cols <- c("SeqId", "Protein..short.name.", "Protein..full.name.", "Gene",
   #                    "UniProt", "Type", "Ensembl.Gene.ID", "chr", "gene_start", "gene_end",
@@ -53,6 +52,46 @@ somascan_annotation <- function(annotation_file, coloc_out) {
   coloc_out$SeqId <- gsub(".*NG2021/([0-9]+_[0-9]+)_.*", "\\1", coloc_out$sumstats_2_file)
   coloc_out <- merge(coloc_out, by.x="SeqId",
                      annotation_df, by.y="SeqId",
+                     sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+  # stopifnot(unique(coloc_out$CHR_var) %in% unique(coloc_out$Olink_chr))
+  coloc_out$cis_trans <- "trans"
+  cis_condition <- (coloc_out[[paste0(prefix, "chr")]] == coloc_out$CHR_var) & ((coloc_out[[paste0(prefix, "gene_start")]] >= coloc_out$BP_START_var & coloc_out[[paste0(prefix, "gene_start")]] <= coloc_out$BP_STOP_var) | (coloc_out[[paste0(prefix, "gene_end")]] >= coloc_out$BP_START_var & coloc_out[[paste0(prefix, "gene_end")]] <= coloc_out$BP_STOP_var))
+  if (any(cis_condition)) {
+    coloc_out[cis_condition, ]$cis_trans <- "cis"
+  }
+  suggestive_cis_condition <- (coloc_out$CHR_var == coloc_out[[paste0(prefix, "chr")]]) & ((coloc_out[[paste0(prefix, "gene_start")]] >= coloc_out$BP_START_var-1e6 & coloc_out[[paste0(prefix, "gene_start")]] <= coloc_out$BP_STOP_var+1e6) | (coloc_out[[paste0(prefix, "gene_end")]] >= coloc_out$BP_START_var-1e6 & coloc_out[[paste0(prefix, "gene_end")]] <= coloc_out$BP_STOP_var+1e6))
+  if (any(suggestive_cis_condition)) {
+    coloc_out[(!cis_condition) & suggestive_cis_condition, ]$cis_trans <- "suggestive_cis"
+  }
+  return(coloc_out)
+}
+
+#' GTEXv8 annotation
+#' @param annotation_file path to annotation file
+#' @return data.frame with processed annotation file.
+#' @examples
+#' Under development
+#' @export
+GTEXv8_annotation <- function(annotation_file, coloc_out, ...) {
+  annotation_df <- read.delim(annotation_file, sep="\t", header=F)
+  annotation_df$gene_id <- gsub(".*gene_id (ENSG[0-9]+.[0-9]+); .*", "\\1", annotation_df$V9)
+  annotation_df$gene_type <- gsub(".*gene_type ([^;]+); .*", "\\1", annotation_df$V9)
+  annotation_df$gene_name <- gsub(".*gene_name ([^;]+); .*", "\\1", annotation_df$V9)
+  colnames(annotation_df)[colnames(annotation_df) == "V1"] <- "chr"
+  colnames(annotation_df)[colnames(annotation_df) == "V4"] <- "gene_start"
+  colnames(annotation_df)[colnames(annotation_df) == "V5"] <- "gene_end"
+  annotation_df$chr <- gsub("chr", "", annotation_df$chr)
+  selected_cols <- c("chr", "gene_start", "gene_end",
+                     "gene_id", "gene_type", "gene_name")
+  annotation_df <- annotation_df[,selected_cols]
+  prefix <- "GTExV8_"
+  colnames(annotation_df) <- paste0(prefix, colnames(annotation_df))
+  colnames(annotation_df)[colnames(annotation_df) == "GTExV8_gene_id"] <- "ensembl_gene_id"
+  # coloc
+  coloc_out$ensembl_gene_id <- gsub(".*(ENSG[0-9]+)", "\\1", coloc_out$sumstats_2_file)
+  coloc_out$Tissue <- gsub(".*all_associations-(.*).v8.*", "\\1", coloc_out$sumstats_2_file)
+  coloc_out <- merge(coloc_out, by.x="ensembl_gene_id",
+                     annotation_df, by.y="ensembl_gene_id",
                      sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
   # stopifnot(unique(coloc_out$CHR_var) %in% unique(coloc_out$Olink_chr))
   coloc_out$cis_trans <- "trans"
