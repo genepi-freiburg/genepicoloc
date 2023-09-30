@@ -176,11 +176,15 @@ FinnGen_r9_annotation <- function(annotation_file, coloc_out, ...) {
   annotation_df <- read.delim(annotation_file, colClasses = "character")
   coloc_out$NAME <- gsub("finngen_R9_(.*).gz", "\\1", basename(coloc_out$sumstats_2_file))
   nrow_before <- nrow(coloc_out)
-  coloc_out <- merge(coloc_out, by = "NAME",
+  coloc_out <- merge(coloc_out, by = "NAME", all.x=T,
                      annotation_df, sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
   if(nrow_before != nrow(coloc_out)) { stop("Merge produced different number of rows, check duplicates or missing annotations") }
   return(coloc_out)
 }
+# 22 phenotypes are not present in the annotation file
+# BMI_IRN, HEIGHT_IRN, K11_ANOMALI_DENTAL_ARCH_RELATIONS1_INCLAVO, K11_CROWDI_TEETH_INCLAVO, K11_DEEP_BITE_INCLAVO, K11_DISTAL_BITE_INCLAVO, K11_EMBED_TEETH_INCLAVO, K11_EMBIMPACT_TEETH_INCLAVO, K11_ERUPTION_INCLAVO, K11_HYPO_ONLY_INCLAVO, K11_HYPOLASIA_ENAMEL, K11_IMPACTED_TEETH_INCLAVO, K11_MAJOR_ANOMALI_JAW_SIZE_INCLAVO, K11_MIH_INCLAVO, K11_MN_PROGN_INCLAVO, K11_OPEN_BITE_INCLAVO, K11_ORAL_LICHEN_PLANUS_WIDE, K11_RESORBTION, K11_RETROG_MAXILLAE_INCLAVO, K11_SCISS_BITE_INCLAVO, Q17_CLEFT_AND_CARIES_INCLAVO, WEIGHT_IRN
+
+sum(coloc_out_NAME %in% a_NAME)
 
 
 

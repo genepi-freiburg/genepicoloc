@@ -73,9 +73,10 @@ run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY = NA,
   if (sumstats_1_type == "quant") {
     if (!is.na(sumstats_1_sdY)) {
       sumstats_df_1_coloc$sdY <- sumstats_1_sdY
-    } else
+    } else {
       sumstats_df_1_coloc$MAF <- sumstats_1_df$AF
-    sumstats_df_1_coloc$N <- sumstats_1_df$N
+      sumstats_df_1_coloc$N <- sumstats_1_df$N
+    }
   }
   sumstats_df_2_coloc <- list(beta=sumstats_2_df$BETA,
                               varbeta=(sumstats_2_df$SE)^2,
@@ -84,9 +85,10 @@ run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY = NA,
   if (sumstats_2_type == "quant") {
     if (!is.na(sumstats_2_sdY)) {
       sumstats_df_2_coloc$sdY <- sumstats_2_sdY
-    } else
+    } else {
       sumstats_df_2_coloc$MAF <- sumstats_2_df$AF
-    sumstats_df_2_coloc$N <- sumstats_2_df$N
+      sumstats_df_2_coloc$N <- sumstats_2_df$N
+    }
   }
   coloc_res <- coloc.abf(dataset1=sumstats_df_1_coloc, dataset2=sumstats_df_2_coloc)
   return(coloc_res)
@@ -234,7 +236,7 @@ parallel_wrapper <- function(sumstats_2_args,
     }
   }
   if (do_annotate) {  if (!do_rbind) { stop("do_annotate=T cannot be used with do_rbind=F")}  }
-  if (dry_run) {params_df <- params_df[1:2,]; EXPERIMENT <- paste0(EXPERIMENT, "_dryrun")}
+  if (dry_run & !(debug_mode)) {params_df <- params_df[1:2,]; EXPERIMENT <- paste0(EXPERIMENT, "_dryrun")}
   if (debug_mode) {
     coloc_out <- lapply(1:nrow(params_df),
                         function(i) {
@@ -301,21 +303,52 @@ run_all_colocs <- function(list_to_create_args_list, sumstats_1_args, ...) {
 #' under development
 #' @export
 read_sumstats_1 <- function(sumstats_file,
-                            CHR_name = "CHR",
-                            BP_name = "BP",
-                            p_value_name = "P",
-                            other_columns) {
-  
+                            Name_name = NULL,
+                            rsID_name = NULL,
+                            CHR_name = NULL,
+                            POS_name = NULL,
+                            A1_name = NULL,
+                            A2_name = NULL,
+                            BETA_name = NULL,
+                            SE_name = NULL,
+                            p_value_name = NULL,
+                            AF_name = NULL,
+                            N_name = NULL,
+                            other_columns = NULL) {
+  if (is.null(CHR_name)) { stop("CHR_name is empty") }
+  if (is.null(POS_name)) { stop("POS_name is empty") }
+  if (is.null(p_value_name)) { stop("p_value_name is empty") }
   if ("data.table" %in% rownames(installed.packages())) {
     sumstats <- data.table::fread(sumstats_file)
     sumstats <- as.data.frame(sumstats)
   } else {
     sumstats <- read.delim(sumstats_file, header = T)
   }
-  sumstats <- sumstats[,c(CHR_name, BP_name, p_value_name, other_columns)]
+  all_cols <- c(Name_name, rsID_name, CHR_name, POS_name,
+                A1_name, A2_name, BETA_name, SE_name,
+                p_value_name, AF_name, N_name, other_columns)
+  sumstats <- sumstats[,all_cols]
   colnames(sumstats)[colnames(sumstats) == CHR_name] <- "CHR"
-  colnames(sumstats)[colnames(sumstats) == BP_name] <- "BP"
+  colnames(sumstats)[colnames(sumstats) == BP_name] <- "POS"
   colnames(sumstats)[colnames(sumstats) == p_value_name] <- "P"
+  if (!is.null(Name_name)) 
+    colnames(sumstats)[colnames(sumstats) == Name_name] <- "Name"
+  if (!is.null(rsID_name)) 
+    colnames(sumstats)[colnames(sumstats) == rsID_name] <- "rsID"
+  if (!is.null(A1_name)) 
+    colnames(sumstats)[colnames(sumstats) == A1_name] <- "A1"
+  if (!is.null(A2_name)) 
+    colnames(sumstats)[colnames(sumstats) == A2_name] <- "A2"
+  if (!is.null(BETA_name)) 
+    colnames(sumstats)[colnames(sumstats) == BETA_name] <- "BETA"
+  if (!is.null(SE_name)) 
+    colnames(sumstats)[colnames(sumstats) == SE_name] <- "SE"
+  if (!is.null(p_value_name)) 
+    colnames(sumstats)[colnames(sumstats) == p_value_name] <- "P"
+  if (!is.null(AF_name)) 
+    colnames(sumstats)[colnames(sumstats) == AF_name] <- "AF"
+  if (!is.null(N_name)) 
+    colnames(sumstats)[colnames(sumstats) == N_name] <- "N"
   return(sumstats)
 }
 
@@ -332,15 +365,12 @@ read_sumstats_1 <- function(sumstats_file,
 #' under development
 #' @export
 get_coloc_regions <- function(sumstats,
-                              CHR_name = "CHR",
-                              BP_name = "BP",
-                              p_value_name = "P",
+                              CHR_name,
+                              BP_name,
+                              p_value_name,
                               p_threshold = 5e-8,
                               halfwindow = 500000,
                               log_name = NA) {
-  if(!all("CHR" %in% colnames(sumstats) &
-          "BP" %in% colnames(sumstats) &
-          "P" %in% colnames(sumstats))) {stop("Check column names")}
   # set up variables
   coloc_regions <- data.frame()
   # function-specific constants
@@ -414,14 +444,13 @@ get_coloc_regions <- function(sumstats,
 #' @description under development
 #' @export
 subset_sumstats_1 <- function(CHR_var, BP_START_var, BP_STOP_var,
-                              sumstats, dbSNP_file = NULL,
+                              sumstats, CHR_name, BP_name, p_value_name,
+                              dbSNP_file = NULL,
                               remove_duplicates = T,
                               do_match_rs = F) {
-  sumstats <- get(sumstats)
-  if(!all("CHR" %in% colnames(sumstats) &
-          "BP" %in% colnames(sumstats) &
-          "P" %in% colnames(sumstats))) {stop("Check column names")}
-  sumstats_filt <- subset(sumstats, CHR == CHR_var & BP >= BP_START_var & BP <= BP_STOP_var)
+  sumstats_filt <- subset(sumstats, sumstats[[CHR_name]] == CHR_var & 
+                            sumstats[[BP_name]] >= BP_START_var & 
+                            sumstats[[BP_name]] <= BP_STOP_var)
   if (do_match_rs) {
     sumstats_filt_rs_matched <- match_rs(dbSNP_file = dbSNP_file,
                                          CHR_var = CHR_var,
