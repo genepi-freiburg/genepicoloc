@@ -1,7 +1,7 @@
 #' olink annotation
 #' @param annotation_file path to annotation file
 #' @param coloc_out
-#' @return data.frame with processed annotation file.
+#' @return data.frame with annotated information.
 #' @examples
 #' Under development
 #' @export
@@ -34,18 +34,13 @@ olink_annotation <- function(olink_protein_map_3k_v1_file, coloc_out) {
 
 #' somascan annotation
 #' @param annotation_file path to annotation file
-#' @return data.frame with processed annotation file.
+#' @return data.frame with annotated information.
 #' @examples
 #' Under development
 #' @export
 somascan_annotation <- function(annotation_file, coloc_out) {
   annotation_df <- read.csv(annotation_file)
   annotation_df$chr <- gsub("chr", "", annotation_df$chr)
-  # annotation_df[which(duplicated(annotation_df$SeqId)),]$multiple_genes_per_protein <- 1
-  # selected_cols <- c("SeqId", "Protein..short.name.", "Protein..full.name.", "Gene",
-  #                    "UniProt", "Type", "Ensembl.Gene.ID", "chr", "gene_start", "gene_end",
-  #                    "multiple_genes_per_protein")
-  # annotation_df <- annotation_df[,selected_cols]
   prefix <- "Soma_"
   colnames(annotation_df)[-1] <- paste0(prefix, colnames(annotation_df)[-1])
   # coloc
@@ -66,9 +61,39 @@ somascan_annotation <- function(annotation_file, coloc_out) {
   return(coloc_out)
 }
 
+#' ARIC pGWAS annotation
+#' @param annotation_file path to annotation file
+#' @return data.frame with annotated information.
+#' @examples
+#' Under development
+#' @export
+ARIC_pGWAS_annotation <- function(annotation_file, coloc_out) {
+  annotation_df <- read.delim(annotation_file)
+  colnames(annotation_df)[colnames(annotation_df) == "chromosome_name"] <- "chr"
+  colnames(annotation_df)[colnames(annotation_df) == "transcription_start_site"] <- "gene_start"
+  prefix <- "ARIC_"
+  colnames(annotation_df)[-1] <- paste0(prefix, colnames(annotation_df)[-1])
+  # coloc
+  coloc_out$seqid_in_sample <- gsub(".PHENO1.glm.linear.gz", "", basename(coloc_out$sumstats_2_file))
+  coloc_out <- merge(coloc_out, by="seqid_in_sample",
+                     annotation_df,
+                     sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+  coloc_out$cis_trans <- "trans"
+  cis_condition <- (coloc_out[[paste0(prefix, "chr")]] == coloc_out$CHR_var) & ((coloc_out[[paste0(prefix, "gene_start")]] >= coloc_out$BP_START_var & coloc_out[[paste0(prefix, "gene_start")]] <= coloc_out$BP_STOP_var))
+  if (any(cis_condition)) {
+    coloc_out[cis_condition, ]$cis_trans <- "cis"
+  }
+  suggestive_cis_condition <- (coloc_out$CHR_var == coloc_out[[paste0(prefix, "chr")]]) & ((coloc_out[[paste0(prefix, "gene_start")]] >= coloc_out$BP_START_var-1e6 & coloc_out[[paste0(prefix, "gene_start")]] <= coloc_out$BP_STOP_var+1e6))
+  if (any(suggestive_cis_condition)) {
+    coloc_out[(!cis_condition) & suggestive_cis_condition, ]$cis_trans <- "suggestive_cis"
+  }
+  coloc_out[is.na(coloc_out$PP.H4.abf), ]$cis_trans <- NA
+  return(coloc_out)
+}
+
 #' GTEXv8 annotation
 #' @param annotation_file path to annotation file
-#' @return data.frame with processed annotation file.
+#' @return data.frame with annotated information.
 #' @examples
 #' Under development
 #' @export
@@ -109,7 +134,7 @@ GTEXv8_annotation <- function(annotation_file, coloc_out, ...) {
 
 #' GTEXv8 annotation
 #' @param annotation_file path to annotation file
-#' @return data.frame with processed annotation file.
+#' @return data.frame with annotated information.
 #' @examples
 #' Under development
 #' @export
@@ -124,4 +149,38 @@ mGWAS_annotation <- function(annotation_file, coloc_out, ...) {
   if(nrow_before != nrow(coloc_out)) { stop("Merge produced different number of rows, check duplicates or missing annotations") }
   return(coloc_out)
 }
+
+#' UKB TOPMed annotation
+#' @param annotation_file path to annotation file
+#' @return data.frame with annotated information.
+#' @examples
+#' Under development
+#' @export
+UKB_TOPMed_annotation <- function(annotation_file, coloc_out, ...) {
+  annotation_df <- read.delim(annotation_file, colClasses = "character")
+  coloc_out$phenocode <- gsub(".gz", "", basename(coloc_out$sumstats_2_file))
+  nrow_before <- nrow(coloc_out)
+  coloc_out <- merge(coloc_out, by = "phenocode",
+                     annotation_df, sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+  if(nrow_before != nrow(coloc_out)) { stop("Merge produced different number of rows, check duplicates or missing annotations") }
+  return(coloc_out)
+}
+
+#' FinnGen r9 annotation
+#' @param annotation_file path to annotation file
+#' @return data.frame with annotated information.
+#' @examples
+#' Under development
+#' @export
+FinnGen_r9_annotation <- function(annotation_file, coloc_out, ...) {
+  annotation_df <- read.delim(annotation_file, colClasses = "character")
+  coloc_out$NAME <- gsub("finngen_R9_(.*).gz", "\\1", basename(coloc_out$sumstats_2_file))
+  nrow_before <- nrow(coloc_out)
+  coloc_out <- merge(coloc_out, by = "NAME",
+                     annotation_df, sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+  if(nrow_before != nrow(coloc_out)) { stop("Merge produced different number of rows, check duplicates or missing annotations") }
+  return(coloc_out)
+}
+
+
 
