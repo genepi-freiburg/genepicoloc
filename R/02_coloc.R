@@ -11,8 +11,8 @@
 #' @examples
 #' create_coloc_params_df()
 #' @export
-create_coloc_params_df <- function(EXPERIMENT,
-                                   sumstats_1_args,
+create_coloc_params_df <- function(sumstats_1_args,
+                                   EXPERIMENT,
                                    sumstats_path,
                                    sumstats_pattern = "gz$",
                                    grep_invert = NULL,
@@ -216,19 +216,22 @@ parallel_wrapper <- function(sumstats_2_args,
                              annotation_function = NULL,
                              annotation_function_args = NULL,
                              N_nodes = 10, N_cpus_per_node = 10,
-                             do_rbind = T,
+                             do_rbind = T, do_annotate = NULL,
                              run_slurm = FALSE, global_objects = NULL,
                              dry_run = T, debug_mode = F,
                              save_RDS = T) {
+  create_coloc_params_df
   EXPERIMENT <- sumstats_2_args$EXPERIMENT
   extra_args <- sumstats_2_args$extra_args
   params_df <- sumstats_2_args$params_df
-  if (!is.null(sumstats_2_args$annotate)) {
-    do_annotate <- sumstats_2_args$annotate$do_annotate
-    annotation_function <- sumstats_2_args$annotate$annotation_function
-    annotation_function_args <- sumstats_2_args$annotate$annotation_function_args
-  } else {
-    do_annotate <- F
+  if (is.null(do_annotate)) {
+    if (!is.null(sumstats_2_args$annotate)) {
+      do_annotate <- sumstats_2_args$annotate$do_annotate
+      annotation_function <- sumstats_2_args$annotate$annotation_function
+      annotation_function_args <- sumstats_2_args$annotate$annotation_function_args
+    } else {
+      do_annotate <- F
+    }
   }
   if (do_annotate) {  if (!do_rbind) { stop("do_annotate=T cannot be used with do_rbind=F")}  }
   if (dry_run) {params_df <- params_df[1:2,]; EXPERIMENT <- paste0(EXPERIMENT, "_dryrun")}
@@ -272,6 +275,20 @@ parallel_wrapper <- function(sumstats_2_args,
   # cleanup_files(coloc_slr_job, wait = TRUE)
 }
 
+#' run all colocs
+#' @description under development
+#' @export
+run_all_colocs <- function(list_to_create_args_list, sumstats_1_args, ...) {
+  extra_args <- list(...)
+  list_of_args <- lapply(list_to_create_args_list, function(x) {
+    do.call(create_coloc_params_df, c(x, list(sumstats_1_args = sumstats_1_args)))
+  })
+  coloc_out <- Map(parallel_wrapper,
+                   list_of_args,
+                   MoreArgs = extra_args)
+  return(coloc_out)
+}
+
 
 #' Read sumstats 1 and format columns
 #' @param sumstats_file path to sumstats file
@@ -287,13 +304,12 @@ read_sumstats_1 <- function(sumstats_file,
                             CHR_name = "CHR",
                             BP_name = "BP",
                             p_value_name = "P",
-                            other_columns,
-                            read_method = "data.table") {
-  if (read_method == "data.table") {
+                            other_columns) {
+  
+  if ("data.table" %in% rownames(installed.packages())) {
     sumstats <- data.table::fread(sumstats_file)
     sumstats <- as.data.frame(sumstats)
-  }
-  if (read_method == "data.frame") {
+  } else {
     sumstats <- read.delim(sumstats_file, header = T)
   }
   sumstats <- sumstats[,c(CHR_name, BP_name, p_value_name, other_columns)]
