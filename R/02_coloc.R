@@ -13,7 +13,7 @@
 #' @export
 create_coloc_params_df <- function(sumstats_1_args,
                                    EXPERIMENT,
-                                   sumstats_path,
+                                   sumstats_path, files = NULL,
                                    sumstats_pattern = "gz$",
                                    grep_invert = NULL,
                                    sumstats_function,
@@ -23,10 +23,15 @@ create_coloc_params_df <- function(sumstats_1_args,
                                    do_annotate = F, annotation_function, annotation_function_args
                                    ) {
   # get all files
-  files <- list.files(sumstats_path, pattern = sumstats_pattern, full.names = T)
-  if (length(files) == 0) {stop("No sumstats found under given path")}
-  if (!is.null(grep_invert)) {
-    files <- grep(grep_invert, files, value = T, invert = T)
+  if (!is.null(sumstats_path)) {
+    files <- list.files(sumstats_path, pattern = sumstats_pattern, full.names = T)
+    if (length(files) == 0) {stop("No sumstats found under given path")}
+    if (!is.null(grep_invert)) {
+      files <- grep(grep_invert, files, value = T, invert = T)
+    }
+  } else {
+    if (is.null(files)) { stop("files cannot be NULL when sumstats_path is NULL") }
+    files <- files
   }
   sumstats_2_args <- data.frame(sumstats_2_file = files,
                             sumstats_2_function = sumstats_function,
@@ -293,16 +298,12 @@ run_all_colocs <- function(list_to_create_args_list, sumstats_1_args, ...) {
 
 
 #' Read sumstats 1 and format columns
-#' @param sumstats_file path to sumstats file
-#' @param CHR_name name of the column with chromosomes
-#' @param BP_name name of the column with positions
-#' @param p_value_name name of the column with p-values
-#' @param read_method either data.table (preferable, if available) or data.frame
 #' @return data frame with formatted columns
 #' @examples
 #' under development
 #' @export
 read_sumstats_1 <- function(sumstats_file,
+                            sumstats_name,
                             Name_name = NULL,
                             rsID_name = NULL,
                             CHR_name = NULL,
