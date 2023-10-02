@@ -6,23 +6,19 @@
 \usage{
 read_sumstats_1(
   sumstats_file,
-  CHR_name = "CHR",
-  BP_name = "BP",
-  p_value_name = "P",
-  other_columns,
-  read_method = "data.table"
+  Name_name = NULL,
+  rsID_name = NULL,
+  CHR_name = NULL,
+  POS_name = NULL,
+  A1_name = NULL,
+  A2_name = NULL,
+  BETA_name = NULL,
+  SE_name = NULL,
+  p_value_name = NULL,
+  AF_name = NULL,
+  N_name = NULL,
+  other_columns = NULL
 )
-}
-\arguments{
-\item{sumstats_file}{path to sumstats file}
-
-\item{CHR_name}{name of the column with chromosomes}
-
-\item{BP_name}{name of the column with positions}
-
-\item{p_value_name}{name of the column with p-values}
-
-\item{read_method}{either data.table (preferable, if available) or data.frame}
 }
 \value{
 data frame with formatted columns

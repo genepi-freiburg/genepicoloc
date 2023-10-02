@@ -6,17 +6,16 @@
 \usage{
 parallel_wrapper(
   sumstats_2_args,
-  do_annotate = F,
-  annotation_function,
-  annotation_function_args,
-  N_nodes = 20,
+  annotation_function = NULL,
+  annotation_function_args = NULL,
+  N_nodes = 10,
   N_cpus_per_node = 10,
-  do_rbind = F,
+  do_rbind = T,
+  do_annotate = NULL,
   run_slurm = FALSE,
   global_objects = NULL,
-  test_run = F,
-  debug_mode = F,
   dry_run = T,
+  debug_mode = F,
   save_RDS = T
 )
 }

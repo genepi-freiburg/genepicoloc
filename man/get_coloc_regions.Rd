@@ -7,11 +7,10 @@
 get_coloc_regions(
   sumstats,
   CHR_name = "CHR",
-  BP_name = "BP",
+  POS_name = "POS",
   p_value_name = "P",
   p_threshold = 5e-08,
-  halfwindow = 5e+05,
-  log_name = NA
+  halfwindow = 5e+05
 )
 }
 \arguments{

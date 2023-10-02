@@ -1,25 +1,22 @@
-#' olink annotation
+#' Olink_pGWAS annotation
 #' @param annotation_file path to annotation file
-#' @param coloc_out
 #' @return data.frame with annotated information.
 #' @examples
 #' Under development
 #' @export
-olink_annotation <- function(olink_protein_map_3k_v1_file, coloc_out) {
-  olink_protein_map_3k_v1 <- read.delim(olink_protein_map_3k_v1_file, sep="\t")
-  olink_protein_map_3k_v1$UKBPPP_ProteinID <- gsub(":", "_", olink_protein_map_3k_v1$UKBPPP_ProteinID)
-  olink_protein_map_3k_v1$multiple_genes_per_OID <- 0
-  olink_protein_map_3k_v1[which(duplicated(olink_protein_map_3k_v1$OlinkID)),]$multiple_genes_per_OID <- 1
+Olink_pGWAS <- function(annotation_file, coloc_out) {
+  annotation_df <- read.delim(annotation_file, sep="\t")
+  annotation_df$multiple_genes_per_OID <- 0
+  annotation_df[which(duplicated(annotation_df$OlinkID)),]$multiple_genes_per_OID <- 1
   selected_cols <- c("OlinkID", "olink_target_fullname", "UniProt", "Assay",
                      "HGNC.symbol", "ensembl_id", "chr", "gene_start", "gene_end",
                      "multiple_genes_per_OID")
-  olink_protein_map_3k_v1 <- olink_protein_map_3k_v1[,selected_cols]
-  colnames(olink_protein_map_3k_v1)[-1] <- paste0("Olink_", colnames(olink_protein_map_3k_v1)[-1])
+  annotation_df <- annotation_df[,selected_cols]
+  colnames(annotation_df)[-1] <- paste0("Olink_", colnames(annotation_df)[-1])
   coloc_out$OlinkID <- gsub(".*(OID[0-9]+).*", "\\1", coloc_out$sumstats_2_file)
   coloc_out <- merge(coloc_out, by.x="OlinkID",
-                     olink_protein_map_3k_v1, by.y="OlinkID",
-                     sort = FALSE)[, union(names(coloc_out), names(olink_protein_map_3k_v1))]
-  # stopifnot(unique(coloc_out$CHR_var) %in% unique(coloc_out$Olink_chr))
+                     annotation_df, by.y="OlinkID",
+                     sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
   coloc_out$cis_trans <- "trans"
   cis_condition <- (coloc_out$CHR_var == coloc_out$Olink_chr) & ((coloc_out$Olink_gene_start >= coloc_out$BP_START_var & coloc_out$Olink_gene_start <= coloc_out$BP_STOP_var) | (coloc_out$Olink_gene_end >= coloc_out$BP_START_var & coloc_out$Olink_gene_end <= coloc_out$BP_STOP_var))
   if (any(cis_condition)) {
@@ -132,7 +129,7 @@ GTEXv8_annotation <- function(annotation_file, coloc_out, ...) {
 }
 
 
-#' GTEXv8 annotation
+#' mGWAS annotation
 #' @param annotation_file path to annotation file
 #' @return data.frame with annotated information.
 #' @examples

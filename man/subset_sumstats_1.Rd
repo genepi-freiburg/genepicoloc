@@ -9,6 +9,8 @@ subset_sumstats_1(
   BP_START_var,
   BP_STOP_var,
   sumstats,
+  CHR_name = "CHR",
+  POS_name = "POS",
   dbSNP_file = NULL,
   remove_duplicates = T,
   do_match_rs = F

@@ -303,7 +303,6 @@ run_all_colocs <- function(list_to_create_args_list, sumstats_1_args, ...) {
 #' under development
 #' @export
 read_sumstats_1 <- function(sumstats_file,
-                            sumstats_name,
                             Name_name = NULL,
                             rsID_name = NULL,
                             CHR_name = NULL,
@@ -330,7 +329,7 @@ read_sumstats_1 <- function(sumstats_file,
                 p_value_name, AF_name, N_name, other_columns)
   sumstats <- sumstats[,all_cols]
   colnames(sumstats)[colnames(sumstats) == CHR_name] <- "CHR"
-  colnames(sumstats)[colnames(sumstats) == BP_name] <- "POS"
+  colnames(sumstats)[colnames(sumstats) == POS_name] <- "POS"
   colnames(sumstats)[colnames(sumstats) == p_value_name] <- "P"
   if (!is.null(Name_name)) 
     colnames(sumstats)[colnames(sumstats) == Name_name] <- "Name"
@@ -366,30 +365,28 @@ read_sumstats_1 <- function(sumstats_file,
 #' under development
 #' @export
 get_coloc_regions <- function(sumstats,
-                              CHR_name,
-                              BP_name,
-                              p_value_name,
+                              CHR_name = "CHR",
+                              POS_name = "POS",
+                              p_value_name = "P",
                               p_threshold = 5e-8,
-                              halfwindow = 500000,
-                              log_name = NA) {
+                              halfwindow = 500000
+                              ) {
   # set up variables
   coloc_regions <- data.frame()
+  regions_log <- c()
   # function-specific constants
   region_var <- 1
   comment_var <- "PASS"
-  if (!is.na(log_name)) {
-    fileConn <- file(log_name, "w")
-    sink(fileConn)
-  }
   # start iterations
   while(min(sumstats[[p_value_name]], na.rm = T) < p_threshold) {
+    regions_log <- c(regions_log, paste0("Solving region ", region_var))
+    print(paste0("Solving region ", region_var))
     min_p_row <- sumstats[which.min(sumstats[[p_value_name]]),]
     CHR_var <- min_p_row[[CHR_name]]
-    BP_var <- min_p_row[[BP_name]]
+    BP_var <- min_p_row[[POS_name]]
     BP_START_var <- BP_var - halfwindow
     BP_STOP_var <- BP_var + halfwindow
-    print(paste0("Solving region ", region_var))
-    print(paste0("Next most significant variant ", CHR_var, ":", BP_var))
+    regions_log <- c(regions_log, paste0("Next most significant variant ", CHR_var, ":", BP_var))
     if (nrow(coloc_regions) > 0) {
       coloc_regions_filtered <- subset(coloc_regions, grepl("PASS", comment))
     } else {
@@ -397,38 +394,34 @@ get_coloc_regions <- function(sumstats,
     }
     if (CHR_var %in% coloc_regions_filtered[[CHR_name]]) {
       closest_region <- subset(coloc_regions_filtered, coloc_regions_filtered[[CHR_name]] == CHR_var)
-      closest_region <- closest_region[which.min(sapply(closest_region$BP, function(x) abs(x - BP_var))),]
-      print(paste0("Closest region so far: region=", closest_region$region, ", ", closest_region$CHR, ":", closest_region$BP_START, "-", closest_region$BP_STOP))
+      closest_region <- closest_region[which.min(sapply(closest_region[[POS_name]], function(x) abs(x - BP_var))),]
+      regions_log <- c(regions_log, paste0("Closest region so far: region=", closest_region$region, ", ", closest_region[[CHR_name]], ":", closest_region$BP_START, "-", closest_region$BP_STOP))
       if (abs(closest_region$BP_START - BP_var) < halfwindow |
           abs(closest_region$BP_STOP - BP_var) < halfwindow) {
-        print(paste0("Next most significant variant is closer than ", halfwindow, " BP to the closest region, merging"))
+        regions_log <- c(regions_log, paste0("Next most significant variant is closer than ", halfwindow, " BP to the closest region, merging"))
         if (abs(closest_region$BP_START - BP_var) < halfwindow) {
           coloc_regions[coloc_regions$region == closest_region$region,]$BP_START <- BP_var
         } else if (abs(closest_region$BP_STOP - BP_var) < halfwindow) {
           coloc_regions[coloc_regions$region == closest_region$region,]$BP_STOP <- BP_var
         }
         updated_region <- subset(coloc_regions, region == closest_region$region)
-        print(paste0("Updated region: region=", updated_region$region, ", ", updated_region$CHR, ":", updated_region$BP_START, "-", updated_region$BP_STOP))
+        regions_log <- c(regions_log, paste0("Updated region: region=", updated_region$region, ", ", updated_region$CHR, ":", updated_region$BP_START, "-", updated_region$BP_STOP))
         comment_var <- paste0("SKIP_merged_to_", updated_region$region)
       } else {
-        print(paste0("Next most significant variant is further than ", halfwindow, " BP"))
+        regions_log <- c(regions_log, paste0("Next most significant variant is further than ", halfwindow, " BP"))
       }
     } else {
-      print(paste0("No hits on this chromosome so far"))
+      regions_log <- c(regions_log, paste0("No hits on this chromosome so far"))
     }
     coloc_regions <- rbind(coloc_regions, data.frame(region = region_var, min_p_row, BP_START = BP_START_var, BP_STOP = BP_STOP_var, comment = comment_var))
     old_indeces <- 1:nrow(sumstats)
-    indeces <- which(sumstats[[CHR_name]] == CHR_var & sumstats[[BP_name]] >= BP_START_var & sumstats[[BP_name]] <= BP_STOP_var)
+    indeces <- which(sumstats[[CHR_name]] == CHR_var & sumstats[[POS_name]] >= BP_START_var & sumstats[[POS_name]] <= BP_STOP_var)
     new_indeces <- old_indeces[! old_indeces %in% indeces]
     stopifnot(nrow(sumstats) - length(indeces) == length(new_indeces))
     sumstats <- sumstats[new_indeces,]
     region_var <- region_var + 1
     comment_var <- "PASS"
-    print("----------------")
-  }
-  # close log
-  if (!is.na(log_name)) {
-    sink(); close(fileConn)
+    regions_log <- c(regions_log, "----------------")
   }
   # return results
   colnames(coloc_regions)[colnames(coloc_regions) == "CHR"] <- "CHR_var"
@@ -438,20 +431,22 @@ get_coloc_regions <- function(sumstats,
   end_cols <- which(!colnames(coloc_regions) %in% c("CHR_var", "BP_START_var", "BP_STOP_var"))
   coloc_regions <- coloc_regions[,c(start_cols, end_cols)]
   rownames(coloc_regions) <- NULL
-  return(coloc_regions)
+  return(list(coloc_regions = coloc_regions, regions_log = regions_log))
 }
 
 #' subset_sumstats_1
 #' @description under development
 #' @export
 subset_sumstats_1 <- function(CHR_var, BP_START_var, BP_STOP_var,
-                              sumstats, CHR_name, BP_name, p_value_name,
+                              sumstats,
+                              CHR_name = "CHR",
+                              POS_name = "POS",
                               dbSNP_file = NULL,
                               remove_duplicates = T,
-                              do_match_rs = F) {
+                              do_match_rs = F, ...) {
   sumstats_filt <- subset(sumstats, sumstats[[CHR_name]] == CHR_var & 
-                            sumstats[[BP_name]] >= BP_START_var & 
-                            sumstats[[BP_name]] <= BP_STOP_var)
+                            sumstats[[POS_name]] >= BP_START_var & 
+                            sumstats[[POS_name]] <= BP_STOP_var)
   if (do_match_rs) {
     sumstats_filt_rs_matched <- match_rs(dbSNP_file = dbSNP_file,
                                          CHR_var = CHR_var,
@@ -485,8 +480,6 @@ match_rs <- function(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var,
   matched_alleles <- ((sumstats$REF == sumstats$A1) & (sumstats$ALT == sumstats$A2)) |
     ((sumstats$REF == sumstats$A2) & (sumstats$ALT == sumstats$A1))
   sumstats <- sumstats[matched_alleles,]
-  sumstats <- sumstats[,c("V6", "SNP", "CHR", "BP", "A1", "A2", "b", "se", "P", "freq", "N")]
-  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N")
   sumstats <- sumstats[order(sumstats$CHR, sumstats$POS),]
   return(sumstats)
 }

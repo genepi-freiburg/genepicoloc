@@ -10,7 +10,7 @@ somascan_annotation(annotation_file, coloc_out)
 \item{annotation_file}{path to annotation file}
 }
 \value{
-data.frame with processed annotation file.
+data.frame with annotated information.
 }
 \description{
 somascan annotation
