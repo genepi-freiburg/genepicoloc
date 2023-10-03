@@ -12,3 +12,12 @@ params_df_to_chunks <- function(params_df,
   })
   return(params_chunks)
 }
+flip_alleles <- function(vec) {
+  vec_out <- vec
+  vec_out[vec == "A"] <- "T"
+  vec_out[vec == "T"] <- "A"
+  vec_out[vec == "C"] <- "G"
+  vec_out[vec == "G"] <- "C"
+  return(vec_out)
+}
+
