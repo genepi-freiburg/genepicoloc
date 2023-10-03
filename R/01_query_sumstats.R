@@ -1,5 +1,5 @@
 #' @title Read sumstats 1
-#' @param sumstats_file path tabix-indexed sumstats.
+#' @param sumstats_file path to sumstats.
 #' @param CHR_var chromosome (as.character "1", "2", ..., "X").
 #' @param BP_START_var start of region, integer
 #' @param BP_STOP_var end of region, integer
@@ -254,6 +254,39 @@ query_GTEXv8_GWAS <- function(sumstats_file,
   return(sumstats_list)
 }
 
+#' @title Query Kidney eQTL
+#' @description Query GTEx v8 GWAS data to extract a region of interest
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats.
+#' @examples
+#' under development
+#' @export
+query_kidney_eQTL <- function(sumstats_file,
+                              CHR_var, BP_START_var, BP_STOP_var,
+                              ...) {
+  sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
+                                            CHR_var, ":", BP_START_var, "-",
+                                            BP_STOP_var), intern = T), header = T)
+  sumstats <- unique(sumstats)
+  if (nrow(sumstats) == 0) { return(sumstats) }
+  # format by phenotype ID
+  sumstats_list <- lapply(unique(sumstats$GeneID), function(x) {
+    sumstats <- subset(sumstats, GeneID == x)
+    sumstats$AF <- NA
+    sumstats$N <- NA
+    sumstats <- sumstats[,c("Name", "rsID", "CHR", "POS_hg38", "Alt", "Ref", "Beta", "Std", "Pvalue", "AF", "N", "GeneID")]
+    colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N", "Phenotype")
+    sumstats <- subset(sumstats, (!is.na(BETA)) & (!is.na(SE)))
+    sumstats <- subset(sumstats, (! BETA %in% c(Inf, -Inf)) & (! SE %in% c(Inf, -Inf)))
+    if (length(unique(sumstats$Phenotype)) > 1) {stop("Phenotype not unique in output query")}
+    return(sumstats)
+  })
+  return(sumstats_list)
+}
+
 #' Query dbSNP_file to get REF and ALT
 #' @param dbSNP_file path to dbSNP_file
 #' @param CHR_var path to dbSNP_file
@@ -264,12 +297,24 @@ query_GTEXv8_GWAS <- function(sumstats_file,
 #' under development
 #' @export
 query_dbSNP <- function(dbSNP_file,
-                        CHR_var, BP_START_var, BP_STOP_var) {
-  rs_df <- read.table(text=system(
-    paste0("tabix -h ", dbSNP_file, " chr", CHR_var, ":",
-           BP_START_var, "-", BP_STOP_var),
-    intern = T), header = F)
-  return(rs_df)
+                        CHR_var, BP_START_var, BP_STOP_var, rsID, ...) {
+  system_out <- suppressWarnings(
+    system(paste0("tabix -h ", dbSNP_file, " chr", CHR_var, ":",
+                  BP_START_var, "-", BP_STOP_var, " | grep -wF ", rsID),
+           intern = T)
+  )
+  if (is.null(attr(system_out,""))) {
+    sumstats <- read.table(text=system_out, header = F)
+  } else if (attr(system_out, "status") == 1) {
+    sumstats <- data.frame(rsID = NA, Name = NA)
+    return(sumstats)
+  }
+  sumstats <- sumstats[,c(3,6)]
+  colnames(sumstats) <- c("rsID", "Name")
+  sumstats$REF <- gsub("chr[0-9]+:[0-9]+:(.*):.*", "\\1", sumstats$Name)
+  sumstats$ALT <- gsub("chr[0-9]+:[0-9]+:.*:(.*)", "\\1", sumstats$Name)
+  stopifnot(all(names(table(sapply(strsplit(sumstats$rsID, "rs"), length))) == "2"))
+  return(sumstats)
 }
 
 
