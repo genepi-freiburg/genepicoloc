@@ -13,7 +13,8 @@ subset_sumstats_1(
   POS_name = "POS",
   dbSNP_file = NULL,
   remove_duplicates = T,
-  do_match_rs = F
+  do_match_rs = F,
+  ...
 )
 }
 \description{

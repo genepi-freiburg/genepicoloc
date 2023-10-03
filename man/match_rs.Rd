@@ -4,7 +4,17 @@
 \alias{match_rs}
 \title{match_rs}
 \usage{
-match_rs(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, sumstats)
+match_rs(
+  dbSNP_file,
+  sumstats,
+  CHR_var,
+  BP_START_var,
+  BP_STOP_var,
+  A1_name,
+  A2_name,
+  SNP_name,
+  ...
+)
 }
 \description{
 under development

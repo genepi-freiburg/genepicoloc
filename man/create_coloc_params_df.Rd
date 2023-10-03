@@ -17,7 +17,10 @@ create_coloc_params_df(
   extra_args = NULL,
   do_annotate = F,
   annotation_function,
-  annotation_function_args
+  annotation_function_args,
+  do_annotate_sumstats_1 = F,
+  annotation_function_sumstats_1,
+  annotation_function_args_sumstats_1
 )
 }
 \arguments{

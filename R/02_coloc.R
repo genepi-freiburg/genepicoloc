@@ -20,7 +20,8 @@ create_coloc_params_df <- function(sumstats_1_args,
                                    sumstats_type,
                                    sumstats_sdY = NA,
                                    extra_args = NULL,
-                                   do_annotate = F, annotation_function, annotation_function_args
+                                   do_annotate = F, annotation_function, annotation_function_args,
+                                   do_annotate_sumstats_1 = F, annotation_function_sumstats_1, annotation_function_args_sumstats_1
                                    ) {
   # get all files
   if (!is.null(sumstats_path)) {
@@ -55,7 +56,14 @@ create_coloc_params_df <- function(sumstats_1_args,
     list_out$annotate <- list(
       do_annotate = do_annotate,
       annotation_function = annotation_function,
-      annotation_function_args = annotation_function_args)
+      annotation_function_args = c(list(study = EXPERIMENT),
+                                   annotation_function_args))
+  }
+  if (do_annotate_sumstats_1) {
+    list_out$annotate_sumstats_1 <- list(
+      do_annotate_sumstats_1 = do_annotate_sumstats_1,
+      annotation_function_sumstats_1 = annotation_function_sumstats_1,
+      annotation_function_args_sumstats_1 = annotation_function_args_sumstats_1)
   }
   return(list_out)
 }
@@ -220,27 +228,38 @@ process_wrapper <- function(coloc_output,
 #' parallel wrapper
 #' @description under development
 #' @export
-parallel_wrapper <- function(sumstats_2_args,
+parallel_wrapper <- function(args_df,
                              annotation_function = NULL,
                              annotation_function_args = NULL,
                              N_nodes = 10, N_cpus_per_node = 10,
                              do_rbind = T, do_annotate = NULL,
+                             do_annotate_sumstats_1 = NULL,
                              run_slurm = FALSE, global_objects = NULL,
                              dry_run = T, debug_mode = F,
                              save_RDS = T) {
-  EXPERIMENT <- sumstats_2_args$EXPERIMENT
-  extra_args <- sumstats_2_args$extra_args
-  params_df <- sumstats_2_args$params_df
+  EXPERIMENT <- args_df$EXPERIMENT
+  print(EXPERIMENT)
+  extra_args <- args_df$extra_args
+  params_df <- args_df$params_df
   if (is.null(do_annotate)) {
-    if (!is.null(sumstats_2_args$annotate)) {
-      do_annotate <- sumstats_2_args$annotate$do_annotate
-      annotation_function <- sumstats_2_args$annotate$annotation_function
-      annotation_function_args <- sumstats_2_args$annotate$annotation_function_args
+    if (!is.null(args_df$annotate)) {
+      do_annotate <- args_df$annotate$do_annotate
+      annotation_function <- args_df$annotate$annotation_function
+      annotation_function_args <- args_df$annotate$annotation_function_args
     } else {
       do_annotate <- F
     }
   }
-  if (do_annotate) {  if (!do_rbind) { stop("do_annotate=T cannot be used with do_rbind=F")}  }
+  if (is.null(do_annotate_sumstats_1)) {
+    if (!is.null(args_df$annotate_sumstats_1)) {
+      do_annotate_sumstats_1 <- args_df$annotate$do_annotate_sumstats_1
+      annotation_function_sumstats_1 <- args_df$annotate$annotation_function_sumstats_1
+      annotation_function_args_sumstats_1 <- args_df$annotate$annotation_function_args_sumstats_1
+    } else {
+      do_annotate_sumstats_1 <- F
+    }
+  }
+  if (do_annotate | do_annotate_sumstats_1) {  if (!do_rbind) { stop("do_annotate=T or do_annotate_sumstats_1=T cannot be used with do_rbind=F")}  }
   if (dry_run & !(debug_mode)) {params_df <- params_df[1:2,]; EXPERIMENT <- paste0(EXPERIMENT, "_dryrun")}
   if (debug_mode) {
     coloc_out <- lapply(1:nrow(params_df),
@@ -274,6 +293,9 @@ parallel_wrapper <- function(sumstats_2_args,
   }
   if (do_annotate) {
     coloc_out <- do.call(annotation_function, c(annotation_function_args, list(coloc_out = coloc_out)))
+  }
+  if (do_annotate_sumstats_1) {
+    coloc_out <- do.call(annotation_function_sumstats_1, c(annotation_function_args_sumstats_1, list(coloc_out = coloc_out)))
   }
   if (save_RDS) {
     saveRDS(coloc_out, paste0(EXPERIMENT, ".RDS"))
@@ -375,7 +397,6 @@ get_coloc_regions <- function(sumstats,
     warning(paste0(p_value_name, " column is character, converting to numeric"))
     sumstats[[p_value_name]] <- as.numeric(sumstats[[p_value_name]])
   }
-  
   # set up variables
   coloc_regions <- data.frame()
   regions_log <- c()
@@ -428,16 +449,18 @@ get_coloc_regions <- function(sumstats,
     comment_var <- "PASS"
     regions_log <- c(regions_log, "----------------")
   }
-  # fix negative BP
-  coloc_regions$BP_START[coloc_regions$BP_START < 1] <- 1
-  # return results
-  colnames(coloc_regions)[colnames(coloc_regions) == "CHR"] <- "CHR_var"
-  colnames(coloc_regions)[colnames(coloc_regions) == "BP_START"] <- "BP_START_var"
-  colnames(coloc_regions)[colnames(coloc_regions) == "BP_STOP"] <- "BP_STOP_var"
-  start_cols <- which(colnames(coloc_regions) %in% c("CHR_var", "BP_START_var", "BP_STOP_var"))
-  end_cols <- which(!colnames(coloc_regions) %in% c("CHR_var", "BP_START_var", "BP_STOP_var"))
-  coloc_regions <- coloc_regions[,c(start_cols, end_cols)]
-  rownames(coloc_regions) <- NULL
+  if (nrow(coloc_regions) > 0) {
+    # fix negative BP
+    coloc_regions$BP_START[coloc_regions$BP_START < 1] <- 1
+    # return results
+    colnames(coloc_regions)[colnames(coloc_regions) == "CHR"] <- "CHR_var"
+    colnames(coloc_regions)[colnames(coloc_regions) == "BP_START"] <- "BP_START_var"
+    colnames(coloc_regions)[colnames(coloc_regions) == "BP_STOP"] <- "BP_STOP_var"
+    start_cols <- which(colnames(coloc_regions) %in% c("CHR_var", "BP_START_var", "BP_STOP_var"))
+    end_cols <- which(!colnames(coloc_regions) %in% c("CHR_var", "BP_START_var", "BP_STOP_var"))
+    coloc_regions <- coloc_regions[,c(start_cols, end_cols)]
+    rownames(coloc_regions) <- NULL
+  }
   return(list(coloc_regions = coloc_regions, regions_log = regions_log))
 }
 

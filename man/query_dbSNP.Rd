@@ -4,7 +4,7 @@
 \alias{query_dbSNP}
 \title{Query dbSNP_file to get REF and ALT}
 \usage{
-query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var)
+query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, rsID, ...)
 }
 \arguments{
 \item{dbSNP_file}{path to dbSNP_file}

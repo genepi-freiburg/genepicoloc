@@ -7,10 +7,10 @@
 run_coloc(
   sumstats_1_df,
   sumstats_1_type,
-  sumstats_1_sdY = NA,
+  sumstats_1_sdY,
   sumstats_2_df,
   sumstats_2_type,
-  sumstats_2_sdY = NA
+  sumstats_2_sdY
 )
 }
 \arguments{

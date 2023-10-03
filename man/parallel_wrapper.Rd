@@ -5,13 +5,14 @@
 \title{parallel wrapper}
 \usage{
 parallel_wrapper(
-  sumstats_2_args,
+  args_df,
   annotation_function = NULL,
   annotation_function_args = NULL,
   N_nodes = 10,
   N_cpus_per_node = 10,
   do_rbind = T,
   do_annotate = NULL,
+  do_annotate_sumstats_1 = NULL,
   run_slurm = FALSE,
   global_objects = NULL,
   dry_run = T,
