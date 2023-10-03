@@ -106,24 +106,35 @@ GTEXv8_annotation <- function(annotation_file, coloc_out, ...) {
   selected_cols <- c("chr", "gene_start", "gene_end",
                      "gene_id", "gene_type", "gene_name")
   annotation_df <- annotation_df[,selected_cols]
-  prefix <- "GTExV8_"
-  colnames(annotation_df) <- paste0(prefix, colnames(annotation_df))
-  colnames(annotation_df)[colnames(annotation_df) == "GTExV8_gene_id"] <- "ensembl_gene_id"
   # coloc
-  coloc_out$ensembl_gene_id <- gsub(".*(ENSG[0-9]+)", "\\1", coloc_out$sumstats_2_file)
-  coloc_out$Tissue <- gsub(".*all_associations-(.*).v8.*", "\\1", coloc_out$sumstats_2_file)
-  coloc_out <- merge(coloc_out, by.x="ensembl_gene_id",
+  if (any(grepl("Susztak", coloc_out$sumstats_2_file))) {
+    prefix <- "Kidney_eQTL_"
+    colnames(annotation_df) <- paste0(prefix, colnames(annotation_df))
+    annotation_df[[paste0(prefix, "gene_id_no_dot")]] <- gsub("(ENSG[0-9]+).[0-9]+", "\\1", annotation_df[[paste0(prefix, "gene_id")]])
+    colnames(annotation_df)[colnames(annotation_df) == paste0(prefix, "gene_id_no_dot")] <- "ensembl_gene_id"
+    coloc_out$ensembl_gene_id <- gsub(".*(ENSG[0-9]+).?.*", "\\1", basename(coloc_out$sumstats_2_file))
+    coloc_out$Tissue <- gsub("_ENSG.*", "", gsub("Formated", "" , gsub("_hg38.txt.gz", "", basename(coloc_out$sumstats_2_file))))
+  } else {
+    prefix <- "GTExV8_"
+    colnames(annotation_df) <- paste0(prefix, colnames(annotation_df))
+    colnames(annotation_df)[colnames(annotation_df) == "GTExV8_gene_id"] <- "ensembl_gene_id"
+    coloc_out$ensembl_gene_id <- gsub(".*(ENSG[0-9]+)", "\\1", coloc_out$sumstats_2_file)
+    coloc_out$Tissue <- gsub(".*all_associations-(.*).v8.*", "\\1", coloc_out$sumstats_2_file)
+  }
+  coloc_out <- merge(coloc_out, by.x="ensembl_gene_id", all.x=T,
                      annotation_df, by.y="ensembl_gene_id",
                      sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
   # stopifnot(unique(coloc_out$CHR_var) %in% unique(coloc_out$Olink_chr))
-  coloc_out$cis_trans <- "trans"
+  coloc_out$cis_trans <- NA
+  coloc_out[is.na(coloc_out[[paste0(prefix, "gene_name")]]),]$cis_trans <- NA
+  coloc_out[!is.na(coloc_out[[paste0(prefix, "gene_name")]]),]$cis_trans <- "trans"
   cis_condition <- (coloc_out[[paste0(prefix, "chr")]] == coloc_out$CHR_var) & ((coloc_out[[paste0(prefix, "gene_start")]] >= coloc_out$BP_START_var & coloc_out[[paste0(prefix, "gene_start")]] <= coloc_out$BP_STOP_var) | (coloc_out[[paste0(prefix, "gene_end")]] >= coloc_out$BP_START_var & coloc_out[[paste0(prefix, "gene_end")]] <= coloc_out$BP_STOP_var))
   if (any(cis_condition)) {
-    coloc_out[cis_condition, ]$cis_trans <- "cis"
+    coloc_out$cis_trans[cis_condition] <- "cis"
   }
   suggestive_cis_condition <- (coloc_out$CHR_var == coloc_out[[paste0(prefix, "chr")]]) & ((coloc_out[[paste0(prefix, "gene_start")]] >= coloc_out$BP_START_var-1e6 & coloc_out[[paste0(prefix, "gene_start")]] <= coloc_out$BP_STOP_var+1e6) | (coloc_out[[paste0(prefix, "gene_end")]] >= coloc_out$BP_START_var-1e6 & coloc_out[[paste0(prefix, "gene_end")]] <= coloc_out$BP_STOP_var+1e6))
   if (any(suggestive_cis_condition)) {
-    coloc_out[(!cis_condition) & suggestive_cis_condition, ]$cis_trans <- "suggestive_cis"
+    coloc_out$cis_trans[(!cis_condition) & suggestive_cis_condition] <- "suggestive_cis"
   }
   return(coloc_out)
 }
