@@ -69,8 +69,8 @@ create_coloc_params_df <- function(sumstats_1_args,
 #' @examples
 #' run_coloc()
 #' @export
-run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY = NA,
-                      sumstats_2_df, sumstats_2_type, sumstats_2_sdY = NA) {
+run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY,
+                      sumstats_2_df, sumstats_2_type, sumstats_2_sdY) {
   sumstats_df_1_coloc <- list(beta=sumstats_1_df$BETA,
                               varbeta=(sumstats_1_df$SE)^2,
                               snp=sumstats_1_df$Name,
@@ -116,7 +116,8 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
                           do_process_wrapper = T) {
   # Declare nested function
   process_sumstats_2_df <- function(sumstats_1_df, sumstats_2_df) {
-    if (nrow(sumstats_1_df) == 0 | nrow(sumstats_2_df) == 0) {
+    no_intersect <- all(!(sumstats_1_df$Name %in% sumstats_2_df$Name))
+    if (nrow(sumstats_1_df) == 0 | nrow(sumstats_2_df) == 0 | no_intersect) {
       if (do_process_wrapper == F) {stop("Output is not consistent when nrow=0 and do_process_wrapper=F")}
       if (is.data.frame(sumstats_1_df)) {
         suppressWarnings({sumstats_1_min_P <- min(sumstats_1_df$P, na.rm=T)})
@@ -227,7 +228,6 @@ parallel_wrapper <- function(sumstats_2_args,
                              run_slurm = FALSE, global_objects = NULL,
                              dry_run = T, debug_mode = F,
                              save_RDS = T) {
-  create_coloc_params_df
   EXPERIMENT <- sumstats_2_args$EXPERIMENT
   extra_args <- sumstats_2_args$extra_args
   params_df <- sumstats_2_args$params_df
@@ -371,6 +371,11 @@ get_coloc_regions <- function(sumstats,
                               p_threshold = 5e-8,
                               halfwindow = 500000
                               ) {
+  if (is.character(sumstats[[p_value_name]])) {
+    warning(paste0(p_value_name, " column is character, converting to numeric"))
+    sumstats[[p_value_name]] <- as.numeric(sumstats[[p_value_name]])
+  }
+  
   # set up variables
   coloc_regions <- data.frame()
   regions_log <- c()
@@ -400,9 +405,9 @@ get_coloc_regions <- function(sumstats,
           abs(closest_region$BP_STOP - BP_var) < halfwindow) {
         regions_log <- c(regions_log, paste0("Next most significant variant is closer than ", halfwindow, " BP to the closest region, merging"))
         if (abs(closest_region$BP_START - BP_var) < halfwindow) {
-          coloc_regions[coloc_regions$region == closest_region$region,]$BP_START <- BP_var
+          coloc_regions[coloc_regions$region == closest_region$region,]$BP_START <- BP_var-halfwindow
         } else if (abs(closest_region$BP_STOP - BP_var) < halfwindow) {
-          coloc_regions[coloc_regions$region == closest_region$region,]$BP_STOP <- BP_var
+          coloc_regions[coloc_regions$region == closest_region$region,]$BP_STOP <- BP_var+halfwindow
         }
         updated_region <- subset(coloc_regions, region == closest_region$region)
         regions_log <- c(regions_log, paste0("Updated region: region=", updated_region$region, ", ", updated_region$CHR, ":", updated_region$BP_START, "-", updated_region$BP_STOP))
@@ -423,6 +428,8 @@ get_coloc_regions <- function(sumstats,
     comment_var <- "PASS"
     regions_log <- c(regions_log, "----------------")
   }
+  # fix negative BP
+  coloc_regions$BP_START[coloc_regions$BP_START < 1] <- 1
   # return results
   colnames(coloc_regions)[colnames(coloc_regions) == "CHR"] <- "CHR_var"
   colnames(coloc_regions)[colnames(coloc_regions) == "BP_START"] <- "BP_START_var"
@@ -466,21 +473,45 @@ subset_sumstats_1 <- function(CHR_var, BP_START_var, BP_STOP_var,
 #' match_rs
 #' @description under development
 #' @export
-match_rs <- function(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var,
-                     sumstats) {
-  rs_df <- query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var)
-  stopifnot(all(names(table(sapply(strsplit(rs_df$V3, "rs"), length))) == "2"))
-  rs_df <- subset(rs_df, V3 %in% sumstats$SNP)
-  rs_df <- rs_df[,c(3,6)]
-  rs_df$REF <- gsub("chr[0-9]+:[0-9]+:(.*):.*", "\\1", rs_df$V6)
-  rs_df$ALT <- gsub("chr[0-9]+:[0-9]+:.*:(.*)", "\\1", rs_df$V6)
+match_rs <- function(dbSNP_file, sumstats,
+                     CHR_var, BP_START_var, BP_STOP_var,
+                     A1_name, A2_name, SNP_name, ...) {
+  # rs_df
+  sumstats$comment <- NA
+  rsID <- sumstats[[SNP_name]]
+  rs_df <- query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, rsID)
+  if (is.na(rs_df$Name)) {
+    sumstats$Name <- NA
+    return(sumstats)
+  }
+  rs_df <- subset(rs_df, rsID %in% sumstats[[SNP_name]])
   rs_df <- unique(rs_df)
-  sumstats <- merge(sumstats, by.x="SNP",
-                    rs_df, by.y="V3")
-  matched_alleles <- ((sumstats$REF == sumstats$A1) & (sumstats$ALT == sumstats$A2)) |
-    ((sumstats$REF == sumstats$A2) & (sumstats$ALT == sumstats$A1))
-  sumstats <- sumstats[matched_alleles,]
-  sumstats <- sumstats[order(sumstats$CHR, sumstats$POS),]
-  return(sumstats)
+  # sumstats
+  sumstats_before_merge <- sumstats
+  sumstats <- merge(sumstats, by.x=SNP_name, all.x=T, 
+                    rs_df, by.y="rsID")
+  sumstats$comment <- "not_inverted"
+  matched_alleles <- ((sumstats$REF == sumstats[[A1_name]]) & (sumstats$ALT == sumstats[[A2_name]])) |
+    ((sumstats$REF == sumstats[[A2_name]]) & (sumstats$ALT == sumstats[[A1_name]]))
+  sumstats_matched <- sumstats[matched_alleles,]
+  if (nrow(sumstats_matched) == 0) {
+    sumstats[[paste0(A1_name, "_flip")]] <- flip_alleles(sumstats[[A1_name]])
+    sumstats[[paste0(A2_name, "_flip")]] <- flip_alleles(sumstats[[A2_name]])
+    matched_alleles <- ((sumstats$REF == sumstats[[paste0(A1_name, "_flip")]]) & (sumstats$ALT == sumstats[[paste0(A2_name, "_flip")]])) |
+      ((sumstats$REF == sumstats[[paste0(A2_name, "_flip")]]) & (sumstats$ALT == sumstats[[paste0(A1_name, "_flip")]]))
+    sumstats[[paste0(A1_name, "_flip")]] <- NULL
+    sumstats[[paste0(A2_name, "_flip")]] <- NULL
+    sumstats_matched <- sumstats[matched_alleles,]
+    if(nrow(sumstats_matched) > 0) {
+      sumstats_matched$comment <- "inverted"
+    } else {
+      sumstats$comment <- "alleles_not_matched"
+      sumstats_matched <- sumstats_before_merge
+      sumstats_matched$Name <- NA
+    }
+  }
+  sumstats_matched$REF <- NULL
+  sumstats_matched$ALT <- NULL
+  return(sumstats_matched)
 }
 
