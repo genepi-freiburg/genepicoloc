@@ -6,42 +6,30 @@
 #' @export
 transcriptomics_annotation <- function(study, annotation_file,
                                        sumstats_file = "sumstats_2_file",
-                                       coloc_out) {
-  annotation_df <- read.delim(annotation_file, sep="\t", header=F)
-  annotation_df$gene_id <- gsub(".*gene_id (ENSG[0-9]+.[0-9]+); .*", "\\1", annotation_df$V9)
-  annotation_df$gene_type <- gsub(".*gene_type ([^;]+); .*", "\\1", annotation_df$V9)
-  annotation_df$gene_name <- gsub(".*gene_name ([^;]+); .*", "\\1", annotation_df$V9)
-  colnames(annotation_df)[colnames(annotation_df) == "V1"] <- "chr"
-  colnames(annotation_df)[colnames(annotation_df) == "V4"] <- "gene_start"
-  colnames(annotation_df)[colnames(annotation_df) == "V5"] <- "gene_end"
-  annotation_df$chr <- gsub("chr", "", annotation_df$chr)
-  selected_cols <- c("chr", "gene_start", "gene_end",
-                     "gene_id", "gene_type", "gene_name")
-  annotation_df <- annotation_df[,selected_cols]
+                                       coloc_out,
+                                       CHR_var = "CHR_var", BP_START_var = "BP_START_var",
+                                       BP_STOP_var = "BP_STOP_var") {
+  annotation_df <- read.delim(annotation_file)
   colnames(annotation_df) <- paste0(study, "_", colnames(annotation_df))
   if (study == "GTEXv8") {
-    colnames(annotation_df)[colnames(annotation_df) == paste0(study, "_gene_id")] <- "ensembl_gene_id"
-    coloc_out$ensembl_gene_id <- gsub(".*(ENSG[0-9]+)", "\\1", coloc_out$sumstats_2_file)
-    coloc_out$Tissue <- gsub(".*all_associations-(.*).v8.*", "\\1", coloc_out$sumstats_2_file)
+    merge_column <- paste0(study, "_gene_id")
+    coloc_out[[merge_column]] <- gsub(".*(ENSG[0-9]+)", "\\1", basename(coloc_out[[sumstats_file]]))
+    coloc_out[[paste0(study, "_Tissue")]] <- gsub(".*all_associations-(.*).v8.*", "\\1", basename(coloc_out[[sumstats_file]]))
   }
-  if (study == "kidney_eQTL") {
-    annotation_df[[paste0(study, "_gene_id_no_dot")]] <- gsub("(ENSG[0-9]+).?.*", "\\1", annotation_df[[paste0(study, "_gene_id")]])
-    colnames(annotation_df)[colnames(annotation_df) == paste0(study, "_gene_id_no_dot")] <- "ensembl_gene_id"
-    coloc_out$ensembl_gene_id <- gsub(".*(ENSG[0-9]+).?.*", "\\1", basename(coloc_out$sumstats_2_file))
-    coloc_out$Tissue <- gsub("_ENSG.*", "", gsub("Formated", "" , gsub("_hg38.txt.gz", "", basename(coloc_out$sumstats_2_file))))
+  if (study == "Kidney_eQTL") {
+    merge_column <- paste0(study, "_gene_id_no_dot")
+    annotation_df[[merge_column]] <- gsub("(ENSG[0-9]+).?.*", "\\1", annotation_df[[paste0(study, "_gene_id")]])
+    coloc_out[[merge_column]] <- gsub(".*(ENSG[0-9]+).?.*", "\\1", basename(coloc_out[[sumstats_file]]))
+    coloc_out[[paste0(study, "_Tissue")]] <- gsub("_ENSG.*", "", gsub("Formated", "" , gsub("_hg38.txt.gz", "", basename(coloc_out[[sumstats_file]]))))
   }
-  coloc_out <- merge(coloc_out, annotation_df, by = "ensembl_gene_id", all.x=T,
+  coloc_out <- merge(coloc_out, annotation_df, by = merge_column, all.x=T,
                      sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
-  # stopifnot(unique(coloc_out$CHR_var) %in% unique(coloc_out$Olink_chr))
-  coloc_out$cis_trans <- cis_trans_annotation(region_CHR_vec = coloc_out$CHR_var,
-                                              region_BP_START_vec = coloc_out$BP_START_var,
-                                              region_BP_STOP_vec = coloc_out$BP_STOP_var,
-                                              gene_chr_vec = coloc_out[[paste0(study, "_chr")]],
-                                              gene_start_vec = coloc_out[[paste0(study, "_gene_start")]],
-                                              suggestive_window = 1e6)
-  
-  
-  
+  coloc_out[[paste0(study, "_cis_trans")]] <- cis_trans_annotation(region_CHR_vec = coloc_out[[CHR_var]],
+                                                                   region_BP_START_vec = coloc_out[[BP_START_var]],
+                                                                   region_BP_STOP_vec = coloc_out[[BP_STOP_var]],
+                                                                   gene_chr_vec = coloc_out[[paste0(study, "_chr")]],
+                                                                   gene_start_vec = coloc_out[[paste0(study, "_gene_start")]],
+                                                                   suggestive_window = 1e6)
   return(coloc_out)
 }
 
@@ -53,95 +41,120 @@ transcriptomics_annotation <- function(study, annotation_file,
 #' @export
 proteomics_annotation <- function(study, annotation_file,
                                   sumstats_file = "sumstats_2_file",
-                                  coloc_out) {
+                                  coloc_out, CHR_var = "CHR_var", BP_START_var = "BP_START_var",
+                                  BP_STOP_var = "BP_STOP_var") {
   if (study %in% c("UKB_PPP_EUR", "GCKD_pGWAS")) {
-    merge_column <- "OlinkID"
+    merge_column <- paste0(study, "_OlinkID")
     annotation_df <- read.delim(annotation_file, sep="\t")
-    annotation_df$multiple_genes_per_OID <- 0
-    annotation_df[which(duplicated(annotation_df$OlinkID)),]$multiple_genes_per_OID <- 1
-    selected_cols <- c("OlinkID", "olink_target_fullname", "UniProt", "Assay",
-                       "HGNC.symbol", "ensembl_id", "chr", "gene_start", "gene_end",
-                       "multiple_genes_per_OID")
+    colnames(annotation_df) <- paste0(study, "_", colnames(annotation_df))
+    annotation_df[[paste0(study, "_multiple_genes_per_OID")]] <- 0
+    annotation_df[which(duplicated(annotation_df[[paste0(study, "_OlinkID")]])),][[paste0(study, "_multiple_genes_per_OID")]] <- 1
+    selected_cols <- paste0(study, "_", c("OlinkID", "olink_target_fullname", "UniProt", "Assay",
+                                          "HGNC.symbol", "ensembl_id", "chr", "gene_start", "gene_end",
+                                          "multiple_genes_per_OID"))
     annotation_df <- annotation_df[,selected_cols]
-    coloc_out[[merge_column]] <- gsub(".*(OID[0-9]+).*", "\\1", coloc_out[[sumstats_file]])
+    if (sumstats_file == "sumstats_2_file") {
+      coloc_out[[merge_column]] <- gsub(".*(OID[0-9]+).*", "\\1", coloc_out[[sumstats_file]])
+    }
   }
   if (study == "Icelanders_pGWAS") {
-    merge_column <- "SeqId"
+    merge_column <- paste0(study, "_SeqId")
     annotation_df <- read.csv(annotation_file)
-    annotation_df$chr <- gsub("chr", "", annotation_df$chr)
+    colnames(annotation_df) <- paste0(study, "_", colnames(annotation_df))
+    annotation_df[[paste0(study, "_chr")]] <- gsub("chr", "", annotation_df[[paste0(study, "_chr")]])
     coloc_out[[merge_column]] <- gsub(".*NG2021/([0-9]+_[0-9]+)_.*", "\\1", coloc_out[[sumstats_file]])
   }
   if (study == "ARIC_pGWAS") {
-    merge_column <- "seqid_in_sample"
+    merge_column <- paste0(study, "_seqid_in_sample")
     annotation_df <- read.delim(annotation_file)
-    colnames(annotation_df)[colnames(annotation_df) == "chromosome_name"] <- "chr"
-    colnames(annotation_df)[colnames(annotation_df) == "transcription_start_site"] <- "gene_start"
+    colnames(annotation_df) <- paste0(study, "_", colnames(annotation_df))
+    colnames(annotation_df)[colnames(annotation_df) == paste0(study, "_chromosome_name")] <- paste0(study, "_chr")
+    colnames(annotation_df)[colnames(annotation_df) == paste0(study, "_transcription_start_site")] <- paste0(study, "_gene_start")
     coloc_out[[merge_column]] <- gsub(".PHENO1.glm.linear.gz", "", basename(coloc_out[[sumstats_file]]))
   }
-  colnames(annotation_df)[-1] <- paste0(study, "_", colnames(annotation_df)[-1])
+  cis_trans_column <- paste0(study, "_cis_trans")
+  gene_chr_vec_name <- paste0(study, "_chr")
+  gene_start_vec_name <- paste0(study, "_gene_start")
+  if (sumstats_file == "sumstats_1_file") {
+    if (study != "GCKD_pGWAS") {stop("Only GCKD_pGWAS as sumstats_1 is supported so far")}
+    # rename sumstats_2 columns
+    colnames(coloc_out)[grep(paste0(study, "_"), colnames(coloc_out))] <- 
+      paste0("sumstats_2_", colnames(coloc_out)[grep(paste0(study, "_"), colnames(coloc_out))])
+    merge_column <- paste0("sumstats_1_", merge_column)
+    colnames(annotation_df) <- paste0("sumstats_1_", colnames(annotation_df))
+    coloc_out[[merge_column]] <- gsub(".*(OID[0-9]+).*", "\\1", coloc_out[[sumstats_file]])
+    # update cis_trans columns
+    cis_trans_column <- paste0("sumstats_1_", study, "_cis_trans")
+    gene_chr_vec_name <- paste0("sumstats_1_", study, "_chr")
+    gene_start_vec_name <- paste0("sumstats_1_", study, "_gene_start")
+  }
   coloc_out <- merge(coloc_out, annotation_df, by=merge_column, all.x=T,
                      sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
-  coloc_out$cis_trans <- cis_trans_annotation(region_CHR_vec = coloc_out$CHR_var,
-                                              region_BP_START_vec = coloc_out$BP_START_var,
-                                              region_BP_STOP_vec = coloc_out$BP_STOP_var,
-                                              gene_chr_vec = coloc_out[[paste0(study, "_chr")]],
-                                              gene_start_vec = coloc_out[[paste0(study, "_gene_start")]],
-                                              suggestive_window = 1e6)
+  coloc_out[[cis_trans_column]] <- cis_trans_annotation(region_CHR_vec = coloc_out[[CHR_var]],
+                                                        region_BP_START_vec = coloc_out[[BP_START_var]],
+                                                        region_BP_STOP_vec = coloc_out[[BP_STOP_var]],
+                                                        gene_chr_vec = coloc_out[[gene_chr_vec_name]],
+                                                        gene_start_vec = coloc_out[[gene_start_vec_name]],
+                                                        suggestive_window = 1e6)
   return(coloc_out)
 }
 
 
-#' mGWAS annotation
+#' standard annotation
+#' mGWAS, UKB TOPMed, FinnGen r9
 #' @param annotation_file path to annotation file
 #' @return data.frame with annotated information.
 #' @examples
 #' Under development
 #' @export
-mGWAS_annotation <- function(annotation_file, coloc_out, ...) {
-  annotation_df <- read.csv(annotation_file)
-  colnames(annotation_df)[colnames(annotation_df) == "ID"] <- "metabolite"
-  coloc_out$metabolite <- gsub(".*[0-9]+-[0-9]+-[0-9]+_(.*_.*_.*)_.*_.*_.*_.*", "\\1", coloc_out$sumstats_2_file)
-  nrow_before <- nrow(coloc_out)
-  coloc_out <- merge(coloc_out, by = "metabolite",
-                     annotation_df[,c("metabolite", "BIOCHEMICAL")],
-                     sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+standard_annotation <- function(study, annotation_file,
+                                sumstats_file = "sumstats_2_file",
+                                coloc_out) {
+  if (study %in% c("mGWAS_plasma", "mGWAS_urine")) {
+    merge_column <- paste0(study, "_metabolite")
+    annotation_df <- read.csv(annotation_file)
+    colnames(annotation_df)[colnames(annotation_df) == "ID"] <- "metabolite"
+    coloc_out[[merge_column]] <- gsub(".*[0-9]+-[0-9]+-[0-9]+_(.*_.*_.*)_.*_.*_.*_.*", "\\1", coloc_out[[sumstats_file]])
+    colnames(annotation_df) <- paste0(study, "_", colnames(annotation_df))
+    nrow_before <- nrow(coloc_out)
+    coloc_out <- merge(coloc_out, by = merge_column, all.x=T,
+                       annotation_df[,c(paste0(study, "_metabolite"), paste0(study, "_BIOCHEMICAL"))],
+                       sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+  }
+  if (study == "UKB_TOPMed") {
+    merge_column <- paste0(study, "_phenocode")
+    annotation_df <- read.delim(annotation_file, colClasses = "character")
+    coloc_out[[merge_column]] <- gsub(".gz", "", basename(coloc_out[[sumstats_file]]))
+    colnames(annotation_df) <- paste0(study, "_", colnames(annotation_df))
+    selected_cols <- paste0(study, "_", c("phenocode", "num_cases", "num_controls",
+                                          "num_samples", "phenostring", "num_peaks",
+                                          "gc_lambda_hundred", "category"))
+    annotation_df <- annotation_df[,selected_cols]
+    nrow_before <- nrow(coloc_out)
+    coloc_out <- merge(coloc_out, by = merge_column, all.x=T,
+                       annotation_df, sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+  }
+  if (study == "FinnGen_r9") {
+    merge_column <- paste0(study, "_NAME")
+    annotation_df <- read.delim(annotation_file, colClasses = "character")
+    coloc_out[[merge_column]] <- gsub("finngen_R9_(.*).gz", "\\1", basename(coloc_out[[sumstats_file]]))
+    colnames(annotation_df) <- paste0(study, "_", colnames(annotation_df))
+    selected_cols <- paste0(study, "_", c("NAME", "CORE_ENDPOINTS", "REASON_FOR_NONCORE",
+                                          "LONGNAME", "SEX", "CONTROL_EXCLUDE",
+                                          "CONTROL_PRECONDITIONS", "CONTROL_CONDITIONS",
+                                          "INCLUDE", "PRE_CONDITIONS", "CONDITIONS",
+                                          "OUTPAT_ICD", "HD_ICD_10", "HD_ICD_10_EXCL",
+                                          "COD_ICD_10", "COD_ICD_10_EXCL",
+                                          "version", "PARENT", "Latin"))
+    annotation_df <- annotation_df[,selected_cols]
+    nrow_before <- nrow(coloc_out)
+    coloc_out <- merge(coloc_out, by = merge_column, all.x=T,
+                       annotation_df, sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+  }
   if(nrow_before != nrow(coloc_out)) { stop("Merge produced different number of rows, check duplicates or missing annotations") }
   return(coloc_out)
 }
-
-
-
-#' UKB TOPMed annotation
-#' @param annotation_file path to annotation file
-#' @return data.frame with annotated information.
-#' @examples
-#' Under development
-#' @export
-UKB_TOPMed_annotation <- function(annotation_file, coloc_out, ...) {
-  annotation_df <- read.delim(annotation_file, colClasses = "character")
-  coloc_out$phenocode <- gsub(".gz", "", basename(coloc_out$sumstats_2_file))
-  nrow_before <- nrow(coloc_out)
-  coloc_out <- merge(coloc_out, by = "phenocode",
-                     annotation_df, sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
-  if(nrow_before != nrow(coloc_out)) { stop("Merge produced different number of rows, check duplicates or missing annotations") }
-  return(coloc_out)
-}
-
-#' FinnGen r9 annotation
-#' @param annotation_file path to annotation file
-#' @return data.frame with annotated information.
-#' @examples
-#' Under development
-#' @export
-FinnGen_r9_annotation <- function(annotation_file, coloc_out, ...) {
-  annotation_df <- read.delim(annotation_file, colClasses = "character")
-  coloc_out$NAME <- gsub("finngen_R9_(.*).gz", "\\1", basename(coloc_out$sumstats_2_file))
-  nrow_before <- nrow(coloc_out)
-  coloc_out <- merge(coloc_out, by = "NAME", all.x=T,
-                     annotation_df, sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
-  if(nrow_before != nrow(coloc_out)) { stop("Merge produced different number of rows, check duplicates or missing annotations") }
-  return(coloc_out)
-}
+# FinnGen_r9
 # 22 phenotypes are not present in the annotation file
 # BMI_IRN, HEIGHT_IRN, K11_ANOMALI_DENTAL_ARCH_RELATIONS1_INCLAVO, K11_CROWDI_TEETH_INCLAVO, K11_DEEP_BITE_INCLAVO, K11_DISTAL_BITE_INCLAVO, K11_EMBED_TEETH_INCLAVO, K11_EMBIMPACT_TEETH_INCLAVO, K11_ERUPTION_INCLAVO, K11_HYPO_ONLY_INCLAVO, K11_HYPOLASIA_ENAMEL, K11_IMPACTED_TEETH_INCLAVO, K11_MAJOR_ANOMALI_JAW_SIZE_INCLAVO, K11_MIH_INCLAVO, K11_MN_PROGN_INCLAVO, K11_OPEN_BITE_INCLAVO, K11_ORAL_LICHEN_PLANUS_WIDE, K11_RESORBTION, K11_RETROG_MAXILLAE_INCLAVO, K11_SCISS_BITE_INCLAVO, Q17_CLEFT_AND_CARIES_INCLAVO, WEIGHT_IRN
 

@@ -306,7 +306,7 @@ query_dbSNP <- function(dbSNP_file,
   if (is.null(attr(system_out,""))) {
     sumstats <- read.table(text=system_out, header = F)
   } else if (attr(system_out, "status") == 1) {
-    sumstats <- data.frame(rsID = NA, Name = NA)
+    sumstats <- data.frame(rsID = NA, Name = NA, REF = NA, ALT = NA)
     return(sumstats)
   }
   sumstats <- sumstats[,c(3,6)]

@@ -252,9 +252,9 @@ parallel_wrapper <- function(args_df,
   }
   if (is.null(do_annotate_sumstats_1)) {
     if (!is.null(args_df$annotate_sumstats_1)) {
-      do_annotate_sumstats_1 <- args_df$annotate$do_annotate_sumstats_1
-      annotation_function_sumstats_1 <- args_df$annotate$annotation_function_sumstats_1
-      annotation_function_args_sumstats_1 <- args_df$annotate$annotation_function_args_sumstats_1
+      do_annotate_sumstats_1 <- args_df$annotate_sumstats_1$do_annotate_sumstats_1
+      annotation_function_sumstats_1 <- args_df$annotate_sumstats_1$annotation_function_sumstats_1
+      annotation_function_args_sumstats_1 <- args_df$annotate_sumstats_1$annotation_function_args_sumstats_1
     } else {
       do_annotate_sumstats_1 <- F
     }
@@ -268,6 +268,8 @@ parallel_wrapper <- function(args_df,
                         })
   }
   if (run_slurm) {
+    if (is.null(global_objects))
+      stop("Add global_objects = list(ls()) when running parallel_wrapper")
     coloc_slr_job <- slurm_apply(f = coloc_wrapper,
                                  params = params_df,
                                  extra_args,
@@ -276,6 +278,7 @@ parallel_wrapper <- function(args_df,
                                  jobname = EXPERIMENT, submit = TRUE,
                                  slurm_options = list(time = "12:00:00", share = TRUE))
     coloc_out <- get_slurm_out(coloc_slr_job, outtype = "raw", wait = TRUE, ncores = NULL)
+    cleanup_files(coloc_slr_job, wait = TRUE)
   } else if ("parallel" %in% rownames(installed.packages())) {
     if (debug_mode == F) {
       coloc_out <- parallel::mclapply(1:nrow(params_df),
@@ -301,7 +304,6 @@ parallel_wrapper <- function(args_df,
     saveRDS(coloc_out, paste0(EXPERIMENT, ".RDS"))
   }
   return(coloc_out)
-  # cleanup_files(coloc_slr_job, wait = TRUE)
 }
 
 #' run all colocs
@@ -336,15 +338,26 @@ read_sumstats_1 <- function(sumstats_file,
                             p_value_name = NULL,
                             AF_name = NULL,
                             N_name = NULL,
-                            other_columns = NULL) {
+                            other_columns = NULL,
+                            format_columns = F) {
   if (is.null(CHR_name)) { stop("CHR_name is empty") }
   if (is.null(POS_name)) { stop("POS_name is empty") }
   if (is.null(p_value_name)) { stop("p_value_name is empty") }
   if ("data.table" %in% rownames(installed.packages())) {
-    sumstats <- data.table::fread(sumstats_file)
+    if (format_columns == T) {
+      sumstats <- data.table::fread(cmd=sumstats_file)
+    }
+    if (format_columns == F) {
+        sumstats <- data.table::fread(sumstats_file)
+    }
     sumstats <- as.data.frame(sumstats)
   } else {
-    sumstats <- read.delim(sumstats_file, header = T)
+    if (format_columns == T) {
+      sumstats <- read.delim(text = system(sumstats_file, intern = T), header = T)
+    }
+    if (format_columns == F) {
+      sumstats <- read.delim(sumstats_file, header = T)
+    }
   }
   all_cols <- c(Name_name, rsID_name, CHR_name, POS_name,
                 A1_name, A2_name, BETA_name, SE_name,
@@ -472,19 +485,32 @@ subset_sumstats_1 <- function(CHR_var, BP_START_var, BP_STOP_var,
                               CHR_name = "CHR",
                               POS_name = "POS",
                               dbSNP_file = NULL,
+                              CHR_var_col_name = NULL,
+                              BP_START_var_col_name = NULL,
+                              BP_STOP_var_col_name = NULL,
                               remove_duplicates = T,
-                              do_match_rs = F, ...) {
+                              do_match_rs = F, N_mc.cores = 10, ...) {
   sumstats_filt <- subset(sumstats, sumstats[[CHR_name]] == CHR_var & 
                             sumstats[[POS_name]] >= BP_START_var & 
                             sumstats[[POS_name]] <= BP_STOP_var)
   if (do_match_rs) {
-    sumstats_filt_rs_matched <- match_rs(dbSNP_file = dbSNP_file,
-                                         CHR_var = CHR_var,
-                                         BP_START_var = BP_START_var,
-                                         BP_STOP_var = BP_STOP_var,
-                                         sumstats = sumstats)
+    if ("parallel" %in% rownames(installed.packages())) {
+      sumstats_filt_list <- parallel::mclapply(1:nrow(sumstats_filt), function(i) {
+        do.call(match_rs, list(dbSNP_file = "/data/public_resources/Ensembl_human_variation_b38_v109/dbSNP_v156_b38p14_rsid.vcf.gz",
+                               sumstats = sumstats_filt[i,],
+                               CHR_var_col_name = CHR_var_col_name,
+                               BP_START_var_col_name = BP_START_var_col_name,
+                               BP_STOP_var_col_name = BP_STOP_var_col_name,
+                               A1_name = "A1",
+                               A2_name = "A2",
+                               SNP_name = "rsID"))
+      }, mc.cores = N_mc.cores)
+      sumstats_filt <- do.call(rbind, sumstats_filt_list)
+    } else {
+      stop("match_rs without parallel::mclappy not yet implemented ")
+    }
     # sumstats_filt_rs_unmatched <- subset(sumstats_filt_rs[!matched_alleles,], !SNP %in% sumstats_filt_rs_matched$SNP)
-    sumstats_filt <- sumstats_filt_rs_matched
+    # sumstats_filt <- sumstats_filt_rs_matched
   }
   if (remove_duplicates) {
     sumstats_filt <- unique(sumstats_filt)
@@ -493,19 +519,94 @@ subset_sumstats_1 <- function(CHR_var, BP_START_var, BP_STOP_var,
 }
 
 
+#' process sumstats 1
+#' @description under development
+#' @export
+process_sumstats_1 <- function(sumstats_file, sumstats_name,
+                               Name_name,
+                               rsID_name = NULL,
+                               CHR_name, POS_name,
+                               A1_name, A2_name,
+                               BETA_name, SE_name, p_value_name,
+                               AF_name, N_name, p_threshold, format_columns=F) {
+  sumstats_name_out <- paste0("subset/", sumstats_name)
+  system(paste0("mkdir -p ", sumstats_name_out))
+  if (format_columns) {
+    sumstats_file <- paste0("cut -f 1-16 ", sumstats_file, "")
+  }
+  sumstats_1 <- read_sumstats_1(sumstats_file,
+                                format_columns = format_columns,
+                                Name_name = Name_name,
+                                rsID_name = rsID_name,
+                                CHR_name = CHR_name,
+                                POS_name = POS_name,
+                                A1_name = A1_name,
+                                A2_name = A2_name,
+                                BETA_name = BETA_name,
+                                SE_name = SE_name,
+                                p_value_name = p_value_name,
+                                AF_name = AF_name,
+                                N_name = N_name)
+  coloc_regions_list <- get_coloc_regions(sumstats = sumstats_1,
+                                          p_threshold = p_threshold,
+                                          halfwindow = 500000)
+  coloc_regions <- coloc_regions_list$coloc_regions
+  if (nrow(coloc_regions) == 0) {
+    writeLines("No significant regions found", con = paste0(sumstats_name_out, "/log_no_significant.txt"))
+    return("No significant regions")
+  }
+  regions_log <- coloc_regions_list$regions_log
+  extra_args <- list(do_match_rs = F,
+                     sumstats = sumstats_1,
+                     CHR_name = "CHR",
+                     POS_name = "POS")
+  sumstats_1_subset <- mclapply(1:nrow(coloc_regions), 
+                                function(i) do.call(subset_sumstats_1, c(coloc_regions[i,], extra_args)),
+                                mc.cores = 8)
+  sumstats_1_subset <- unique(do.call(rbind, sumstats_1_subset))
+  # save
+  writeLines(regions_log, con = paste0(sumstats_name_out, "/", basename(sumstats_name_out), "_log.txt"))
+  saveRDS(sumstats_1_subset, paste0(sumstats_name_out, "/", basename(sumstats_name_out), "_subset.RDS"))
+  saveRDS(coloc_regions, paste0(sumstats_name_out, "/", basename(sumstats_name_out), "_coloc_regions.RDS"))
+  return("PASS")
+}
+
+
+
+
 #' match_rs
 #' @description under development
 #' @export
 match_rs <- function(dbSNP_file, sumstats,
-                     CHR_var, BP_START_var, BP_STOP_var,
-                     A1_name, A2_name, SNP_name, ...) {
+                     CHR_var_col_name = "CHR", BP_START_var_col_name = "POS",
+                     BP_STOP_var_col_name = "POS",
+                     A1_name = "A1", A2_name = "A2", SNP_name = "rsID", ...) {
   # rs_df
   sumstats$comment <- NA
   rsID <- sumstats[[SNP_name]]
-  rs_df <- query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, rsID)
-  if (is.na(rs_df$Name)) {
-    sumstats$Name <- NA
-    return(sumstats)
+  # test if several rsIDs are present
+  rsID_split <- strsplit(rsID, ";")[[1]]
+  if (length(rsID_split) > 1) {
+    rs_df_list <- lapply(rsID_split, function(rsID) {
+      CHR_var <- sumstats[[CHR_var_col_name]]
+      BP_START_var <- sumstats[[BP_START_var_col_name]]
+      BP_STOP_var <- sumstats[[BP_STOP_var_col_name]]
+      rs_df <- query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, rsID)
+      return(rs_df)
+    })
+    rs_df <- do.call(rbind, rs_df_list)
+  } else {
+    CHR_var <- sumstats[[CHR_var_col_name]]
+    BP_START_var <- sumstats[[BP_START_var_col_name]]
+    BP_STOP_var <- sumstats[[BP_STOP_var_col_name]]
+    rs_df <- query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, rsID)
+  }
+  if (length(rs_df[[SNP_name]]) == 1) {
+    if (is.na(rs_df[[SNP_name]])) {
+      sumstats[[SNP_name]] <- NA
+      sumstats$Name <- NA
+      return(sumstats)
+    }
   }
   rs_df <- subset(rs_df, rsID %in% sumstats[[SNP_name]])
   rs_df <- unique(rs_df)

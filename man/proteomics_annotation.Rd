@@ -8,7 +8,10 @@ proteomics_annotation(
   study,
   annotation_file,
   sumstats_file = "sumstats_2_file",
-  coloc_out
+  coloc_out,
+  CHR_var = "CHR_var",
+  BP_START_var = "BP_START_var",
+  BP_STOP_var = "BP_STOP_var"
 )
 }
 \arguments{
