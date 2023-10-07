@@ -232,7 +232,8 @@ parallel_wrapper <- function(args_df,
                              annotation_function = NULL,
                              annotation_function_args = NULL,
                              N_nodes = 10, N_cpus_per_node = 10,
-                             do_rbind = T, do_annotate = NULL,
+                             do_rbind = T, save_RDS_no_annotation = T,
+                             do_annotate = NULL,
                              do_annotate_sumstats_1 = NULL,
                              run_slurm = FALSE, global_objects = NULL,
                              dry_run = T, debug_mode = F,
@@ -293,6 +294,9 @@ parallel_wrapper <- function(args_df,
   }
   if (do_rbind) {
     coloc_out <- do.call(rbind, lapply(coloc_out, function(x) {do.call(rbind, x)}))
+  }
+  if (save_RDS_no_annotation) {
+    saveRDS(coloc_out, paste0(EXPERIMENT, "_no_annotation.RDS"))
   }
   if (do_annotate) {
     coloc_out <- do.call(annotation_function, c(annotation_function_args, list(coloc_out = coloc_out)))
@@ -532,7 +536,11 @@ process_sumstats_1 <- function(sumstats_file, sumstats_name,
   sumstats_name_out <- paste0("subset/", sumstats_name)
   system(paste0("mkdir -p ", sumstats_name_out))
   if (format_columns) {
-    sumstats_file <- paste0("cut -f 1-16 ", sumstats_file, "")
+    if(grepl("gz$", sumstats_file)) {
+      sumstats_file <- paste0("zcat ", sumstats_file, " | cut -f 1-16")
+    } else {
+      sumstats_file <- paste0("cut -f 1-16 ", sumstats_file)
+    }
   }
   sumstats_1 <- read_sumstats_1(sumstats_file,
                                 format_columns = format_columns,
