@@ -121,9 +121,10 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
                           sumstats_2_file, sumstats_2_function,
                           sumstats_2_type, sumstats_2_sdY,
                           ...,
-                          do_process_wrapper = T) {
+                          do_process_wrapper = T, minP = 1e-5) {
   # Declare nested function
   process_sumstats_2_df <- function(sumstats_1_df, sumstats_2_df) {
+    # if sumstats_1/2 queries return 0 rows or there is no SNP intersect
     no_intersect <- all(!(sumstats_1_df$Name %in% sumstats_2_df$Name))
     if (nrow(sumstats_1_df) == 0 | nrow(sumstats_2_df) == 0 | no_intersect) {
       if (do_process_wrapper == F) {stop("Output is not consistent when nrow=0 and do_process_wrapper=F")}
@@ -147,6 +148,19 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
     }
     sumstats_1_min_P <- min(sumstats_1_df$P, na.rm=T)
     sumstats_2_min_P <- min(sumstats_2_df$P, na.rm=T)
+    if (sumstats_1_min_P >= minP | sumstats_2_min_P >= minP) {
+      coloc_output <- data.frame(CHR_var = CHR_var, BP_START_var = BP_START_var,
+                                 BP_STOP_var = BP_STOP_var,
+                                 sumstats_1_file = sumstats_1_file,
+                                 sumstats_1_min_P = sumstats_1_min_P,
+                                 sumstats_2_file = sumstats_2_file,
+                                 sumstats_2_min_P	= sumstats_2_min_P,
+                                 nsnps = 0,
+                                 PP.H0.abf = NA, PP.H1.abf = NA, PP.H2.abf = NA,
+                                 PP.H3.abf = NA, PP.H4.abf = NA, Top_coloc_SNP = NA,
+                                 Top_coloc_SNP.PP.H4 = NA, priors = NA)
+      return(coloc_output)
+    }
     coloc_output <- run_coloc(sumstats_1_df = sumstats_1_df,
                               sumstats_1_type = sumstats_1_type,
                               sumstats_1_sdY = sumstats_1_sdY,
@@ -174,22 +188,24 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
   }
   sumstats_1_df <- do.call(sumstats_1_function,
                            c(list(sumstats_file = sumstats_1_file), args_list))
+  # handle character P in case of underflow
+  sumstats_1_df[["P"]] <- as.numeric(sumstats_1_df[["P"]])
   sumstats_2_obj <- do.call(sumstats_2_function,
                             c(list(sumstats_file = sumstats_2_file), args_list))
   # sumstats_2_obj can be either a list of data.frames or a data.frame
   # next block will process sumstats_2_obj as a list, so convert first if needed
   if (is.data.frame(sumstats_2_obj)) {sumstats_2_obj <- list(sumstats_2_obj)}
   # process_sumstats_2_df
-  sumstats_2_list <- lapply(sumstats_2_obj, function(x) {
+  coloc_output <- lapply(sumstats_2_obj, function(sumstats_2_df) {
+    sumstats_2_df[["P"]] <- as.numeric(sumstats_2_df[["P"]])
     df_out <- process_sumstats_2_df(sumstats_1_df = sumstats_1_df,
-                                    sumstats_2_df = x)
-    if ("Phenotype" %in% colnames(x)) {
-      df_out$sumstats_2_file <- paste0(df_out$sumstats_2_file, "_", unique(x$Phenotype))
+                                    sumstats_2_df = sumstats_2_df)
+    if ("Phenotype" %in% colnames(sumstats_2_df)) {
+      df_out[["sumstats_2_file"]] <- paste0(df_out[["sumstats_2_file"]], "_", unique(sumstats_2_df[["Phenotype"]]))
     }
     return(df_out)
   })
-  # coloc_output <- do.call(rbind, sumstats_2_list)
-  return(sumstats_2_list)
+  return(coloc_output)
 }
 
 
@@ -237,10 +253,19 @@ parallel_wrapper <- function(args_df,
                              do_annotate_sumstats_1 = NULL,
                              run_slurm = FALSE, global_objects = NULL,
                              dry_run = T, debug_mode = F,
-                             save_RDS = T) {
+                             save_RDS = T, minP = 1e-5) {
   EXPERIMENT <- args_df$EXPERIMENT
   print(EXPERIMENT)
   extra_args <- args_df$extra_args
+  if (!is.null(extra_args)) {
+    if (is.list(extra_args)) {
+      extra_args <- c(extra_args, minP = minP)
+    } else {
+      stop("extra_args are not list")
+    }
+  } else {
+    extra_args <- list(minP = minP)
+  }
   params_df <- args_df$params_df
   if (is.null(do_annotate)) {
     if (!is.null(args_df$annotate)) {

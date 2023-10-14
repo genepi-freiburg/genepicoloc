@@ -13,6 +13,26 @@
 #   return(params_chunks)
 # }
 
+
+handle_underflow <- function(P_vector) {
+  if (is.character(P_vector)) {
+    exp_indeces <- grepl("e-", P_vector, ignore.case = T)
+    if (any(exp_indeces)) {
+      significand_val <- as.numeric(gsub("(.*)[eE]-[0-9]+$", "\\1", P_vector[exp_indeces]))
+      exponent_val <- as.numeric(gsub(".*[eE]-([0-9]+)$", "\\1", P_vector[exp_indeces]))
+      P_vector[exp_indeces] <- as.character(-log10(significand_val) + exponent_val)
+      P_vector[!exp_indeces] <- -log10(as.numeric(P_vector[!exp_indeces]))
+      P_vector <- as.numeric(P_vector)
+      return(P_vector)
+    } else {
+      stop("P column is character but scientific notation patterns 'e-' or 'E-' were not found")
+    }
+  } else {
+    -log10(P_vector, na.rm=T)
+  }
+}
+
+
 flip_alleles <- function(vec) {
   vec_out <- vec
   vec_out[vec == "A"] <- "T"
@@ -34,8 +54,8 @@ cis_trans_annotation <- function(region_CHR_vec, region_BP_START_vec, region_BP_
                         (gene_start_vec < region_BP_START_vec-suggestive_window) |
                         (gene_start_vec > region_BP_STOP_vec+suggestive_window))
   cis_trans <- ifelse(cis_condition, "cis",
-                                ifelse(suggestive_cis_condition, "suggestive_cis",
-                                       ifelse(trans_condition, "trans", NA)))
+                      ifelse(suggestive_cis_condition, "suggestive_cis",
+                             ifelse(trans_condition, "trans", NA)))
   return(cis_trans)
 }
 
