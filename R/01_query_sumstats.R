@@ -1,3 +1,28 @@
+#' @title Read sumstats
+#' @param sumstats_file path to sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats.
+#' @export
+query_sumstats <- function(sumstats_file,
+                             CHR_var, BP_START_var, BP_STOP_var,
+                             ...,
+                             read_mode = "RDS") {
+  if (read_mode == "RDS") {
+    sumstats <- readRDS(sumstats_file)
+  }
+  if (read_mode == "read.csv") {
+    sumstats <- read.csv(sumstats_file)
+  }
+  if (read_mode == "get") {
+    sumstats <- get(sumstats_file)
+  }
+  if (nrow(sumstats) == 0) { return(sumstats) }
+  sumstats <- subset(sumstats, CHR == CHR_var & POS >= BP_START_var & POS <= BP_STOP_var)
+  return(sumstats)
+}
+
 #' @title Read sumstats 1
 #' @param sumstats_file path to sumstats.
 #' @param CHR_var chromosome (as.character "1", "2", ..., "X").
@@ -306,14 +331,14 @@ query_dbSNP <- function(dbSNP_file,
   if (is.null(attr(system_out,""))) {
     sumstats <- read.table(text=system_out, header = F)
   } else if (attr(system_out, "status") == 1) {
-    sumstats <- data.frame(rsID = NA, Name = NA, REF = NA, ALT = NA)
+    sumstats <- data.frame(rsID = NA, Name_rs_matching = NA, REF = NA, ALT = NA)
     return(sumstats)
   }
   sumstats <- sumstats[,c(3,6)]
-  colnames(sumstats) <- c("rsID", "Name")
-  sumstats$REF <- gsub("chr[0-9]+:[0-9]+:(.*):.*", "\\1", sumstats$Name)
-  sumstats$ALT <- gsub("chr[0-9]+:[0-9]+:.*:(.*)", "\\1", sumstats$Name)
-  stopifnot(all(names(table(sapply(strsplit(sumstats$rsID, "rs"), length))) == "2"))
+  colnames(sumstats) <- c("rsID", "Name_rs_matching")
+  sumstats[["REF"]] <- gsub("chr[0-9]+:[0-9]+:(.*):.*", "\\1", sumstats[["Name_rs_matching"]])
+  sumstats[["ALT"]] <- gsub("chr[0-9]+:[0-9]+:.*:(.*)", "\\1", sumstats[["Name_rs_matching"]])
+  stopifnot(all(names(table(sapply(strsplit(sumstats[["rsID"]], "rs"), length))) == "2"))
   return(sumstats)
 }
 

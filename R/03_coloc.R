@@ -258,11 +258,7 @@ parallel_wrapper <- function(args_df,
   print(EXPERIMENT)
   extra_args <- args_df$extra_args
   if (!is.null(extra_args)) {
-    if (is.list(extra_args)) {
-      extra_args <- c(extra_args, minP = minP)
-    } else {
-      stop("extra_args are not list")
-    }
+    extra_args <- c(extra_args, minP = minP)
   } else {
     extra_args <- list(minP = minP)
   }

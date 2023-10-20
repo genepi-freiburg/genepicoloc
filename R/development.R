@@ -13,6 +13,8 @@
 # - Check there are no NAs in betas
 # - Phenotype (genes) in GTEX: ENSG00000198744.5 is not a real gene. It is ENSG00000198744
 # - Check chr X codification
+#   - query_UKB_GWAS
+#   - query_ARIC_pGWAS "/data/public_resources/ARIC_pQTL
 # coloc: add sdY
 
 
