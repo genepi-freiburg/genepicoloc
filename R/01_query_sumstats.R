@@ -157,15 +157,15 @@ query_ARIC_pGWAS <- function(sumstats_file,
   return(sumstats)
 }
 
-#' @title query CKD Gen
-#' @description Query CKD Gen data to extract a region of interest
+#' @title query CKDGen
+#' @description Query CKDGen data to extract a region of interest
 #' @param sumstats_file path tabix-indexed sumstats.
 #' @param CHR_var chromosome (as.character "1", "2", ..., "X").
 #' @param BP_START_var start of region, integer
 #' @param BP_STOP_var end of region, integer
 #' @return data frame with extracted sumstats
 #' @export
-query_CKD_pGWAS <- function(sumstats_file,
+query_CKDGen <- function(sumstats_file,
                             CHR_var, BP_START_var, BP_STOP_var, ...) {
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
@@ -173,10 +173,12 @@ query_CKD_pGWAS <- function(sumstats_file,
                                      intern = T), header = T)
   if (nrow(sumstats) == 0) { return(sumstats) }
   # format
-  sumstats$rsID <- sumstats$variant_id
-  sumstats$Name <- paste0("chr", gsub("_", ":", sumstats$hm_variant_id))
-  sumstats <- sumstats[,c("Name", "rsID", "hm_chrom", "hm_pos", "hm_effect_allele", "hm_other_allele", "hm_beta", "standard_error", "p_value", "hm_effect_allele_frequency", "n")]
+  sumstats <- sumstats[,c("Name_hg38", "RSID", "CHR_hg38", "POS_hg38", "A1_hg38", "A2_hg38", "Effect", "StdErr", "P.value", "Freq1", "n_total_sum")]
   colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N")
+  # remove NAs
+  sumstats <- subset(sumstats, (!is.na(BETA)) & (!is.na(SE)) & (!is.na(P)) & (!is.na(AF)) & (!is.na(N)))
+  sumstats <- subset(sumstats, AF < 1 & AF > 0 )
+  sumstats <- subset(sumstats, (! BETA %in% c(Inf, -Inf)) & (! SE %in% c(Inf, -Inf)))
   # output
   return(sumstats)
 }
@@ -322,12 +324,23 @@ query_kidney_eQTL <- function(sumstats_file,
 #' under development
 #' @export
 query_dbSNP <- function(dbSNP_file,
-                        CHR_var, BP_START_var, BP_STOP_var, rsID, ...) {
-  system_out <- suppressWarnings(
-    system(paste0("tabix -h ", dbSNP_file, " chr", CHR_var, ":",
-                  BP_START_var, "-", BP_STOP_var, " | grep -wF ", rsID),
-           intern = T)
-  )
+                        CHR_var, BP_START_var, BP_STOP_var, rsID = NULL, ...) {
+  if (is.null(rsID)) {
+    system_out <- suppressWarnings(
+      system(paste0("tabix -h ", dbSNP_file, " chr", CHR_var, ":",
+                    BP_START_var, "-", BP_STOP_var), intern = T)
+    )
+  } else {
+    system_out <- suppressWarnings(
+      system(paste0("tabix -h ", dbSNP_file, " chr", CHR_var, ":",
+                    BP_START_var, "-", BP_STOP_var, " | grep -wF ", rsID),
+             intern = T)
+    )
+  }
+  if (length(system_out) == 0) {
+    sumstats <- data.frame(rsID = NA, Name_rs_matching = NA, REF = NA, ALT = NA)
+    return(sumstats)
+  }
   if (is.null(attr(system_out,""))) {
     sumstats <- read.table(text=system_out, header = F)
   } else if (attr(system_out, "status") == 1) {
@@ -341,5 +354,18 @@ query_dbSNP <- function(dbSNP_file,
   stopifnot(all(names(table(sapply(strsplit(sumstats[["rsID"]], "rs"), length))) == "2"))
   return(sumstats)
 }
+
+query_dbSNP_POS <- function(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, ...) {
+  system_out <- system(paste0("tabix -h ", dbSNP_file, " chr", CHR_var, ":", BP_START_var, "-", BP_STOP_var), intern = T)
+  if (length(system_out) == 0) {
+    sumstats <- data.frame(matrix(ncol = 6, nrow = 0))
+    colnames(sumstats) <- paste0("V", 1:6)
+  }
+  if (length(system_out) >= 1) {
+    sumstats <- read.table(text=system_out, header = F, colClasses = "character")
+  }
+  return(sumstats)
+}
+
 
 

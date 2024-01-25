@@ -1,30 +1,26 @@
 #' Read and format input summary statistics (under development)
 #' @param sumstats_file path to sumstats file.
-#' @param unix_command alternatively to sumstats_file user can provide
-#' a unix command which will be piped to the read_method
+#' @param sumstats sumstats data.frame loaded into R.
 #' @param read_method "read.delim" or "data.table". If data.table package is
 #' available, "data.table" can speed up reading (usually 2-3 times faster)
 #' @param sep_var Separator type (',', '\t', ' ', etc). Should be provided only if 
 #' read_method is read.delim (data.table usually determined separator automatically)
-#' @param Name_name
-#' @param CHR_name
-#' @param POS_name
-#' @param A1_name
-#' @param A2_name
-#' @param BETA_name
-#' @param SE_name
-#' @param p_value_name
-#' @param AF_name
-#' @param N_name
+#' @param Name_name update development
+#' @param CHR_name update development
+#' @param POS_name update development
+#' @param A1_name update development
+#' @param A2_name update development
+#' @param BETA_name update development
+#' @param SE_name update development
+#' @param p_value_name update development
+#' @param AF_name update development
+#' @param N_name update development
 #' @param other_columns vector with names of other columns
 #' @return data frame with formatted columns
 #' @examples
 #' under development
 #' @export
-read_sumstats <- function(sumstats_file,
-                          unix_command,
-                          read_method = "read.delim",
-                          sep_var,
+read_sumstats <- function(sumstats_file, sumstats, sep_var,
                           Name_name = NULL, Name_name_new = "Name",
                           rsID_name = NULL, rsID_name_new = "rsID",
                           CHR_name = NULL, CHR_name_new = "CHR",
@@ -37,39 +33,37 @@ read_sumstats <- function(sumstats_file,
                           AF_name = NULL, AF_name_new = "AF",
                           N_name = NULL, N_name_new = "N",
                           other_columns = NULL) {
+  if ("data.table" %in% rownames(installed.packages())) {
+    read_method <- "data.table"
+  } else { 
+    read_method <- "read.delim"
+    if (missing(sep_var)) { stop("Please provide separator type (',', '\t', ' ', etc)") }
+  }
   ### Checks
-  if (missing(sumstats_file) & missing(unix_command)) {
-    stop("Please provide either sumstats_file or unix_command")
-  }
-  if (!missing(sumstats_file) & !missing(unix_command)) {
-    stop("Please provide either sumstats_file or unix_command, not both")
-  }
   if (missing(CHR_name)) { warning("No chromosome column provided") }
   if (missing(POS_name)) { warning("No base pair position column provided") }
   if (missing(p_value_name)) { warning("No p-value column provided") }
   ### Read
-  if (read_method == "data.table") {
-    if ("data.table" %in% rownames(installed.packages())) {
-      if (!missing(unix_command))
-        sumstats <- data.table::fread(cmd = unix_command)
-      if (!missing(sumstats_file))
-        sumstats <- data.table::fread(input = sumstats_file)
+  if (!missing(sumstats_file)) {
+    print("'sumstats_file' provided, sumstats will be read from the file")
+    if (read_method == "data.table") {
+      sumstats <- data.table::fread(input = sumstats_file)
       sumstats <- as.data.frame(sumstats)
-    }
-  }
-  if (read_method == "read.delim") {
-    if (missing(sep_var)) { stop("Please provide separator type (',', '\t', ' ', etc)") }
-    if (!missing(unix_command))
-      sumstats <- read.delim(text = system(unix_command, intern = T), header = T, sep = sep_var)
-    if (!missing(sumstats_file))
+    } else if (read_method == "read.delim") {
       sumstats <- read.delim(file = sumstats_file, header = T, sep = sep_var)
+    }
+  } else if (!missing(sumstats)) {
+    print(paste0("'sumstats' object provided, it will be used for formatting. ",
+                 "If you like to read a file from the disk, please use 'sumstats_file' argument instead."))
+    sumstats <- as.data.frame(sumstats)
   }
   ### Select
   all_cols <- c(Name_name, rsID_name, CHR_name, POS_name,
                 A1_name, A2_name, BETA_name, SE_name,
                 p_value_name, AF_name, N_name, other_columns)
-  if (!all(all_cols %in% colnames(sumstats)))
+  if (!all(all_cols %in% colnames(sumstats))) {
     stop("Not all provided colnames match colnames in the sumstats")
+  }
   sumstats <- sumstats[,all_cols]
   ### Format
   if (!is.null(Name_name)) {
@@ -150,8 +144,9 @@ get_coloc_regions <- function(sumstats,
                               BP_START_var_out = "BP_START_var",
                               BP_STOP_var_out = "BP_STOP_var",
                               p_threshold = 5e-8,
-                              halfwindow = 500000
-) {
+                              halfwindow = 500000) {
+  # creat a copy of sumstats object (for subsetting in the end)
+  sumstats_backup <- sumstats
   if (is.character(sumstats[[p_value_name]])) {
     warning(paste0(p_value_name, " column is character, converting to numeric"))
     sumstats[[p_value_name]] <- as.numeric(sumstats[[p_value_name]])
@@ -162,6 +157,9 @@ get_coloc_regions <- function(sumstats,
   # function-specific constants
   region_var <- 1
   comment_var <- "PASS"
+  if (min(sumstats[[p_value_name]], na.rm = T) > p_threshold) {
+    stop("No regions below the given threshold detected")
+  }
   # start iterations
   while(min(sumstats[[p_value_name]], na.rm = T) < p_threshold) {
     regions_log <- c(regions_log, paste0("Solving region ", region_var))
@@ -212,7 +210,7 @@ get_coloc_regions <- function(sumstats,
   if (nrow(coloc_regions) > 0) {
     # fix negative BP
     coloc_regions$BP_START[coloc_regions$BP_START < 1] <- 1
-    # return results
+    # naming
     colnames(coloc_regions)[colnames(coloc_regions) == "CHR"] <- CHR_out
     colnames(coloc_regions)[colnames(coloc_regions) == "BP_START"] <- BP_START_var_out
     colnames(coloc_regions)[colnames(coloc_regions) == "BP_STOP"] <- BP_STOP_var_out
@@ -221,9 +219,19 @@ get_coloc_regions <- function(sumstats,
     coloc_regions <- coloc_regions[,c(start_cols, end_cols)]
     rownames(coloc_regions) <- NULL
   }
-  return(list(coloc_regions = coloc_regions[,c(CHR_out, BP_START_var_out, BP_STOP_var_out)],
-              coloc_regions_full = coloc_regions,
-              regions_log = regions_log))
+  # subset sumstats
+  coloc_regions_PASS <- subset(coloc_regions, comment == "PASS")
+  sumstats_filt_list <- lapply(1:nrow(coloc_regions_PASS), function(i) {
+    subset(sumstats_backup, sumstats_backup[[CHR_name]] == coloc_regions_PASS[i,][["CHR_var"]] & 
+             sumstats_backup[[POS_name]] >= coloc_regions_PASS[i,][["BP_START_var"]] & 
+             sumstats_backup[[POS_name]] <= coloc_regions_PASS[i,][["BP_STOP_var"]])
+  })
+  sumstats_filt <- do.call(rbind, sumstats_filt_list)
+  # return
+  return(list(coloc_regions = coloc_regions,
+              coloc_regions_PASS = coloc_regions_PASS,
+              regions_log = regions_log,
+              sumstats_filt = sumstats_filt))
 }
 
 
@@ -268,8 +276,6 @@ subset_sumstats <- function(sumstats,
     } else {
       stop("match_rs without parallel::mclappy not yet implemented ")
     }
-    # sumstats_filt_rs_unmatched <- subset(sumstats_filt_rs[!matched_alleles,], !SNP %in% sumstats_filt_rs_matched$SNP)
-    # sumstats_filt <- sumstats_filt_rs_matched
   }
   if (remove_duplicates) {
     sumstats_filt <- unique(sumstats_filt)
@@ -343,69 +349,4 @@ process_sumstats_1 <- function(sumstats_file, sumstats_name,
 
 
 
-#' match_rs
-#' @description under development
-#' @export
-match_rs <- function(dbSNP_file, sumstats,
-                     CHR_var_col_name = "CHR", BP_START_var_col_name = "POS",
-                     BP_STOP_var_col_name = "POS",
-                     A1_name = "A1", A2_name = "A2", SNP_name = "rsID",
-                     window_size = 100, ...) {
-  # rs_df
-  sumstats$comment <- NA
-  rsID <- sumstats[[SNP_name]]
-  # test if several rsIDs are present
-  rsID_split <- strsplit(rsID, ";")[[1]]
-  if (length(rsID_split) > 1) {
-    rs_df_list <- lapply(rsID_split, function(rsID) {
-      CHR_var <- sumstats[[CHR_var_col_name]]
-      BP_START_var <- sumstats[[BP_START_var_col_name]]
-      BP_STOP_var <- sumstats[[BP_STOP_var_col_name]]
-      rs_df <- query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, rsID)
-      return(rs_df)
-    })
-    rs_df <- do.call(rbind, rs_df_list)
-  } else {
-    CHR_var <- sumstats[[CHR_var_col_name]]
-    BP_START_var <- sumstats[[BP_START_var_col_name]]-window_size
-    BP_STOP_var <- sumstats[[BP_STOP_var_col_name]]+window_size
-    rs_df <- query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, rsID)
-  }
-  if (length(rs_df[[SNP_name]]) == 1) {
-    if (is.na(rs_df[[SNP_name]])) {
-      sumstats[[SNP_name]] <- NA
-      sumstats[["Name_rs_matching"]] <- NA
-      return(sumstats)
-    }
-  }
-  rs_df <- subset(rs_df, rsID %in% sumstats[[SNP_name]])
-  rs_df <- unique(rs_df)
-  # sumstats
-  sumstats_before_merge <- sumstats
-  sumstats <- merge(sumstats, by.x=SNP_name, all.x=T, 
-                    rs_df, by.y="rsID")
-  sumstats$comment <- "not_inverted"
-  matched_alleles <- ((sumstats$REF == sumstats[[A1_name]]) & (sumstats$ALT == sumstats[[A2_name]])) |
-    ((sumstats$REF == sumstats[[A2_name]]) & (sumstats$ALT == sumstats[[A1_name]]))
-  sumstats_matched <- sumstats[matched_alleles,]
-  if (nrow(sumstats_matched) == 0) {
-    sumstats[[paste0(A1_name, "_flip")]] <- flip_alleles(sumstats[[A1_name]])
-    sumstats[[paste0(A2_name, "_flip")]] <- flip_alleles(sumstats[[A2_name]])
-    matched_alleles <- ((sumstats$REF == sumstats[[paste0(A1_name, "_flip")]]) & (sumstats$ALT == sumstats[[paste0(A2_name, "_flip")]])) |
-      ((sumstats$REF == sumstats[[paste0(A2_name, "_flip")]]) & (sumstats$ALT == sumstats[[paste0(A1_name, "_flip")]]))
-    sumstats[[paste0(A1_name, "_flip")]] <- NULL
-    sumstats[[paste0(A2_name, "_flip")]] <- NULL
-    sumstats_matched <- sumstats[matched_alleles,]
-    if(nrow(sumstats_matched) > 0) {
-      sumstats_matched$comment <- "inverted"
-    } else {
-      sumstats$comment <- "alleles_not_matched"
-      sumstats_matched <- sumstats_before_merge
-      sumstats_matched[["Name_rs_matching"]] <- NA
-    }
-  }
-  sumstats_matched$REF <- NULL
-  sumstats_matched$ALT <- NULL
-  return(sumstats_matched)
-}
 

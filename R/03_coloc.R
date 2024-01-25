@@ -17,6 +17,7 @@ create_coloc_params_df <- function(sumstats_1_args,
                                    sumstats_pattern = "gz$",
                                    grep_invert = NULL,
                                    sumstats_function,
+                                   hyprcoloc = F,
                                    sumstats_type,
                                    sumstats_sdY = NA,
                                    extra_args = NULL,
@@ -34,6 +35,15 @@ create_coloc_params_df <- function(sumstats_1_args,
     if (is.null(files)) { stop("files cannot be NULL when sumstats_path is NULL") }
     files <- files
   }
+  if (hyprcoloc) {
+    df_out <- data.frame(sumstats_file = files,
+                      sumstats_function = sumstats_function)
+    if (!is.null(extra_args)) {
+      df_out$extra_args <- extra_args
+    } else {
+      df_out$extra_args <- NA
+    }
+    return(df_out) }
   sumstats_2_args <- data.frame(sumstats_2_file = files,
                             sumstats_2_function = sumstats_function,
                             sumstats_2_type = sumstats_type,
@@ -117,10 +127,10 @@ run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY,
 #' @export
 coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
                           sumstats_1_file, sumstats_1_function,
-                          sumstats_1_type, sumstats_1_sdY,
+                          ..., sumstats_1_type, sumstats_1_sdY,
                           sumstats_2_file, sumstats_2_function,
                           sumstats_2_type, sumstats_2_sdY,
-                          ...,
+                          hyprcoloc_mode = F,
                           do_process_wrapper = T, minP = 1e-5) {
   # Declare nested function
   process_sumstats_2_df <- function(sumstats_1_df, sumstats_2_df) {
@@ -188,6 +198,9 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
   }
   sumstats_1_df <- do.call(sumstats_1_function,
                            c(list(sumstats_file = sumstats_1_file), args_list))
+  if (hyprcoloc_mode) {
+    return(sumstats_1_df)
+  }
   # handle character P in case of underflow
   sumstats_1_df[["P"]] <- as.numeric(sumstats_1_df[["P"]])
   sumstats_2_obj <- do.call(sumstats_2_function,
@@ -197,6 +210,7 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
   if (is.data.frame(sumstats_2_obj)) {sumstats_2_obj <- list(sumstats_2_obj)}
   # process_sumstats_2_df
   coloc_output <- lapply(sumstats_2_obj, function(sumstats_2_df) {
+    # handle character P in case of underflow
     sumstats_2_df[["P"]] <- as.numeric(sumstats_2_df[["P"]])
     df_out <- process_sumstats_2_df(sumstats_1_df = sumstats_1_df,
                                     sumstats_2_df = sumstats_2_df)
@@ -330,6 +344,55 @@ parallel_wrapper <- function(args_df,
   }
   return(coloc_out)
 }
+
+#' Summarize coloc results
+#' @description under development
+#' @export
+summarize_coloc <- function(selected_studies = NULL,
+                            folder = NULL,
+                            remove_dirname = T) {
+  if (!"data.table" %in% rownames(installed.packages())) {
+    stop("'data.table' is currently required to run 'summarize_coloc()'")
+  }
+  if (!"writexl" %in% rownames(installed.packages())) {
+    stop("'writexl' is currently required to run 'summarize_coloc()'")
+  }
+  if (!is.null(folder)) {
+    warning("'folder' argument is provided, but the output will be written to the current directory")
+    files <- list.files(path = folder, pattern = ".RDS", full.names = T)
+  } else {
+    files <- list.files(pattern = ".RDS")
+  }
+  # files <- grep("dryrun|annotation|summary", files, invert = T, value = T)
+  if (!is.null(selected_studies)) {
+    files <- files[basename(files) %in% paste0(selected_studies, ".RDS")]
+  }
+  coloc_out <- sapply(files, readRDS)
+  names(coloc_out) <- gsub(".RDS", "", names(coloc_out))
+  # filter before save
+  coloc_out_filt <- sapply(coloc_out, function(x){
+    x <- subset(x, !is.na(PP.H4.abf))
+    x
+  }, simplify = F)
+  coloc_out_combined <- sapply(coloc_out_filt, function(x){
+    x <- subset(x, PP.H4.abf >= 0.5)
+    if (remove_dirname) {
+      x[["sumstats_1_file"]] <- basename(x[["sumstats_1_file"]])
+      x[["sumstats_2_file"]] <- basename(x[["sumstats_2_file"]])
+    }
+    x
+  }, simplify = F)
+  for (i in names(coloc_out_combined)) {
+    if (nrow(coloc_out_combined[[i]]) == 0)
+      coloc_out_combined[[i]] <- NULL
+  }
+  coloc_out_filt[["summary"]] <- data.table::rbindlist(coloc_out_combined, fill=TRUE, idcol = "Dataset")
+  saveRDS(coloc_out_filt[["summary"]], "summary.RDS")
+  sapply(names(coloc_out_filt), function(x) {
+    writexl::write_xlsx(coloc_out_filt[[x]], paste0(x, ".xlsx"))
+  })
+}
+
 
 #' run all colocs
 #' @description under development
