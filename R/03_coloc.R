@@ -1,3 +1,4 @@
+# new line
 #' Create data.frame with input parameters for coloc
 #' @param sumstats_path path to folder with indexed sumstats.
 #' @param sumstats_pattern usually "gz$".
