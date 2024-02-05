@@ -149,7 +149,10 @@ get_coloc_regions <- function(sumstats,
   sumstats_backup <- sumstats
   if (is.character(sumstats[[p_value_name]])) {
     warning(paste0(p_value_name, " column is character, converting to numeric"))
-    sumstats[[p_value_name]] <- as.numeric(sumstats[[p_value_name]])
+    if (!"Rmpfr" %in% rownames(installed.packages())) {
+      stop("Rmpfr is required to run this function")
+    }
+    sumstats[[p_value_name]] <- Rmpfr::mpfr(sumstats[[p_value_name]])
   }
   # set up variables
   coloc_regions <- data.frame()
