@@ -25,7 +25,7 @@ read_sumstats <- function(sumstats, sumstats_file=NULL,
                           A1, A1_new = "A1",
                           BETA, BETA_new = "BETA",
                           SE, SE_new = "SE",
-                          nlog10p_value, nlog10p_value_new = "P",
+                          nlog10p_value, nlog10p_value_new = "nlog10P",
                           rsID = NULL, rsID_new = "rsID",
                           CHR = NULL, CHR_new = "CHR",
                           POS = NULL, POS_new = "POS",
@@ -35,7 +35,8 @@ read_sumstats <- function(sumstats, sumstats_file=NULL,
                           p_value=NULL,
                           other_columns = NULL) {
   if (!is.null(p_value)) {
-    stop("This function now accepts only nlog10p_value, please add it to sumstats first")
+    stop(paste("This function now accepts only nlog10p_value, please add it to sumstats first",
+               " Please ensure that underflow is handled properly (use handle_overflow() if needed)."))
   }
   if (!is.null(sumstats_file)) {
     stop(paste0("The function supports only 'sumstats' input.",
@@ -170,8 +171,7 @@ get_coloc_regions <- function(sumstats,
                               nlogP_threshold = 5e-8,
                               halfwindow = 500000) {
   if (!is.null(p_value_name)) {
-    stop(paste0("This function now works with -log10(P), please add this column to sumstats first.",
-                " Please ensure that underflow is handled properly (use handle_overflow() if needed)."))
+    stop(paste0("This function now works with -log10(P), please add this column to sumstats first."))
   }
   # check if there are any significant regions
   if (max(sumstats[[nlog10p_value_name]], na.rm = T) < nlogP_threshold) {
@@ -254,7 +254,7 @@ get_coloc_regions <- function(sumstats,
     rownames(coloc_regions) <- NULL
   }
   # subset sumstats
-  coloc_regions_PASS <- subset(coloc_regions, comment == "PASS")
+  coloc_regions_PASS <- subset(coloc_regions, comment == "PASS", c("CHR_var", "BP_START_var", "BP_STOP_var"))
   sumstats_filt_list <- lapply(1:nrow(coloc_regions_PASS), function(i) {
     subset(sumstats_backup, sumstats_backup[[CHR_name]] == coloc_regions_PASS[i,][["CHR_var"]] & 
              sumstats_backup[[POS_name]] >= coloc_regions_PASS[i,][["BP_START_var"]] & 
