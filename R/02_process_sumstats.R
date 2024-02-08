@@ -12,7 +12,7 @@
 #' @param A2 update development
 #' @param BETA update development
 #' @param SE update development
-#' @param p_value update development
+#' @param nlog10p_value update development
 #' @param AF update development
 #' @param N update development
 #' @param other_columns vector with names of other columns
@@ -25,14 +25,18 @@ read_sumstats <- function(sumstats, sumstats_file=NULL,
                           A1, A1_new = "A1",
                           BETA, BETA_new = "BETA",
                           SE, SE_new = "SE",
-                          p_value, p_value_new = "P",
+                          nlog10p_value, nlog10p_value_new = "P",
                           rsID = NULL, rsID_new = "rsID",
                           CHR = NULL, CHR_new = "CHR",
                           POS = NULL, POS_new = "POS",
                           A2 = NULL, A2_new = "A2",
                           AF = NULL, AF_new = "AF",
                           N = NULL, N_new = "N",
+                          p_value=NULL,
                           other_columns = NULL) {
+  if (!is.null(p_value)) {
+    stop("This function now accepts only nlog10p_value, please add it to sumstats first")
+  }
   if (!is.null(sumstats_file)) {
     stop(paste0("The function supports only 'sumstats' input.",
                 "Please read the file into memory first and then pass it here."))
@@ -50,7 +54,7 @@ read_sumstats <- function(sumstats, sumstats_file=NULL,
   if (missing(A1)) {stop("A1 (effect allele) is required.")}
   if (missing(BETA)) {stop("BETA is required.")}
   if (missing(SE)) {stop("SE is required.")}
-  if (missing(p_value)) {stop("p_value is required.")}
+  if (missing(nlog10p_value)) {stop("nlog10p_value is required.")}
   ### Read
   # if (!missing(sumstats_file)) {
   #   print("'sumstats_file' provided, sumstats will be read from the file")
@@ -68,7 +72,7 @@ read_sumstats <- function(sumstats, sumstats_file=NULL,
   ### Select
   all_cols <- c(Name, rsID, CHR, POS,
                 A1, A2, BETA, SE,
-                p_value, AF, N, other_columns)
+                nlog10p_value, AF, N, other_columns)
   if (!all(all_cols %in% colnames(sumstats))) {
     stop("Not all provided colnames match colnames in the sumstats")
   }
@@ -85,19 +89,10 @@ read_sumstats <- function(sumstats, sumstats_file=NULL,
     sumstats[[SE]] <- as.numeric(sumstats[[SE]])
   }
   colnames(sumstats)[colnames(sumstats) == SE] <- SE_new
-  if (class(sumstats[[p_value]]) != "numeric") {
-    warning(paste0("The p-value column is not of the 'numeric' class.", 
-                   " If it is 'character', probably there are very small p-values ", 
-                   " where the underflow issue can occur. ",
-                   " If it is the case, please use Rmpfr::mpfr() to handle it properly.",
-                   " P-values are kept as.character so far"))
-  } else {
-    if (min(sumstats[[p_value]]) == 0) {
-      warning(paste0("The p-value column is numeric but the minimum is 0.",
-              " There is a potential underflow issue, please check the data"))
-    }
+  if (class(sumstats[[nlog10p_value]]) != "numeric") {
+    stop(paste0("The nlog10p column is not 'numeric' class, please check sumstats."))
   }
-  colnames(sumstats)[colnames(sumstats) == p_value] <- p_value_new
+  colnames(sumstats)[colnames(sumstats) == nlog10p_value] <- nlog10p_value_new
   ### Optional columns
   if (!is.null(rsID)) {
     colnames(sumstats)[colnames(sumstats) == rsID] <- rsID_new
@@ -124,6 +119,9 @@ read_sumstats <- function(sumstats, sumstats_file=NULL,
   return(sumstats)
 }
 
+#' Process p-values to handle underflow
+#' under development
+#' @export
 handle_underflow <- function(pvalue_vec,
                              return_nlog10P=F) {
   if (!"Rmpfr" %in% rownames(installed.packages())) {
@@ -132,20 +130,22 @@ handle_underflow <- function(pvalue_vec,
   message("Converting to numeric using Rmpfr::mpfr() ... ")
   pvalue_vec <- Rmpfr::mpfr(pvalue_vec)
   if (return_nlog10P) {
-    message("Converting p-values to negative log10-scale")
+    message("Converting p-values to negative log10 scale")
     pvalue_vec <- as.numeric(-log10(pvalue_vec))
   }
   return(pvalue_vec)
 }
 
+#' Subset chromosomes with significant signals
+#' to speed up computation
+#' under development
+#' @export
 subset_chromosomes <- function(sumstats, CHR_name, nlog10p_value_name, nlogP_threshold) {
   CHR_to_keep <- unique(sumstats[[CHR_name]][sumstats[[nlog10p_value_name]] > nlogP_threshold])
   sumstats <- sumstats[sumstats[[CHR_name]] %in% CHR_to_keep,]
   message(paste0("Found significant regions on chromosomes: ", paste(CHR_to_keep, collapse = ", ")))
   return(sumstats)
 }
-
-
 
 #' Get coloc regions
 #' @param sumstats data frame read with read_sumstats(). Mandatory columns: CHR, BP, P
