@@ -1,24 +1,5 @@
 # Tools (supplementary functions) to facilitate other genepicoloc processes
 
-handle_underflow <- function(P_vector) {
-  if (is.character(P_vector)) {
-    exp_indeces <- grepl("e-", P_vector, ignore.case = T)
-    if (any(exp_indeces)) {
-      significand_val <- as.numeric(gsub("(.*)[eE]-[0-9]+$", "\\1", P_vector[exp_indeces]))
-      exponent_val <- as.numeric(gsub(".*[eE]-([0-9]+)$", "\\1", P_vector[exp_indeces]))
-      P_vector[exp_indeces] <- as.character(-log10(significand_val) + exponent_val)
-      P_vector[!exp_indeces] <- -log10(as.numeric(P_vector[!exp_indeces]))
-      P_vector <- as.numeric(P_vector)
-      return(P_vector)
-    } else {
-      stop("P column is character but scientific notation patterns 'e-' or 'E-' were not found")
-    }
-  } else {
-    -log10(P_vector, na.rm=T)
-  }
-}
-
-
 flip_alleles <- function(vec) {
   vec_out <- vec
   vec_out <- toupper(vec_out)
