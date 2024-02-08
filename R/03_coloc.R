@@ -273,7 +273,7 @@ parallel_wrapper <- function(args_df,
   print(EXPERIMENT)
   extra_args <- args_df$extra_args
   if (!is.null(extra_args)) {
-    extra_args <- c(extra_args, minP = minP)
+    extra_args <- list(extra_args, minP = minP)
   } else {
     extra_args <- list(minP = minP)
   }
@@ -319,8 +319,9 @@ parallel_wrapper <- function(args_df,
   } else if ("parallel" %in% rownames(installed.packages())) {
     if (debug_mode == F) {
       coloc_out <- parallel::mclapply(1:nrow(params_df),
-                                      function(i) do.call(coloc_wrapper, c(params_df[i,], extra_args)),
-                                      mc.cores = N_cpus_per_node)
+                                      function(i) {
+                                        do.call(coloc_wrapper, c(params_df[i,], extra_args))
+                                      }, mc.cores = N_cpus_per_node)
     }
   } else {
     coloc_out <- lapply(1:nrow(params_df),
