@@ -5,124 +5,147 @@
 #' available, "data.table" can speed up reading (usually 2-3 times faster)
 #' @param sep_var Separator type (',', '\t', ' ', etc). Should be provided only if 
 #' read_method is read.delim (data.table usually determined separator automatically)
-#' @param Name_name update development
-#' @param CHR_name update development
-#' @param POS_name update development
-#' @param A1_name update development
-#' @param A2_name update development
-#' @param BETA_name update development
-#' @param SE_name update development
-#' @param p_value_name update development
-#' @param AF_name update development
-#' @param N_name update development
+#' @param Name update development
+#' @param CHR update development
+#' @param POS update development
+#' @param A1 update development
+#' @param A2 update development
+#' @param BETA update development
+#' @param SE update development
+#' @param p_value update development
+#' @param AF update development
+#' @param N update development
 #' @param other_columns vector with names of other columns
 #' @return data frame with formatted columns
 #' @examples
 #' under development
 #' @export
-read_sumstats <- function(sumstats_file, sumstats, sep_var,
-                          Name_name = NULL, Name_name_new = "Name",
-                          rsID_name = NULL, rsID_name_new = "rsID",
-                          CHR_name = NULL, CHR_name_new = "CHR",
-                          POS_name = NULL, POS_name_new = "POS",
-                          A1_name = NULL, A1_name_new = "A1",
-                          A2_name = NULL, A2_name_new = "A2",
-                          BETA_name = NULL, BETA_name_new = "BETA",
-                          SE_name = NULL, SE_name_new = "SE",
-                          p_value_name = NULL, p_value_name_new = "P",
-                          AF_name = NULL, AF_name_new = "AF",
-                          N_name = NULL, N_name_new = "N",
+read_sumstats <- function(sumstats, sumstats_file=NULL,
+                          Name, Name_new = "Name",
+                          A1, A1_new = "A1",
+                          BETA, BETA_new = "BETA",
+                          SE, SE_new = "SE",
+                          p_value, p_value_new = "P",
+                          rsID = NULL, rsID_new = "rsID",
+                          CHR = NULL, CHR_new = "CHR",
+                          POS = NULL, POS_new = "POS",
+                          A2 = NULL, A2_new = "A2",
+                          AF = NULL, AF_new = "AF",
+                          N = NULL, N_new = "N",
                           other_columns = NULL) {
-  if ("data.table" %in% rownames(installed.packages())) {
-    read_method <- "data.table"
-  } else { 
-    read_method <- "read.delim"
-    if (missing(sep_var)) { stop("Please provide separator type (',', '\t', ' ', etc)") }
+  if (!is.null(sumstats_file)) {
+    stop(paste0("The function supports only 'sumstats' input.",
+                "Please read the file into memory first and then pass it here."))
   }
+  # if ("data.table" %in% rownames(installed.packages())) {
+  #   read_method <- "data.table"
+  # } else { 
+  #   read_method <- "read.delim"
+  #   if (missing(sep_var)) { stop("Please provide separator type (',', '\t', ' ', etc)") }
+  # }
+  # deprecated: "sep_var"
   ### Checks
-  if (missing(CHR_name)) { warning("No chromosome column provided") }
-  if (missing(POS_name)) { warning("No base pair position column provided") }
-  if (missing(p_value_name)) { warning("No p-value column provided") }
+  # TODO identify necessary and optional columns
+  if (missing(Name)) {stop("Name is required as CHR:POS:REF:ALT, please create it first.")}
+  if (missing(A1)) {stop("A1 (effect allele) is required.")}
+  if (missing(BETA)) {stop("BETA is required.")}
+  if (missing(SE)) {stop("SE is required.")}
+  if (missing(p_value)) {stop("p_value is required.")}
   ### Read
-  if (!missing(sumstats_file)) {
-    print("'sumstats_file' provided, sumstats will be read from the file")
-    if (read_method == "data.table") {
-      sumstats <- data.table::fread(input = sumstats_file)
-      sumstats <- as.data.frame(sumstats)
-    } else if (read_method == "read.delim") {
-      sumstats <- read.delim(file = sumstats_file, header = T, sep = sep_var)
-    }
-  } else if (!missing(sumstats)) {
-    print(paste0("'sumstats' object provided, it will be used for formatting. ",
-                 "If you like to read a file from the disk, please use 'sumstats_file' argument instead."))
-    sumstats <- as.data.frame(sumstats)
-  }
+  # if (!missing(sumstats_file)) {
+  #   print("'sumstats_file' provided, sumstats will be read from the file")
+  #   if (read_method == "data.table") {
+  #     sumstats <- data.table::fread(input = sumstats_file)
+  #     sumstats <- as.data.frame(sumstats)
+  #   } else if (read_method == "read.delim") {
+  #     sumstats <- read.delim(file = sumstats_file, header = T, sep = sep_var)
+  #   }
+  # } else if (!missing(sumstats)) {
+  # print(paste0("'sumstats' object provided, it will be used for formatting. ",
+  #              "If you like to read a file from the disk, please use 'sumstats_file' argument instead."))
+  sumstats <- as.data.frame(sumstats)
+  # }
   ### Select
-  all_cols <- c(Name_name, rsID_name, CHR_name, POS_name,
-                A1_name, A2_name, BETA_name, SE_name,
-                p_value_name, AF_name, N_name, other_columns)
+  all_cols <- c(Name, rsID, CHR, POS,
+                A1, A2, BETA, SE,
+                p_value, AF, N, other_columns)
   if (!all(all_cols %in% colnames(sumstats))) {
     stop("Not all provided colnames match colnames in the sumstats")
   }
   sumstats <- sumstats[,all_cols]
-  ### Format
-  if (!is.null(Name_name)) {
-    colnames(sumstats)[colnames(sumstats) == Name_name] <- Name_name_new
+  ### Mandatory columns
+  colnames(sumstats)[colnames(sumstats) == Name] <- Name_new
+  colnames(sumstats)[colnames(sumstats) == A1] <- A1_new
+  if (class(sumstats[[BETA]]) != "numeric") {
+    stop("Beta column is not of class 'numeric', please check the data")
+  }
+  colnames(sumstats)[colnames(sumstats) == BETA] <- BETA_new
+  if (class(sumstats[[SE]]) != "numeric") {
+    warning("SE column is not of class 'numeric', converting to numeric")
+    sumstats[[SE]] <- as.numeric(sumstats[[SE]])
+  }
+  colnames(sumstats)[colnames(sumstats) == SE] <- SE_new
+  if (class(sumstats[[p_value]]) != "numeric") {
+    warning(paste0("The p-value column is not of the 'numeric' class.", 
+                   " If it is 'character', probably there are very small p-values ", 
+                   " where the underflow issue can occur. ",
+                   " If it is the case, please use Rmpfr::mpfr() to handle it properly.",
+                   " P-values are kept as.character so far"))
   } else {
-    warning("Name is empty, it will be created using chromosome, BP position, and alleles")
-    sumstats[[Name_name_new]] <- paste(sumstats[[CHR_name]],
-                                       sumstats[[POS_name]],
-                                       sumstats[[A2_name]],
-                                       sumstats[[A1_name]], sep = ":")
+    if (min(sumstats[[p_value]]) == 0) {
+      warning(paste0("The p-value column is numeric but the minimum is 0.",
+              " There is a potential underflow issue, please check the data"))
+    }
   }
-  if (!is.null(rsID_name)) {
-    colnames(sumstats)[colnames(sumstats) == rsID_name] <- rsID_name_new
+  colnames(sumstats)[colnames(sumstats) == p_value] <- p_value_new
+  ### Optional columns
+  if (!is.null(rsID)) {
+    colnames(sumstats)[colnames(sumstats) == rsID] <- rsID_new
   }
-  if (!is.null(CHR_name)) {
-    colnames(sumstats)[colnames(sumstats) == CHR_name] <- CHR_name_new
+  if (!is.null(CHR)) {
+    colnames(sumstats)[colnames(sumstats) == CHR] <- CHR_new
   }
-  if (!is.null(POS_name)) {
-    if (class(sumstats[[POS_name]]) != "integer") {
+  if (!is.null(POS)) {
+    if (class(sumstats[[POS]]) != "integer") {
       warning("POS column is not of the 'integer' class, converting to integer")
-      sumstats[[POS_name]] <- as.integer(sumstats[[POS_name]])
+      sumstats[[POS]] <- as.integer(sumstats[[POS]])
     }
-    colnames(sumstats)[colnames(sumstats) == POS_name] <- POS_name_new
+    colnames(sumstats)[colnames(sumstats) == POS] <- POS_new
   }
-  if (!is.null(A1_name)) {
-    colnames(sumstats)[colnames(sumstats) == A1_name] <- A1_name_new
+  if (!is.null(A2)) {
+    colnames(sumstats)[colnames(sumstats) == A2] <- A2_new
   }
-  if (!is.null(A2_name)) {
-    colnames(sumstats)[colnames(sumstats) == A2_name] <- A2_name_new
+  if (!is.null(AF)) {
+    colnames(sumstats)[colnames(sumstats) == AF] <- AF_new
   }
-  if (!is.null(BETA_name)) {
-    if (class(sumstats[[BETA_name]]) != "numeric") {
-      warning("Beta column is not of class 'numeric', converting to numeric")
-      sumstats[[BETA_name]] <- as.numeric(sumstats[[BETA_name]])
-    }
-    colnames(sumstats)[colnames(sumstats) == BETA_name] <- BETA_name_new
-  }
-  if (!is.null(SE_name)) {
-    if (class(sumstats[[SE_name]]) != "numeric") {
-      warning("SE column is not of class 'numeric', converting to numeric")
-      sumstats[[SE_name]] <- as.numeric(sumstats[[SE_name]])
-    }
-    colnames(sumstats)[colnames(sumstats) == SE_name] <- SE_name_new
-  }
-  if (!is.null(p_value_name)) {
-    if (class(sumstats[[p_value_name]]) != "numeric") {
-      warning("The p-value column is not of the 'numeric' class, converting to numeric")
-      sumstats[[p_value_name]] <- as.numeric(sumstats[[p_value_name]])
-    }
-    colnames(sumstats)[colnames(sumstats) == p_value_name] <- p_value_name_new
-  }
-  if (!is.null(AF_name)) {
-    colnames(sumstats)[colnames(sumstats) == AF_name] <- AF_name_new
-  }
-  if (!is.null(N_name)) {
-    colnames(sumstats)[colnames(sumstats) == N_name] <- N_name_new
+  if (!is.null(N)) {
+    colnames(sumstats)[colnames(sumstats) == N] <- N_new
   }
   return(sumstats)
 }
+
+handle_underflow <- function(pvalue_vec,
+                             return_nlog10P=F) {
+  if (!"Rmpfr" %in% rownames(installed.packages())) {
+    stop("Rmpfr is required to run this function")
+  }
+  message("Converting to numeric using Rmpfr::mpfr() ... ")
+  pvalue_vec <- Rmpfr::mpfr(pvalue_vec)
+  if (return_nlog10P) {
+    message("Converting p-values to negative log10-scale")
+    pvalue_vec <- as.numeric(-log10(pvalue_vec))
+  }
+  return(pvalue_vec)
+}
+
+subset_chromosomes <- function(sumstats, CHR_name, nlog10p_value_name, nlogP_threshold) {
+  CHR_to_keep <- unique(sumstats[[CHR_name]][sumstats[[nlog10p_value_name]] > nlogP_threshold])
+  sumstats <- sumstats[sumstats[[CHR_name]] %in% CHR_to_keep,]
+  message(paste0("Found significant regions on chromosomes: ", paste(CHR_to_keep, collapse = ", ")))
+  return(sumstats)
+}
+
+
 
 #' Get coloc regions
 #' @param sumstats data frame read with read_sumstats(). Mandatory columns: CHR, BP, P
@@ -139,35 +162,43 @@ read_sumstats <- function(sumstats_file, sumstats, sep_var,
 get_coloc_regions <- function(sumstats,
                               CHR_name = "CHR",
                               POS_name = "POS",
-                              p_value_name = "P",
+                              p_value_name = NULL,
+                              nlog10p_value_name = "nlog10P",
                               CHR_out = "CHR_var",
                               BP_START_var_out = "BP_START_var",
                               BP_STOP_var_out = "BP_STOP_var",
-                              p_threshold = 5e-8,
+                              nlogP_threshold = 5e-8,
                               halfwindow = 500000) {
-  # creat a copy of sumstats object (for subsetting in the end)
-  sumstats_backup <- sumstats
-  if (is.character(sumstats[[p_value_name]])) {
-    warning(paste0(p_value_name, " column is character, converting to numeric"))
-    if (!"Rmpfr" %in% rownames(installed.packages())) {
-      stop("Rmpfr is required to run this function")
-    }
-    sumstats[[p_value_name]] <- Rmpfr::mpfr(sumstats[[p_value_name]])
+  if (!is.null(p_value_name)) {
+    stop(paste0("This function now works with -log10(P), please add this column to sumstats first.",
+                " Please ensure that underflow is handled properly (use handle_overflow() if needed)."))
   }
+  # check if there are any significant regions
+  if (max(sumstats[[nlog10p_value_name]], na.rm = T) < nlogP_threshold) {
+    stop("No regions below the given threshold detected")
+  } else {
+    message(paste0("Some significant regions below the given threshold detected, ", 
+            "starting iterations to identify them."))
+  }
+  # create a copy of sumstats object (for subsetting in the end)
+  sumstats_backup <- sumstats
+  # identify chromosomes without significant hits and remove them to speed up
+  sumstats <- subset_chromosomes(sumstats=sumstats, CHR_name=CHR_name,
+                                 nlog10p_value_name=nlog10p_value_name,
+                                 nlogP_threshold=nlogP_threshold) 
   # set up variables
   coloc_regions <- data.frame()
   regions_log <- c()
-  # function-specific constants
   region_var <- 1
   comment_var <- "PASS"
-  if (min(sumstats[[p_value_name]], na.rm = T) > p_threshold) {
-    stop("No regions below the given threshold detected")
-  }
   # start iterations
-  while(min(sumstats[[p_value_name]], na.rm = T) < p_threshold) {
+  while(max(sumstats[[nlog10p_value_name]], na.rm = T) > nlogP_threshold) {
     regions_log <- c(regions_log, paste0("Solving region ", region_var))
-    print(paste0("Solving region ", region_var))
-    min_p_row <- sumstats[which.min(sumstats[[p_value_name]]),]
+    message(paste0("Solving region ", region_var))
+    # Rmpfr has potential bug with which.min, therefore a fix
+    which_max <- which(sumstats[[nlog10p_value_name]] == max(sumstats[[nlog10p_value_name]]))
+    min_p_row <- sumstats[which_max,]
+    min_p_row[[nlog10p_value_name]] <- as.numeric(min_p_row[[nlog10p_value_name]])
     print(min_p_row)
     CHR_var <- min_p_row[[CHR_name]]
     BP_var <- min_p_row[[POS_name]]
