@@ -1,5 +1,3 @@
-# Test
-
 #' @title Read sumstats
 #' @param sumstats_file path to sumstats.
 #' @param CHR_var chromosome (as.character "1", "2", ..., "X").
