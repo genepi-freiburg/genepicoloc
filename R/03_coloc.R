@@ -364,6 +364,7 @@ summarize_coloc <- function(selected_studies,
     stop("'writexl' is currently required to run 'summarize_coloc()'")
   }
   files <- list.files(path = output_folder, pattern = ".RDS", full.names = T)
+  files <- grep("dryrun|no_annotation", files, invert = T, value = T)
   coloc_out <- sapply(files, readRDS)
   names(coloc_out) <- gsub(".RDS", "", names(coloc_out))
   # filter before save
