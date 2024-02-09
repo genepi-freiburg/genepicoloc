@@ -124,7 +124,7 @@ run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY,
 #' @export
 out_template <- function(CHR_var, BP_START_var, BP_STOP_var,
                          sumstats_1_file, sumstats_1_max_nlog10P,
-                         sumstats_2_file, sumstats_2_max_nlog10P) {
+                         sumstats_2_file, sumstats_2_max_nlog10P, nsnps=NA) {
   data.frame(CHR_var = CHR_var,
              BP_START_var = BP_START_var,
              BP_STOP_var = BP_STOP_var,
@@ -132,7 +132,7 @@ out_template <- function(CHR_var, BP_START_var, BP_STOP_var,
              sumstats_1_max_nlog10P = sumstats_1_max_nlog10P,
              sumstats_2_file = sumstats_2_file,
              sumstats_2_max_nlog10P	= sumstats_2_max_nlog10P,
-             nsnps = 0,
+             nsnps = nsnps,
              PP.H0.abf = NA, PP.H1.abf = NA, PP.H2.abf = NA,
              PP.H3.abf = NA, PP.H4.abf = NA,
              Top_coloc_SNP = NA, Top_coloc_SNP.PP.H4 = NA, priors = NA)
@@ -162,7 +162,8 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
       if (do_process_wrapper == F) {stop("Output is not consistent when nrow=0 and do_process_wrapper=F")}
       coloc_output <- out_template(CHR_var, BP_START_var, BP_STOP_var,
                                    sumstats_1_file, sumstats_1_max_nlog10P=NA,
-                                   sumstats_2_file, sumstats_2_max_nlog10P=NA)
+                                   sumstats_2_file, sumstats_2_max_nlog10P=NA,
+                                   nsnps=0)
     } else {
       # calculate max nlog10 or min P
       if (is.data.frame(sumstats_1_df)) {
@@ -356,7 +357,7 @@ parallel_wrapper <- function(args_df, N_cpus_per_node = 10, output_folder="outpu
 #' @export
 summarize_coloc <- function(selected_studies,
                             output_folder = "output",
-                            remove_dirname = F) {
+                            remove_dirname = T) {
   if (!"data.table" %in% rownames(installed.packages())) {
     stop("'data.table' is currently required to run 'summarize_coloc()'")
   }
@@ -364,30 +365,39 @@ summarize_coloc <- function(selected_studies,
     stop("'writexl' is currently required to run 'summarize_coloc()'")
   }
   files <- list.files(path = output_folder, pattern = ".RDS", full.names = T)
-  files <- grep("dryrun|no_annotation", files, invert = T, value = T)
-  coloc_out <- sapply(files, readRDS)
-  names(coloc_out) <- gsub(".RDS", "", names(coloc_out))
-  # filter before save
-  coloc_out_filt <- sapply(coloc_out, function(x){
-    subset(x, !is.na(PP.H4.abf))
-  }, simplify = F)
-  coloc_out_combined <- sapply(coloc_out_filt, function(x){
-    x <- subset(x, PP.H4.abf >= 0.5)
-    if (remove_dirname) {
-      x[["sumstats_1_file"]] <- basename(x[["sumstats_1_file"]])
-      x[["sumstats_2_file"]] <- basename(x[["sumstats_2_file"]])
+  files <- grep("dryrun|no_annotation|summary", files, invert = T, value = T)
+  coloc_out <- sapply(files, readRDS, simplify = F)
+  if (length(coloc_out) > 0) {
+    names(coloc_out) <- gsub(".RDS", "", basename(names(coloc_out)))
+    # filter before save
+    coloc_out_filt <- sapply(coloc_out, function(x){
+      x <- subset(x, !is.na(PP.H4.abf))
+      if (remove_dirname) {
+        x[["sumstats_1_file"]] <- basename(x[["sumstats_1_file"]])
+        x[["sumstats_2_file"]] <- basename(x[["sumstats_2_file"]])
+      }
+      x
+    }, simplify = F)
+    # create summary table
+    coloc_out_combined <- sapply(coloc_out_filt, function(x){
+      x <- subset(x, PP.H4.abf >= 0.5)
+      if (remove_dirname) {
+        x[["sumstats_1_file"]] <- basename(x[["sumstats_1_file"]])
+        x[["sumstats_2_file"]] <- basename(x[["sumstats_2_file"]])
+      }
+      x
+    }, simplify = F)
+    # remove empty results
+    for (i in names(coloc_out_combined)) {
+      if (nrow(coloc_out_combined[[i]]) == 0)
+        coloc_out_combined[[i]] <- NULL
     }
-    x
-  }, simplify = F)
-  for (i in names(coloc_out_combined)) {
-    if (nrow(coloc_out_combined[[i]]) == 0)
-      coloc_out_combined[[i]] <- NULL
+    coloc_out_filt[["summary"]] <- data.table::rbindlist(coloc_out_combined, fill=TRUE, idcol = "Dataset")
+    saveRDS(coloc_out_filt[[paste0(output_folder, "/summary")]], paste0(output_folder, "/summary.RDS"))
+    sapply(names(coloc_out_filt), function(x) {
+      writexl::write_xlsx(coloc_out_filt[[x]], paste0(output_folder, "/", x, ".xlsx"))
+    })
   }
-  coloc_out_filt[[paste0(output_folder, "/summary")]] <- data.table::rbindlist(coloc_out_combined, fill=TRUE, idcol = "Dataset")
-  saveRDS(coloc_out_filt[[paste0(output_folder, "/summary")]], paste0(output_folder, "/summary.RDS"))
-  sapply(names(coloc_out_filt), function(x) {
-    writexl::write_xlsx(coloc_out_filt[[x]], paste0(x, ".xlsx"))
-  })
 }
 
 

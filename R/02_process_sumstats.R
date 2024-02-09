@@ -129,7 +129,11 @@ handle_underflow <- function(pvalue_vec,
     stop("Rmpfr is required to run this function")
   }
   message("Converting to numeric using Rmpfr::mpfr() ... ")
-  pvalue_vec <- Rmpfr::mpfr(pvalue_vec)
+  if (is.numeric(pvalue_vec)) {
+    pvalue_vec <- Rmpfr::mpfr(pvalue_vec, precBits=100)
+  } else {
+    pvalue_vec <- Rmpfr::mpfr(pvalue_vec)
+  }
   if (return_nlog10P) {
     message("Converting p-values to negative log10 scale")
     pvalue_vec <- as.numeric(-log10(pvalue_vec))
@@ -194,7 +198,6 @@ get_coloc_regions <- function(sumstats,
   # start iterations
   while(max(sumstats[[nlog10p_value_name]], na.rm = T) > nlogP_threshold) {
     regions_log <- c(regions_log, paste0("Solving region ", region_var))
-    message(paste0("Solving region ", region_var))
     # Rmpfr has potential bug with which.min, therefore a fix
     which_max <- which(sumstats[[nlog10p_value_name]] == max(sumstats[[nlog10p_value_name]]))
     min_p_row <- sumstats[which_max,]
@@ -204,7 +207,7 @@ get_coloc_regions <- function(sumstats,
     BP_var <- min_p_row[[POS_name]]
     BP_START_var <- BP_var - halfwindow
     BP_STOP_var <- BP_var + halfwindow
-    regions_log <- c(regions_log, paste0("Next most significant variant ", CHR_var, ":", BP_var))
+    regions_log <- c(regions_log, paste0("Solving region ", region_var, ": Most significant variant ", CHR_var, ":", BP_var))
     if (nrow(coloc_regions) > 0) {
       coloc_regions_filtered <- subset(coloc_regions, grepl("PASS", comment))
     } else {
@@ -240,6 +243,9 @@ get_coloc_regions <- function(sumstats,
     region_var <- region_var + 1
     comment_var <- "PASS"
     regions_log <- c(regions_log, "----------------")
+    if (nrow(sumstats) == 0) {
+      break
+    }
   }
   if (nrow(coloc_regions) > 0) {
     # fix negative BP
@@ -268,8 +274,15 @@ get_coloc_regions <- function(sumstats,
               sumstats_filt = sumstats_filt))
 }
 
-
-
-
+#' Save coloc regions
+#' @export
+save_coloc_regions <- function(coloc_regions_list, sumstats_name) {
+  writeLines(coloc_regions_list[["regions_log"]], con = paste0(sumstats_name, "_log.txt"))
+  write.table(coloc_regions_list[["coloc_regions"]], paste0(sumstats_name, "_coloc_regions.tsv"),
+              sep="\t", row.names = F, col.names = T, quote = F)
+  write.table(coloc_regions_list[["coloc_regions_PASS"]], paste0(sumstats_name, "_coloc_regions_PASS.tsv"),
+              sep="\t", row.names = F, col.names = T, quote = F)
+  saveRDS(coloc_regions_list[["sumstats_filt"]], paste0(sumstats_name, "_subset.RDS"))
+}
 
 
