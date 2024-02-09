@@ -8,7 +8,12 @@
 query_sumstats_1 <- function(sumstats_file,
                              CHR_var, BP_START_var, BP_STOP_var,
                              ...,
-                             read_mode = "RDS") {
+                             read_mode = "tabix") {
+  if (read_mode == "tabix") {
+    sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
+                                              CHR_var, ":", BP_START_var, "-",
+                                              BP_STOP_var), intern = T), sep = "\t", header = T)
+  }
   if (read_mode == "RDS") {
     sumstats <- readRDS(sumstats_file)
   }
