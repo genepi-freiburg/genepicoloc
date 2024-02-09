@@ -197,9 +197,9 @@ get_coloc_regions <- function(sumstats,
   comment_var <- "PASS"
   # start iterations
   while(max(sumstats[[nlog10p_value_name]], na.rm = T) > nlogP_threshold) {
-    regions_log <- c(regions_log, paste0("Solving region ", region_var))
     # Rmpfr has potential bug with which.min, therefore a fix
     which_max <- which(sumstats[[nlog10p_value_name]] == max(sumstats[[nlog10p_value_name]]))
+    if (length(which_max) > 1) {which_max <- which_max[1]}
     min_p_row <- sumstats[which_max,]
     min_p_row[[nlog10p_value_name]] <- as.numeric(min_p_row[[nlog10p_value_name]])
     print(min_p_row)
@@ -214,17 +214,28 @@ get_coloc_regions <- function(sumstats,
       coloc_regions_filtered <- coloc_regions
     }
     if (CHR_var %in% coloc_regions_filtered[[CHR_name]]) {
-      closest_region <- subset(coloc_regions_filtered, coloc_regions_filtered[[CHR_name]] == CHR_var)
-      closest_region <- closest_region[which.min(sapply(closest_region[[POS_name]], function(x) abs(x - BP_var))),]
+      closest_regions <- subset(coloc_regions_filtered, coloc_regions_filtered[[CHR_name]] == CHR_var)
+      cr1 <- sapply(closest_regions[["BP_START"]], function(x) abs(x - BP_var))
+      cr2 <- sapply(closest_regions[["BP_STOP"]], function(x) abs(x - BP_var))
+      cr <- c(cr1,cr2)
+      closest_region <- rbind(closest_regions, closest_regions)[which.min(cr),]
       regions_log <- c(regions_log, paste0("Closest region so far: region=", closest_region$region, ", ", closest_region[[CHR_name]], ":", closest_region$BP_START, "-", closest_region$BP_STOP))
       if (abs(closest_region$BP_START - BP_var) < halfwindow |
           abs(closest_region$BP_STOP - BP_var) < halfwindow) {
         regions_log <- c(regions_log, paste0("Next most significant variant is closer than ", halfwindow, " BP to the closest region, merging"))
-        if (abs(closest_region$BP_START - BP_var) < halfwindow) {
-          coloc_regions[coloc_regions$region == closest_region$region,]$BP_START <- BP_var-halfwindow
-        } else if (abs(closest_region$BP_STOP - BP_var) < halfwindow) {
-          coloc_regions[coloc_regions$region == closest_region$region,]$BP_STOP <- BP_var+halfwindow
-        }
+        if (sum(cr < halfwindow) == 1) {
+          if (abs(closest_region$BP_START - BP_var) < halfwindow) {
+            coloc_regions[coloc_regions$region == closest_region$region,]$BP_START <- BP_var-halfwindow
+          } else if (abs(closest_region$BP_STOP - BP_var) < halfwindow) {
+            coloc_regions[coloc_regions$region == closest_region$region,]$BP_STOP <- BP_var+halfwindow
+          }
+        } else if (sum(cr < halfwindow) == 2) {
+          if (abs(closest_region$BP_START - BP_var) < halfwindow) {
+            coloc_regions[coloc_regions$region == closest_region$region,]$BP_START <- BP_var
+          } else if (abs(closest_region$BP_STOP - BP_var) < halfwindow) {
+            coloc_regions[coloc_regions$region == closest_region$region,]$BP_STOP <- BP_var
+          }
+        } else { stop ("More than 2 regions closer than halfwindow identified, please check the data.")}
         updated_region <- subset(coloc_regions, region == closest_region$region)
         regions_log <- c(regions_log, paste0("Updated region: region=", updated_region$region, ", ", updated_region$CHR, ":", updated_region$BP_START, "-", updated_region$BP_STOP))
         comment_var <- paste0("SKIP_merged_to_", updated_region$region)
@@ -267,6 +278,8 @@ get_coloc_regions <- function(sumstats,
              sumstats_backup[[POS_name]] <= coloc_regions_PASS[i,][["BP_STOP_var"]])
   })
   sumstats_filt <- do.call(rbind, sumstats_filt_list)
+  # sort
+  sumstats_filt <- sumstats_filt[with(sumstats_filt, order(sumstats_filt[[CHR_name]], sumstats_filt[[POS_name]])), ]
   # return
   return(list(coloc_regions = coloc_regions,
               coloc_regions_PASS = coloc_regions_PASS,
@@ -276,13 +289,25 @@ get_coloc_regions <- function(sumstats,
 
 #' Save coloc regions
 #' @export
-save_coloc_regions <- function(coloc_regions_list, sumstats_name) {
-  writeLines(coloc_regions_list[["regions_log"]], con = paste0(sumstats_name, "_log.txt"))
-  write.table(coloc_regions_list[["coloc_regions"]], paste0(sumstats_name, "_coloc_regions.tsv"),
+save_coloc_regions <- function(coloc_regions_list, sumstats_name, max_row=100000,
+                               SKIP_name="Name", CHR_place=3, POS_place=4,
+                               bgzip_bin="bgzip", tabix_bin="tabix",
+                               regions_log="regions_log", coloc_regions="coloc_regions",
+                               coloc_regions_PASS="coloc_regions_PASS",
+                               sumstats_filt="sumstats_filt") {
+  writeLines(coloc_regions_list[[regions_log]], con = paste0(sumstats_name, "_log.txt"))
+  write.table(coloc_regions_list[[coloc_regions]], paste0(sumstats_name, "_", coloc_regions, ".tsv"),
               sep="\t", row.names = F, col.names = T, quote = F)
-  write.table(coloc_regions_list[["coloc_regions_PASS"]], paste0(sumstats_name, "_coloc_regions_PASS.tsv"),
+  write.table(coloc_regions_list[[coloc_regions_PASS]], paste0(sumstats_name, "_", coloc_regions_PASS, ".tsv"),
               sep="\t", row.names = F, col.names = T, quote = F)
-  saveRDS(coloc_regions_list[["sumstats_filt"]], paste0(sumstats_name, "_subset.RDS"))
+  # if (nrow(coloc_regions_list[[sumstats_filt]]) > max_row) {
+  write.table(coloc_regions_list[[sumstats_filt]], paste0(sumstats_name, "_subset.tsv"),
+              sep="\t", row.names = F, col.names = T, quote = F)
+  system(paste0(bgzip_bin, " -f ", sumstats_name, "_subset.tsv"))
+  system(paste0("tabix -f -s", CHR_place, " -b", POS_place, " -e", POS_place, " ", sumstats_name, "_subset.tsv.gz -c ", SKIP_name))
+  # } else {
+  #   saveRDS(coloc_regions_list[[sumstats_filt]], paste0(sumstats_name, "_subset.RDS"))
+  # }
 }
 
 
