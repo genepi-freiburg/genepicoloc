@@ -172,7 +172,7 @@ get_coloc_regions <- function(sumstats,
                               CHR_out = "CHR_var",
                               BP_START_var_out = "BP_START_var",
                               BP_STOP_var_out = "BP_STOP_var",
-                              nlogP_threshold = 5e-8,
+                              nlogP_threshold = 7.30103,
                               halfwindow = 500000) {
   if (!is.null(p_value_name)) {
     stop(paste0("This function now works with -log10(P), please add this column to sumstats first."))
