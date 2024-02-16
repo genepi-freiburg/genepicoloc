@@ -318,11 +318,11 @@ genepi_liftOver <- function(sumstats, CHR_name, POS_name, A1_name, A2_name,
                             mc_cores=4, keep_lower=F, do_soring=T, rm_tmp_liftOver=T) {
   if (missing(liftOver_bin)) {
     stop(paste0("Please provide path to liftOver_bin. ",
-                "See https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver")
+                "See https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver"))
   }
   if (missing(liftOver_chain_hg19ToHg38)) {
     stop(paste0("Please provide path to liftOver_chain_hg19ToHg38 ",
-                "For 'hg19ToHg38' see https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz")
+                "For 'hg19ToHg38' see https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz"))
   }
   if (missing(liftOver_chain_hg19ToHg38)) {stop("Please provide path to liftOver_chain_hg19ToHg38")}
   if (missing(dbSNP_file)) {stop("Please provide path to dbSNP_file")}
