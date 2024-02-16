@@ -348,4 +348,33 @@ query_dbSNP_POS <- function(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, ...)
 }
 
 
+#' @title query Infections23
+#' @description Query Infections23 data to extract a region of interest
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats
+#' @export
+query_Infections23 <- function(sumstats_file,
+                               CHR_var, BP_START_var, BP_STOP_var, ...) {
+  sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
+                                            CHR_var, ":", BP_START_var, "-",
+                                            BP_STOP_var),
+                                     intern = T), header = T)
+  if (nrow(sumstats) == 0) { return(sumstats) }
+  # format
+  sumstats <- sumstats[,c("Name_hg38", "CHR_hg38", "POS_hg38", "A1_hg38", "A2_hg38", "effect", "stderr", "pvalue")]
+  colnames(sumstats) <- c("Name", "CHR", "POS", "A1", "A2", "BETA", "SE", "P")
+  # sumstats[["AF"]] <- NA
+  # sumstats[["N"]] <- NA
+  # remove NAs
+  sumstats <- subset(sumstats, (!is.na(BETA)) & (!is.na(SE)) & (!is.na(P))) # & (!is.na(AF)) & (!is.na(N)))
+  # sumstats <- subset(sumstats, AF < 1 & AF > 0 )
+  sumstats <- subset(sumstats, (! BETA %in% c(Inf, -Inf)) & (! SE %in% c(Inf, -Inf)))
+  sumstats <- subset(sumstats, !duplicated(Name))
+  # output
+  return(sumstats)
+}
+
 
