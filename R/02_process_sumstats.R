@@ -469,10 +469,10 @@ Name_by_position <- function(sumstats, tmp_name=NULL,
   CHR_vec <- unique(sumstats[[CHR_name]])
   # extract tabix
   out_list <- mclapply(CHR_vec, function(CHR_var) {
-    sumstats_chr <- sumstats[sumstats[[CHR_name]] == CHR_var]
+    sumstats_chr <- sumstats[sumstats[[CHR_name]] == CHR_var,]
     # add index column
     sumstats_chr[[unique_ID_name]] <- paste0("row_", rownames(sumstats_chr))
-    sumstats_chr <- sumstats_chr[order(sumstats_chr[[POS_name]])]
+    sumstats_chr <- sumstats_chr[order(sumstats_chr[[POS_name]]),]
     Name_match <- paste0(tmp_name, "_", CHR_var, "_tabix")
     data.table::fwrite(sumstats_chr[,c(CHR_name, POS_name), with=F],
                        Name_match, sep="\t", col.names = F)
@@ -504,7 +504,7 @@ Name_by_position <- function(sumstats, tmp_name=NULL,
     sumstats_chr[["V4"]] <- sumstats_chr[["V5"]] <- NULL
     # sort for indexing
     if (do_soring) {
-      sumstats_chr <- sumstats_chr[order(sumstats_chr[[POS_name]])]
+      sumstats_chr <- sumstats_chr[order(sumstats_chr[[POS_name]]),]
     }
     message(paste0("Name annotation for CHR ", CHR_var, " is done."))
     return(sumstats_chr)
