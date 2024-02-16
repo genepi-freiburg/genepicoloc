@@ -310,4 +310,299 @@ save_coloc_regions <- function(coloc_regions_list, sumstats_name, max_row=100000
   # }
 }
 
+#' genepi liftOver
+#' @export
+genepi_liftOver <- function(sumstats, CHR_name, POS_name, A1_name, A2_name,
+                            liftOver_bin, liftOver_chain_hg19ToHg38, dbSNP_file,
+                            unique_ID_name="unique_ID",
+                            mc_cores=4, keep_lower=F, do_soring=T, rm_tmp_liftOver=T) {
+  if (missing(liftOver_bin)) {
+    stop(paste0("Please provide path to liftOver_bin. ",
+                "See https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver")
+  }
+  if (missing(liftOver_chain_hg19ToHg38)) {
+    stop(paste0("Please provide path to liftOver_chain_hg19ToHg38 ",
+                "For 'hg19ToHg38' see https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz")
+  }
+  if (missing(liftOver_chain_hg19ToHg38)) {stop("Please provide path to liftOver_chain_hg19ToHg38")}
+  if (missing(dbSNP_file)) {stop("Please provide path to dbSNP_file")}
+  if (!"data.table" %in% rownames(installed.packages())) {
+    stop("data.table is required to run this function")
+  }
+  if (!"parallel" %in% rownames(installed.packages())) {
+    stop("parallel is required to run this function")
+  }
+  library(data.table)
+  library(parallel)
+  if (! "data.table" %in% class(sumstats)) {
+    message("sumstats class is data.frame, while data.table is required. Chaning to data.table")
+    data.table::setDT(sumstats)
+  }
+  # set tmp name - sumstats will be saved to the disk for the liftOver, then it will be deleted.
+  tmp_name <- paste(sample(letters, 20, replace = T), collapse = "")
+  # add index column
+  sumstats[[unique_ID_name]] <- paste0("row_", rownames(sumstats))
+  # check and add chr prefix, if needed
+  if (! any(grepl("chr", sumstats[[CHR_name]]))) {
+    message("No 'chr' prefix in the chromosome column found (e.g., '21' should be 'chr21' as required by UCSC liftOver), adding 'chr' prefix. This is a regular message, not a warning.")
+    sumstats[[CHR_name]] <- paste0("chr", sumstats[[CHR_name]])
+    change_chr_back <- T
+  } else { 
+    change_chr_back <- F
+  }
+  # set alleles to upper case
+  if ((any(grepl("[[:lower:]]", sumstats[[A1_name]])) | any(grepl("[[:lower:]]", sumstats[[A2_name]]))) & (!keep_lower)) {
+    message("lower case alleles coding detected, changing automatically to upper case. Turn off this behaviour using keep_lower=T option, if needed.")
+    sumstats[[A1_name]] <- toupper(sumstats[[A1_name]])
+    sumstats[[A2_name]] <- toupper(sumstats[[A2_name]])
+  }
+  # Add necessary columns for liftOver
+  sumstats[["score"]] <- "."
+  sumstats[["strand"]] <- "+"
+  data.table::fwrite(sumstats[,c(CHR_name, POS_name, POS_name, unique_ID_name, "score", "strand"), with=F],
+                     paste0(tmp_name, "_liftOver.bed"),
+                     sep="\t", quote=F, col.names = F, row.names = F)
+  message(paste0("Temporary liftOver files will be written to the disk in the current working directory. ",
+                 "After the funcion is finished, these files will be automatically removed. ",
+                 "If any issues are encountered, ensure that there is enough space on the disk. ",
+                 "Usually sumstats file will have a size of 300-600 Mb"))
+  system(paste(liftOver_bin,
+               paste0(tmp_name, "_liftOver.bed"),
+               liftOver_chain_hg19ToHg38,
+               paste0(tmp_name, "_liftOver_newFile.bed"),
+               paste0(tmp_name, "_liftOver_unMapped.bed")))
+  newFile <- data.table::fread(paste0(tmp_name, "_liftOver_newFile.bed"), header = F)
+  unMapped <- tryCatch(read.table(paste0(tmp_name, "_liftOver_unMapped.bed"), header = F), error=function(e) NULL)
+  # clean tmp liftOver files
+  if (rm_tmp_liftOver) {
+    system(paste("rm ", paste0(tmp_name, "_liftOver.bed"),
+                 paste0(tmp_name, "_liftOver_newFile.bed"),
+                 paste0(tmp_name, "_liftOver_unMapped.bed")))
+  }
+  if (!is.null(unMapped)) {
+    message(paste0("There were ", nrow(unMapped), " unmapped variants (out of ",
+                   nrow(sumstats), " variants), they will be discarded. ",
+                   "Usually this should be 0.01-0.1%. ",
+                   "If it is substantially higher, please rerun with rm_tmp_liftOver=F and check the issue"))
+    # Discard unMapped variants
+    sumstats <- sumstats[!sumstats[[unique_ID_name]] %in% unMapped[["V4"]],]
+  }
+  # merge with newFile
+  if ((nrow(sumstats) != nrow(newFile)) | any(newFile[["V2"]] != newFile[["V3"]])) {
+    warning("Number of rows in sumstats does not match with liftOver results, please check the cause.")
+  }
+  # remove unused columns and update colnames
+  newFile[["V3"]] <- newFile[["V5"]] <- NULL
+  colnames(newFile) <- c("CHR_hg38", "POS_hg38", unique_ID_name, "strand_hg38")
+  message("Merging with new coordinates and performing flip...")
+  sumstats_liftOver <- merge(sumstats, newFile, by=unique_ID_name, sort = F)
+  if (nrow(sumstats_liftOver) != nrow(newFile)) {
+    warning("Number of rows before and after merge does not match, please check the cause.")
+  }
+  # flip if necessary
+  indeces_to_flip <- sumstats_liftOver$strand_hg38 == "-"
+  message(paste0("Flipping strand for ", sum(indeces_to_flip), " variants."))
+  sumstats_liftOver[["A1_hg38"]] <- ifelse(indeces_to_flip,
+                                           flip_alleles(sumstats_liftOver[[A1_name]]),
+                                           sumstats_liftOver[[A1_name]])
+  sumstats_liftOver[["A2_hg38"]] <- ifelse(indeces_to_flip,
+                                           flip_alleles(sumstats_liftOver[[A2_name]]),
+                                           sumstats_liftOver[[A2_name]])
+  # Creating new Name column
+  ### Major function to append Name with REF:ALT matched by position
+  sumstats_liftOver <- Name_by_position(sumstats=sumstats_liftOver,
+                                        tmp_name=tmp_name,
+                                        dbSNP_file=dbSNP_file)
+  # remove "chr"
+  if (change_chr_back) {
+    sumstats_liftOver[[CHR_name]] <- gsub("chr", "", sumstats_liftOver[[CHR_name]])
+  }
+  # remove liftOver columns
+  for (i in c("score", "strand", "strand_hg38", unique_ID_name)) {
+    sumstats_liftOver[[i]] <- NULL }
+  sumstats_liftOver[["CHR_hg38"]] <- gsub("chr", "", sumstats_liftOver[["CHR_hg38"]])
+  return(sumstats_liftOver)
+}
 
+
+#' Find name by position
+#' @export
+Name_by_position <- function(sumstats, tmp_name=NULL,
+                             CHR_name="CHR_hg38", POS_name="POS_hg38",
+                             A1_name="A1_hg38", A2_name="A2_hg38",
+                             Name_out="Name_hg38", rs_name="rs",
+                             unique_ID_name="unique_ID",
+                             tabix_bin, dbSNP_file,
+                             do_soring=T, mc_cores=4) {
+  if (missing(tabix_bin)) {stop("Please provide path to tabix_bin")}
+  if (missing(dbSNP_file)) {stop("Please provide path to dbSNP_file")}
+  if (!"data.table" %in% rownames(installed.packages())) {
+    stop("data.table is required to run this function")
+  }
+  if (!"parallel" %in% rownames(installed.packages())) {
+    stop("data.table is required to run this function")
+  }
+  library(data.table); library(parallel)
+  if (is.null(tmp_name)) {
+    tmp_name <- paste(sample(letters, 20, replace = T), collapse = "")
+  }
+  # check and add chr prefix, if needed
+  if (! any(grepl("chr", sumstats[[CHR_name]]))) {
+    message(paste0("No 'chr' prefix in the chromosome column found ",
+                   " (e.g., '21' should be 'chr21' as required by UCSC liftOver)",
+                   " Adding now 'chr' prefix and after the function is finished,",
+                   " chromosomes will be renamed back ('chr' prefix will be removed)."))
+    sumstats[[CHR_name]] <- paste0("chr", sumstats[[CHR_name]])
+    change_chr_back <- T
+  } else { 
+    change_chr_back <- F
+  }
+  message(paste0("Starting name matching by position. ",
+                 "Different sumstats can have arbitrary allele order. ",
+                 "Especially if they are coming from a metal meta-analysis. ",
+                 "This function will try to ensure that REF allele is REF, and ALT is ALT (to harmonize with other sumstats). ",
+                 "This procedue is not always possible for ambiguous SNPs or indels.",
+                 "If non-standard CHR are present (e.g., chr7_KI270803v1_alt), they will be ignored."))
+  CHR_vec <- unique(sumstats[[CHR_name]])
+  # extract tabix
+  out_list <- mclapply(CHR_vec, function(CHR_var) {
+    sumstats_chr <- sumstats[sumstats[[CHR_name]] == CHR_var]
+    # add index column
+    sumstats_chr[[unique_ID_name]] <- paste0("row_", rownames(sumstats_chr))
+    sumstats_chr <- sumstats_chr[order(sumstats_chr[[POS_name]])]
+    Name_match <- paste0(tmp_name, "_", CHR_var, "_tabix")
+    data.table::fwrite(sumstats_chr[,c(CHR_name, POS_name), with=F],
+                       Name_match, sep="\t", col.names = F)
+    system(paste0(tabix_bin, " -h ", dbSNP_file, " -R ", Name_match, " -cache 5000 > ", Name_match, "_out"))
+    dbSNP_subset <- suppressWarnings(data.table::fread(paste0(Name_match, "_out")))
+    stopifnot(all(colnames(dbSNP_subset) == paste0("V", 1:6)))
+    # cleaning
+    system(paste0("rm ", Name_match, " ", Name_match, "_out"))
+    if (nrow(dbSNP_subset) == 0) {
+      vec_out <- NA
+      names(vec_out) <- CHR_var
+      message(paste0("tabix for CHR '", CHR_var, "' returned 0 lines (that is ok for nonstandard chromosomes)."))
+      return(c(vec_out))
+    }
+    # remove extra lines from indels (e.g., indel with 10 BP starting at 5000 will match to POS 5000:5009) 
+    dbSNP_subset <- dbSNP_subset[dbSNP_subset[["V2"]] %in% sumstats_chr[[POS_name]],]
+    # second allele is comma-separated, replace by 1 allele at each line
+    dbSNP_subset[["V5"]] <- gsub(".*:(.*)", "\\1", dbSNP_subset[["V6"]])
+    dbSNP_subset[["V1"]] <- NULL
+    colnames(dbSNP_subset)[colnames(dbSNP_subset) == "V3"] <- rs_name
+    colnames(dbSNP_subset)[colnames(dbSNP_subset) == "V6"] <- Name_out
+    sumstats_chr <- merge(sumstats_chr, by.x=POS_name,
+                          dbSNP_subset, by.y="V2", all.x=T,
+                          allow.cartesian=TRUE)
+    index_found <- (sumstats_chr[["V4"]] == sumstats_chr[[A1_name]] & sumstats_chr[["V5"]] == sumstats_chr[[A2_name]]) |
+      (sumstats_chr[["V5"]] == sumstats_chr[[A1_name]] & sumstats_chr[["V4"]] == sumstats_chr[[A2_name]])
+    sumstats_chr <- sumstats_chr[index_found,]
+    sumstats_chr <- sumstats_chr[!duplicated(sumstats_chr[[unique_ID_name]]),]
+    sumstats_chr[["V4"]] <- sumstats_chr[["V5"]] <- NULL
+    # sort for indexing
+    if (do_soring) {
+      sumstats_chr <- sumstats_chr[order(sumstats_chr[[POS_name]])]
+    }
+    message(paste0("Name annotation for CHR ", CHR_var, " is done."))
+    return(sumstats_chr)
+  }, mc.cores = mc_cores)
+  discarded_names <- names(unlist(out_list[!sapply(out_list, is.data.frame)]))
+  if (is.null(discarded_names)) {
+    message("Tabix successfully processed all chromosomes.")
+  } else {
+    message(paste0("Tabix did not found any matching variants for the following chromosomes: ",
+                   paste(discarded_names, collapse = ", "), ".\n",
+                   "These chromosomes will be discarded"))
+    out_list <- out_list[sapply(out_list, is.data.frame)]
+  }
+  # rbind and get stats
+  out_dt <- data.table::rbindlist(out_list)
+  In_situ_matching_1 <- paste0(out_dt[[CHR_name]], ":",
+                               out_dt[[POS_name]], ":",
+                               out_dt[[A2_name]], ":",
+                               out_dt[[A1_name]])
+  In_situ_matching_2 <- paste0(out_dt[[CHR_name]], ":",
+                               out_dt[[POS_name]], ":",
+                               out_dt[[A1_name]], ":",
+                               out_dt[[A2_name]])
+  message(paste0("Here are some matching statistics:\n",
+                 "Assuming that A2 was REF: ",
+                 sum(out_dt[[Name_out]] == In_situ_matching_1),
+                 " out of ", length(In_situ_matching_1), " could have been matched.\n",
+                 "Assuming that A1 was REF: ",
+                 sum(out_dt[[Name_out]] == In_situ_matching_2),
+                 " out of ", length(In_situ_matching_2), " could have been matched.\n",
+                 "If one of the options gives a good yield (>80-90%), then one can assume that ",
+                 "A1/A2 corresponded indeed REF/ALT (or inversely). If the yield is around 50%, then it is ",
+                 "necessary to use names matched-by-position which is already appended as a new column."))
+  # remove "chr"
+  if (change_chr_back) {
+    out_dt[[CHR_name]] <- gsub("chr", "", out_dt[[CHR_name]])
+  }
+  return(out_dt)
+}
+
+
+#' match rs
+match_rs <- function(dbSNP_file, sumstats,
+                     CHR_var_col_name = "CHR", BP_START_var_col_name = "POS",
+                     BP_STOP_var_col_name = "POS",
+                     A1_name = "A1", A2_name = "A2", SNP_name = "rsID",
+                     window_size = 100, ...) {
+  # rs_df
+  sumstats$comment <- NA
+  rsID <- sumstats[[SNP_name]]
+  # test if several rsIDs are present
+  rsID_split <- strsplit(rsID, ";")[[1]]
+  if (length(rsID_split) > 1) {
+    rs_df_list <- lapply(rsID_split, function(rsID) {
+      CHR_var <- sumstats[[CHR_var_col_name]]
+      BP_START_var <- sumstats[[BP_START_var_col_name]]
+      BP_STOP_var <- sumstats[[BP_STOP_var_col_name]]
+      rs_df <- query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, rsID)
+      return(rs_df)
+    })
+    rs_df <- do.call(rbind, rs_df_list)
+  } else {
+    CHR_var <- sumstats[[CHR_var_col_name]]
+    BP_START_var <- sumstats[[BP_START_var_col_name]]-window_size
+    BP_STOP_var <- sumstats[[BP_STOP_var_col_name]]+window_size
+    rs_df <- query_dbSNP(dbSNP_file, CHR_var, BP_START_var, BP_STOP_var, rsID)
+  }
+  if (length(rs_df[[SNP_name]]) == 1) {
+    if (is.na(rs_df[[SNP_name]])) {
+      sumstats[[SNP_name]] <- NA
+      sumstats[["Name_rs_matching"]] <- NA
+      return(sumstats)
+    }
+  }
+  rs_df <- subset(rs_df, rsID %in% sumstats[[SNP_name]])
+  rs_df <- unique(rs_df)
+  # sumstats
+  sumstats_before_merge <- sumstats
+  sumstats <- merge(sumstats, by.x=SNP_name, all.x=T, 
+                    rs_df, by.y="rsID")
+  sumstats$comment <- "not_inverted"
+  matched_alleles <- ((sumstats$REF == sumstats[[A1_name]]) & (sumstats$ALT == sumstats[[A2_name]])) |
+    ((sumstats$REF == sumstats[[A2_name]]) & (sumstats$ALT == sumstats[[A1_name]]))
+  sumstats_matched <- sumstats[matched_alleles,]
+  if (nrow(sumstats_matched) == 0) {
+    sumstats[[paste0(A1_name, "_flip")]] <- flip_alleles(sumstats[[A1_name]])
+    sumstats[[paste0(A2_name, "_flip")]] <- flip_alleles(sumstats[[A2_name]])
+    matched_alleles <- ((sumstats$REF == sumstats[[paste0(A1_name, "_flip")]]) & (sumstats$ALT == sumstats[[paste0(A2_name, "_flip")]])) |
+      ((sumstats$REF == sumstats[[paste0(A2_name, "_flip")]]) & (sumstats$ALT == sumstats[[paste0(A1_name, "_flip")]]))
+    sumstats[[paste0(A1_name, "_flip")]] <- NULL
+    sumstats[[paste0(A2_name, "_flip")]] <- NULL
+    sumstats_matched <- sumstats[matched_alleles,]
+    if(nrow(sumstats_matched) > 0) {
+      sumstats_matched$comment <- "inverted"
+    } else {
+      sumstats$comment <- "alleles_not_matched"
+      sumstats_matched <- sumstats_before_merge
+      sumstats_matched[["Name_rs_matching"]] <- NA
+    }
+  }
+  sumstats_matched$REF <- NULL
+  sumstats_matched$ALT <- NULL
+  return(sumstats_matched)
+}
