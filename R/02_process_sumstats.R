@@ -314,6 +314,7 @@ save_coloc_regions <- function(coloc_regions_list, sumstats_name, max_row=100000
 #' @export
 genepi_liftOver <- function(sumstats, CHR_name, POS_name, A1_name, A2_name,
                             liftOver_bin, liftOver_chain_hg19ToHg38, dbSNP_file,
+                            tabix_bin,
                             unique_ID_name="unique_ID",
                             mc_cores=4, keep_lower=F, do_soring=T, rm_tmp_liftOver=T) {
   if (missing(liftOver_bin)) {
@@ -326,6 +327,7 @@ genepi_liftOver <- function(sumstats, CHR_name, POS_name, A1_name, A2_name,
   }
   if (missing(liftOver_chain_hg19ToHg38)) {stop("Please provide path to liftOver_chain_hg19ToHg38")}
   if (missing(dbSNP_file)) {stop("Please provide path to dbSNP_file")}
+  if (missing(tabix_bin)) {stop("Please provide path to tabix_bin")}
   if (!"data.table" %in% rownames(installed.packages())) {
     stop("data.table is required to run this function")
   }
@@ -412,7 +414,8 @@ genepi_liftOver <- function(sumstats, CHR_name, POS_name, A1_name, A2_name,
   ### Major function to append Name with REF:ALT matched by position
   sumstats_liftOver <- Name_by_position(sumstats=sumstats_liftOver,
                                         tmp_name=tmp_name,
-                                        dbSNP_file=dbSNP_file)
+                                        dbSNP_file=dbSNP_file,
+                                        tabix_bin=tabix_bin)
   # remove "chr"
   if (change_chr_back) {
     sumstats_liftOver[[CHR_name]] <- gsub("chr", "", sumstats_liftOver[[CHR_name]])
