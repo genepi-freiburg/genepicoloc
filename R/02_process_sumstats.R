@@ -500,6 +500,7 @@ Name_by_position <- function(sumstats, tmp_name=NULL,
                           allow.cartesian=TRUE)
     index_found <- (sumstats_chr[["V4"]] == sumstats_chr[[A1_name]] & sumstats_chr[["V5"]] == sumstats_chr[[A2_name]]) |
       (sumstats_chr[["V5"]] == sumstats_chr[[A1_name]] & sumstats_chr[["V4"]] == sumstats_chr[[A2_name]])
+    index_found[is.na(index_found)] <- FALSE
     sumstats_chr <- sumstats_chr[index_found,]
     sumstats_chr <- sumstats_chr[!duplicated(sumstats_chr[[unique_ID_name]]),]
     sumstats_chr[["V4"]] <- sumstats_chr[["V5"]] <- NULL
