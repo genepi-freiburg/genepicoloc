@@ -262,7 +262,7 @@ get_coloc_regions <- function(sumstats,
     # fix negative BP
     coloc_regions$BP_START[coloc_regions$BP_START < 1] <- 1
     # naming
-    colnames(coloc_regions)[colnames(coloc_regions) == "CHR"] <- CHR_out
+    colnames(coloc_regions)[colnames(coloc_regions) == CHR_name] <- CHR_out
     colnames(coloc_regions)[colnames(coloc_regions) == "BP_START"] <- BP_START_var_out
     colnames(coloc_regions)[colnames(coloc_regions) == "BP_STOP"] <- BP_STOP_var_out
     start_cols <- which(colnames(coloc_regions) %in% c(CHR_out, BP_START_var_out, BP_STOP_var_out))
