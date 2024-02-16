@@ -415,7 +415,8 @@ genepi_liftOver <- function(sumstats, CHR_name, POS_name, A1_name, A2_name,
   sumstats_liftOver <- Name_by_position(sumstats=sumstats_liftOver,
                                         tmp_name=tmp_name,
                                         dbSNP_file=dbSNP_file,
-                                        tabix_bin=tabix_bin)
+                                        tabix_bin=tabix_bin,
+                                        mc_cores=mc_cores)
   # remove "chr"
   if (change_chr_back) {
     sumstats_liftOver[[CHR_name]] <- gsub("chr", "", sumstats_liftOver[[CHR_name]])
