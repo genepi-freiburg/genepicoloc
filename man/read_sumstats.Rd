@@ -5,66 +5,66 @@
 \title{Read and format input summary statistics (under development)}
 \usage{
 read_sumstats(
-  sumstats_file,
   sumstats,
-  sep_var,
-  Name_name = NULL,
-  Name_name_new = "Name",
-  rsID_name = NULL,
-  rsID_name_new = "rsID",
-  CHR_name = NULL,
-  CHR_name_new = "CHR",
-  POS_name = NULL,
-  POS_name_new = "POS",
-  A1_name = NULL,
-  A1_name_new = "A1",
-  A2_name = NULL,
-  A2_name_new = "A2",
-  BETA_name = NULL,
-  BETA_name_new = "BETA",
-  SE_name = NULL,
-  SE_name_new = "SE",
-  p_value_name = NULL,
-  p_value_name_new = "P",
-  AF_name = NULL,
-  AF_name_new = "AF",
-  N_name = NULL,
-  N_name_new = "N",
+  sumstats_file = NULL,
+  Name,
+  Name_new = "Name",
+  A1,
+  A1_new = "A1",
+  BETA,
+  BETA_new = "BETA",
+  SE,
+  SE_new = "SE",
+  nlog10p_value,
+  nlog10p_value_new = "nlog10P",
+  rsID = NULL,
+  rsID_new = "rsID",
+  CHR = NULL,
+  CHR_new = "CHR",
+  POS = NULL,
+  POS_new = "POS",
+  A2 = NULL,
+  A2_new = "A2",
+  AF = NULL,
+  AF_new = "AF",
+  N = NULL,
+  N_new = "N",
+  p_value = NULL,
   other_columns = NULL
 )
 }
 \arguments{
-\item{sumstats_file}{path to sumstats file.}
-
 \item{sumstats}{sumstats data.frame loaded into R.}
 
-\item{sep_var}{Separator type (',', '\t', ' ', etc). Should be provided only if
-read_method is read.delim (data.table usually determined separator automatically)}
+\item{sumstats_file}{path to sumstats file.}
 
-\item{Name_name}{update development}
+\item{Name}{update development}
 
-\item{CHR_name}{update development}
+\item{A1}{update development}
 
-\item{POS_name}{update development}
+\item{BETA}{update development}
 
-\item{A1_name}{update development}
+\item{SE}{update development}
 
-\item{A2_name}{update development}
+\item{nlog10p_value}{update development}
 
-\item{BETA_name}{update development}
+\item{CHR}{update development}
 
-\item{SE_name}{update development}
+\item{POS}{update development}
 
-\item{p_value_name}{update development}
+\item{A2}{update development}
 
-\item{AF_name}{update development}
+\item{AF}{update development}
 
-\item{N_name}{update development}
+\item{N}{update development}
 
 \item{other_columns}{vector with names of other columns}
 
 \item{read_method}{"read.delim" or "data.table". If data.table package is
 available, "data.table" can speed up reading (usually 2-3 times faster)}
+
+\item{sep_var}{Separator type (',', '\t', ' ', etc). Should be provided only if
+read_method is read.delim (data.table usually determined separator automatically)}
 }
 \value{
 data frame with formatted columns

@@ -6,20 +6,17 @@
 \usage{
 parallel_wrapper(
   args_df,
-  annotation_function = NULL,
-  annotation_function_args = NULL,
-  N_nodes = 10,
   N_cpus_per_node = 10,
+  output_folder = "output",
   do_rbind = T,
-  save_RDS_no_annotation = T,
   do_annotate = NULL,
   do_annotate_sumstats_1 = NULL,
-  run_slurm = FALSE,
-  global_objects = NULL,
+  save_RDS = T,
+  save_RDS_no_annotation = F,
   dry_run = T,
   debug_mode = F,
-  save_RDS = T,
-  minP = 1e-05
+  min_nlog10P = -log10(1e-05),
+  run_slurm = NULL
 )
 }
 \description{

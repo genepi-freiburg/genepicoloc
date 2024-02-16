@@ -8,11 +8,12 @@ get_coloc_regions(
   sumstats,
   CHR_name = "CHR",
   POS_name = "POS",
-  p_value_name = "P",
+  p_value_name = NULL,
+  nlog10p_value_name = "nlog10P",
   CHR_out = "CHR_var",
   BP_START_var_out = "BP_START_var",
   BP_STOP_var_out = "BP_STOP_var",
-  p_threshold = 5e-08,
+  nlogP_threshold = 7.30103,
   halfwindow = 5e+05
 )
 }

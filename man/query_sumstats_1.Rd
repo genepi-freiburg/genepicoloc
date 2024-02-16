@@ -10,7 +10,7 @@ query_sumstats_1(
   BP_START_var,
   BP_STOP_var,
   ...,
-  read_mode = "RDS"
+  read_mode = "tabix"
 )
 }
 \arguments{

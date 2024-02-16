@@ -4,7 +4,7 @@
 \alias{summarize_coloc}
 \title{Summarize coloc results}
 \usage{
-summarize_coloc(selected_studies = NULL, folder = NULL, remove_dirname = T)
+summarize_coloc(selected_studies, output_folder = "output", remove_dirname = T)
 }
 \description{
 under development

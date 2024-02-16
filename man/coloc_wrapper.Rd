@@ -19,7 +19,7 @@ coloc_wrapper(
   sumstats_2_sdY,
   hyprcoloc_mode = F,
   do_process_wrapper = T,
-  minP = 1e-05
+  min_nlog10P = -log10(1e-05)
 )
 }
 \arguments{
