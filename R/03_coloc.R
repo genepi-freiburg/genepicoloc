@@ -393,7 +393,7 @@ summarize_coloc <- function(selected_studies,
         coloc_out_combined[[i]] <- NULL
     }
     coloc_out_filt[["summary"]] <- data.table::rbindlist(coloc_out_combined, fill=TRUE, idcol = "Dataset")
-    saveRDS(coloc_out_filt[[paste0(output_folder, "/summary")]], paste0(output_folder, "/summary.RDS"))
+    saveRDS(coloc_out_filt[["summary"]], paste0(output_folder, "/summary.RDS"))
     sapply(names(coloc_out_filt), function(x) {
       writexl::write_xlsx(coloc_out_filt[[x]], paste0(output_folder, "/", x, ".xlsx"))
     })

@@ -316,7 +316,8 @@ genepi_liftOver <- function(sumstats, CHR_name, POS_name, A1_name, A2_name,
                             liftOver_bin, liftOver_chain_hg19ToHg38, dbSNP_file,
                             tabix_bin,
                             unique_ID_name="unique_ID",
-                            mc_cores=4, keep_lower=F, do_soring=T, rm_tmp_liftOver=T) {
+                            mc_cores=4, keep_lower=F, do_soring=T, rm_tmp_liftOver=T,
+                            do_Name_by_position=T) {
   if (missing(liftOver_bin)) {
     stop(paste0("Please provide path to liftOver_bin. ",
                 "See https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver"))
@@ -412,11 +413,13 @@ genepi_liftOver <- function(sumstats, CHR_name, POS_name, A1_name, A2_name,
                                            sumstats_liftOver[[A2_name]])
   # Creating new Name column
   ### Major function to append Name with REF:ALT matched by position
-  sumstats_liftOver <- Name_by_position(sumstats=sumstats_liftOver,
-                                        tmp_name=tmp_name,
-                                        dbSNP_file=dbSNP_file,
-                                        tabix_bin=tabix_bin,
-                                        mc_cores=mc_cores)
+  if (do_Name_by_position) {
+    sumstats_liftOver <- Name_by_position(sumstats=sumstats_liftOver,
+                                          tmp_name=tmp_name,
+                                          dbSNP_file=dbSNP_file,
+                                          tabix_bin=tabix_bin,
+                                          mc_cores=mc_cores)
+  }
   # remove "chr"
   if (change_chr_back) {
     sumstats_liftOver[[CHR_name]] <- gsub("chr", "", sumstats_liftOver[[CHR_name]])
