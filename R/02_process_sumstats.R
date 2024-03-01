@@ -478,7 +478,8 @@ Name_by_position <- function(sumstats, tmp_name=NULL,
     sumstats_chr[[unique_ID_name]] <- paste0("row_", rownames(sumstats_chr))
     sumstats_chr <- sumstats_chr[order(sumstats_chr[[POS_name]]),]
     Name_match <- paste0(tmp_name, "_", CHR_var, "_tabix")
-    data.table::fwrite(sumstats_chr[,c(CHR_name, POS_name), with=F],
+    sumstats_chr_u <- unique(sumstats_chr[,c(CHR_name, POS_name), with=F])
+    data.table::fwrite(sumstats_chr_u,
                        Name_match, sep="\t", col.names = F)
     system(paste0(tabix_bin, " -h ", dbSNP_file, " -R ", Name_match, " -cache 5000 > ", Name_match, "_out"))
     dbSNP_subset <- suppressWarnings(data.table::fread(paste0(Name_match, "_out")))
