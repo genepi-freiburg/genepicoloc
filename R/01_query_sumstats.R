@@ -294,6 +294,41 @@ query_kidney_eQTL <- function(sumstats_file,
   return(sumstats_list)
 }
 
+#' @title Query eQTLGen
+#' @description Query eQTLGen data to extract a region of interest
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats.
+#' #' #' @examples
+#' @export
+query_eQTLGen <- function(sumstats_file,
+                          CHR_var, BP_START_var, BP_STOP_var,
+                          ...) {
+  text_out <- system(paste0("tabix -h ", sumstats_file, " chr",
+                            CHR_var, ":", BP_START_var, "-",
+                            BP_STOP_var), intern = T)
+  if (identical(text_out, character(0))) {
+    sumstats <- data.frame()
+  } else {
+    sumstats <- read.delim(text=text_out, header = F, stringsAsFactors = FALSE,
+                           colClasses = c(V5 = "character", V6 = "character"))
+  }
+  if (nrow(sumstats) == 0) { return(sumstats) }
+  # format by phenotype ID
+  sumstats_list <- lapply(unique(sumstats[["Phenotype"]]), function(x) {
+    sumstats <- subset(sumstats, Phenotype == x)
+    # c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N", "Phenotype")
+    sumstats <- subset(sumstats, (!is.na(BETA)) & (!is.na(SE)) & (!is.na(P)))
+    sumstats <- subset(sumstats, (! BETA %in% c(Inf, -Inf)) & (! SE %in% c(Inf, -Inf)))
+    if (length(unique(sumstats$Phenotype)) > 1) {stop("Phenotype not unique in output query")}
+    return(sumstats)
+  })
+  return(sumstats_list)
+}
+
+
 #' Query dbSNP_file to get REF and ALT
 #' @param dbSNP_file path to dbSNP_file
 #' @param CHR_var path to dbSNP_file
