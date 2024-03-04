@@ -306,13 +306,13 @@ query_kidney_eQTL <- function(sumstats_file,
 query_eQTLGen <- function(sumstats_file,
                           CHR_var, BP_START_var, BP_STOP_var,
                           ...) {
-  text_out <- system(paste0("tabix -h ", sumstats_file, " chr",
+  text_out <- system(paste0("tabix -h ", sumstats_file, " ",
                             CHR_var, ":", BP_START_var, "-",
                             BP_STOP_var), intern = T)
   if (identical(text_out, character(0))) {
     sumstats <- data.frame()
   } else {
-    sumstats <- read.delim(text=text_out, header = F, stringsAsFactors = FALSE,
+    sumstats <- read.delim(text=text_out, header = T, stringsAsFactors = FALSE,
                            colClasses = c(V5 = "character", V6 = "character"))
   }
   if (nrow(sumstats) == 0) { return(sumstats) }
