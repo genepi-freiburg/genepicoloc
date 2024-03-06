@@ -357,7 +357,9 @@ parallel_wrapper <- function(args_df, N_cpus_per_node = 10, output_folder="outpu
 #' @export
 summarize_coloc <- function(selected_studies,
                             output_folder = "output",
-                            remove_dirname = T) {
+                            remove_dirname = T,
+                            PP.H4.abf_filt=0.5,
+                            PP.H3.abf_filt=NULL) {
   if (!"data.table" %in% rownames(installed.packages())) {
     stop("'data.table' is currently required to run 'summarize_coloc()'")
   }
@@ -380,7 +382,11 @@ summarize_coloc <- function(selected_studies,
     }, simplify = F)
     # create summary table
     coloc_out_combined <- sapply(coloc_out_filt, function(x){
-      x <- subset(x, PP.H4.abf >= 0.5)
+      if (!is.null(PP.H3.abf_filt)) {
+        x <- subset(x, PP.H3.abf >= PP.H3.abf_filt | PP.H4.abf >= PP.H4.abf_filt)
+      } else {
+        x <- subset(x, PP.H4.abf >= PP.H4.abf_filt)
+      }
       if (remove_dirname) {
         x[["sumstats_1_file"]] <- basename(x[["sumstats_1_file"]])
         x[["sumstats_2_file"]] <- basename(x[["sumstats_2_file"]])
