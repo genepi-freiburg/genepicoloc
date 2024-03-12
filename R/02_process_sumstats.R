@@ -450,6 +450,7 @@ Name_by_position <- function(sumstats, tmp_name=NULL,
     stop("data.table is required to run this function")
   }
   library(data.table); library(parallel)
+  if (!"data.table" %in% class(sumstats)) {"sumstats should be a data.table object, run setDT(sumstats)"}
   if (is.null(tmp_name)) {
     tmp_name <- paste(sample(letters, 20, replace = T), collapse = "")
   }
