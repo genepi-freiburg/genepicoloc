@@ -89,7 +89,8 @@ query_Ferkingstad_pGWAS <- function(sumstats_file,
 #' @return data frame with extracted sumstats
 #' @export
 query_UKB_PPP_EUR <- function(sumstats_file,
-                              CHR_var, BP_START_var, BP_STOP_var, ...) {
+                              CHR_var, BP_START_var, BP_STOP_var, ...,
+                              handle_undeflow=F) {
   if (CHR_var == "X") {CHR_var <- "23"}
   sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
@@ -99,7 +100,11 @@ query_UKB_PPP_EUR <- function(sumstats_file,
   # format
   sumstats$ID <- paste0("chr", sumstats$CHROM, ":", sumstats$GENPOS, ":", sumstats$ALLELE0, ":", sumstats$ALLELE1)
   sumstats$rsID <- NA
-  sumstats$P <- 10^(-sumstats$LOG10P)
+  if (handle_undeflow) {
+    sumstats$P <- 10^(-handle_underflow(sumstats[["LOG10P"]]))
+  } else {
+    sumstats$P <- 10^(-sumstats$LOG10P)
+  }
   sumstats <- sumstats[,c("ID", "rsID", "CHROM", "GENPOS", "ALLELE1", "ALLELE0", "BETA", "SE", "P", "A1FREQ", "N")]
   colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N")
   return(sumstats)
@@ -277,8 +282,8 @@ query_kidney_eQTL <- function(sumstats_file,
   sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
                                             BP_STOP_var), intern = T), header = T)
+  if (nrow(sumstats) == 0) { sumstats <- data.frame(); return(sumstats) }
   sumstats <- unique(sumstats)
-  if (nrow(sumstats) == 0) { return(sumstats) }
   # format by phenotype ID
   sumstats_list <- lapply(unique(sumstats$GeneID), function(x) {
     sumstats <- subset(sumstats, GeneID == x)
