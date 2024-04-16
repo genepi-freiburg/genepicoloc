@@ -90,7 +90,7 @@ query_Ferkingstad_pGWAS <- function(sumstats_file,
 #' @export
 query_UKB_PPP_EUR <- function(sumstats_file,
                               CHR_var, BP_START_var, BP_STOP_var, ...,
-                              handle_undeflow=F) {
+                              handle_underflow=F) {
   if (CHR_var == "X") {CHR_var <- "23"}
   sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
                                             CHR_var, ":", BP_START_var, "-",
@@ -100,7 +100,7 @@ query_UKB_PPP_EUR <- function(sumstats_file,
   # format
   sumstats$ID <- paste0("chr", sumstats$CHROM, ":", sumstats$GENPOS, ":", sumstats$ALLELE0, ":", sumstats$ALLELE1)
   sumstats$rsID <- NA
-  if (handle_undeflow) {
+  if (handle_underflow) {
     sumstats$P <- 10^(-handle_underflow(sumstats[["LOG10P"]]))
   } else {
     sumstats$P <- 10^(-sumstats$LOG10P)
