@@ -37,10 +37,11 @@ query_sumstats_1 <- function(sumstats_file,
 #' @return data frame with extracted sumstats.
 #' @export
 query_UKB_GWAS <- function(sumstats_file,
-                           CHR_var, BP_START_var, BP_STOP_var, ...) {
-  sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
-                                            CHR_var, ":", BP_START_var, "-",
-                                            BP_STOP_var), intern = T), sep = "\t", header = T)
+                           CHR_var, BP_START_var, BP_STOP_var, ...,
+                           colClasses_int=c(3L,4L), ncol_sumstats=14) {
+  tabix_txt <- tabix_fun(sumstats_file, CHR_var, BP_START_var, BP_STOP_var)
+  colClasses <- readtable_colCl(ncol_sumstats, colClasses_int)
+  sumstats <- read.table(text=tabix_txt, sep = "\t", header = T, colClasses = colClasses)
   if (nrow(sumstats) == 0) { return(sumstats) }
   # format
   sumstats$Name <- paste0("chr", sumstats$chrom, ":", sumstats$pos, ":", sumstats$ref, ":", sumstats$alt)
@@ -90,11 +91,12 @@ query_Ferkingstad_pGWAS <- function(sumstats_file,
 #' @export
 query_UKB_PPP_EUR <- function(sumstats_file,
                               CHR_var, BP_START_var, BP_STOP_var, ...,
-                              handle_underflow=F) {
+                              handle_underflow=F,
+                              colClasses_int=c(4L,5L), ncol_sumstats=14) {
   if (CHR_var == "X") {CHR_var <- "23"}
-  sumstats <- read.table(text=system(paste0("tabix -h ", sumstats_file, " ",
-                                            CHR_var, ":", BP_START_var, "-",
-                                            BP_STOP_var), intern = T), header = T)
+  tabix_txt <- tabix_fun(sumstats_file, CHR_var, BP_START_var, BP_STOP_var)
+  colClasses <- readtable_colCl(ncol_sumstats, colClasses_int)
+  sumstats <- read.table(text=tabix_txt, sep = "\t", header = T, colClasses = colClasses)
   sumstats$CHROM[sumstats$CHROM == "23"] <- "X"
   if (nrow(sumstats) == 0) { return(sumstats) }
   # format
@@ -418,4 +420,20 @@ query_Infections23 <- function(sumstats_file,
   return(sumstats)
 }
 
+
+#' tabix_fun
+#' Helper function to create tabix_cmd
+tabix_fun <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var) {
+  tabix_cmd <- paste0("tabix -h ", sumstats_file, " ", CHR_var, ":", BP_START_var, "-", BP_STOP_var)
+  tabix_txt <- system(tabix_cmd, intern = T)
+  return(tabix_txt)
+}
+
+#' readtable_colCl
+#' Helper function to create tabix_cmd
+readtable_colCl <- function(ncol_sumstats, colClasses_int) {
+  colClasses <- as.character(rep(NA, ncol_sumstats))
+  colClasses[colClasses_int] <- "character"
+  colClasses
+}
 
