@@ -35,7 +35,7 @@ read_sumstats <- function(sumstats, sumstats_file=NULL,
                           p_value=NULL,
                           other_columns = NULL) {
   if (!is.null(p_value)) {
-    stop(paste("This function now accepts only nlog10p_value, please add it to sumstats first",
+    stop(paste("This function now accepts only nlog10p_value, please add it to sumstats first.\n",
                " Please ensure that underflow is handled properly (use handle_overflow() if needed)."))
   }
   if (!is.null(sumstats_file)) {
