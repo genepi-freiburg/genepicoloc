@@ -39,9 +39,8 @@ query_sumstats_1 <- function(sumstats_file,
 query_UKB_GWAS <- function(sumstats_file,
                            CHR_var, BP_START_var, BP_STOP_var, ...,
                            colClasses_int=c(3L,4L), ncol_sumstats=14) {
-  tabix_txt <- tabix_fun(sumstats_file, CHR_var, BP_START_var, BP_STOP_var)
   colClasses <- readtable_colCl(ncol_sumstats, colClasses_int)
-  sumstats <- read.table(text=tabix_txt, sep = "\t", header = T, colClasses = colClasses)
+  sumstats <- tabix_fun(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, colClasses)
   if (nrow(sumstats) == 0) { return(sumstats) }
   # format
   sumstats$Name <- paste0("chr", sumstats$chrom, ":", sumstats$pos, ":", sumstats$ref, ":", sumstats$alt)
@@ -94,9 +93,8 @@ query_UKB_PPP_EUR <- function(sumstats_file,
                               handle_underflow=F,
                               colClasses_int=c(4L,5L), ncol_sumstats=14) {
   if (CHR_var == "X") {CHR_var <- "23"}
-  tabix_txt <- tabix_fun(sumstats_file, CHR_var, BP_START_var, BP_STOP_var)
   colClasses <- readtable_colCl(ncol_sumstats, colClasses_int)
-  sumstats <- read.table(text=tabix_txt, sep = "\t", header = T, colClasses = colClasses)
+  sumstats <- tabix_fun(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, colClasses)
   sumstats$CHROM[sumstats$CHROM == "23"] <- "X"
   if (nrow(sumstats) == 0) { return(sumstats) }
   # format
@@ -420,13 +418,43 @@ query_Infections23 <- function(sumstats_file,
   return(sumstats)
 }
 
+#' @title query_wrapper
+#' @description Wrapper to query regions from different sumstats
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats
+#' @export
+query_wrapper <- function(sumstats_file,
+                          CHR_var, BP_START_var, BP_STOP_var, ...,
+                          colClasses_int, ncol_sumstats,
+                          cols_to_add=NULL,
+                          from_cols,
+                          handle_undeflow=F,
+                          to_cols=c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF")) {
+  colClasses <- readtable_colCl(ncol_sumstats, colClasses_int)
+  sumstats <- tabix_fun(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, colClasses)
+  if (nrow(sumstats) == 0) { return(sumstats) }
+  if (!is.null(cols_to_add)) {
+    for (i in cols_to_add) {sumstats[[i]] <- NA}
+  }
+  # select and rename columns
+  sumstats <- sumstats[,from_cols]
+  colnames(sumstats) <- to_cols
+  return(sumstats)
+}
+
 
 #' tabix_fun
 #' Helper function to create tabix_cmd
-tabix_fun <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var) {
+tabix_fun <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var,
+                      colClasses,
+                      sep = "\t", header = T) {
   tabix_cmd <- paste0("tabix -h ", sumstats_file, " ", CHR_var, ":", BP_START_var, "-", BP_STOP_var)
   tabix_txt <- system(tabix_cmd, intern = T)
-  return(tabix_txt)
+  sumstats <- read.table(text=tabix_txt, sep = sep, header = header, colClasses = colClasses)
+  return(sumstats)
 }
 
 #' readtable_colCl
