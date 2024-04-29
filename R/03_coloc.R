@@ -90,32 +90,30 @@ create_coloc_params_df <- function(sumstats_1_args,
 #' @export
 run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY,
                       sumstats_2_df, sumstats_2_type, sumstats_2_sdY) {
-  sumstats_df_1_coloc <- list(beta=sumstats_1_df$BETA,
-                              varbeta=(sumstats_1_df$SE)^2,
-                              snp=sumstats_1_df$Name,
-                              type=sumstats_1_type)
-  if (sumstats_1_type == "quant") {
-    if (!is.na(sumstats_1_sdY)) {
-      sumstats_df_1_coloc$sdY <- sumstats_1_sdY
-    } else {
-      sumstats_df_1_coloc$MAF <- sumstats_1_df$AF
-      sumstats_df_1_coloc$N <- sumstats_1_df$N
-    }
-  }
-  sumstats_df_2_coloc <- list(beta=sumstats_2_df$BETA,
-                              varbeta=(sumstats_2_df$SE)^2,
-                              snp=sumstats_2_df$Name,
-                              type=sumstats_2_type)
-  if (sumstats_2_type == "quant") {
-    if (!is.na(sumstats_2_sdY)) {
-      sumstats_df_2_coloc$sdY <- sumstats_2_sdY
-    } else {
-      sumstats_df_2_coloc$MAF <- sumstats_2_df$AF
-      sumstats_df_2_coloc$N <- sumstats_2_df$N
-    }
-  }
+  sumstats_df_1_coloc <- format_for_coloc(sumstats_1_df, sumstats_1_type, sumstats_1_sdY)
+  sumstats_df_2_coloc <- format_for_coloc(sumstats_2_df, sumstats_2_type, sumstats_2_sdY)
   coloc_res <- coloc.abf(dataset1=sumstats_df_1_coloc, dataset2=sumstats_df_2_coloc)
   return(coloc_res)
+}
+
+#' Format input df for the coloc input
+#' @param sumstats_df data frame.
+#' @param sumstats_type quant or cc.
+#' @export
+format_for_coloc <- function(sumstats_df, sumstats_type, sumstats_sdY) {
+  sumstats_df_coloc <- list(beta=sumstats_df$BETA,
+                              varbeta=(sumstats_df$SE)^2,
+                              snp=sumstats_df$Name,
+                              type=sumstats_type)
+  if (sumstats_type == "quant") {
+    if (!is.na(sumstats_sdY)) {
+      sumstats_df_coloc$sdY <- sumstats_sdY
+    } else {
+      sumstats_df_coloc$MAF <- sumstats_df$AF
+      sumstats_df_coloc$N <- sumstats_df$N
+    }
+  }
+  return(sumstats_df_coloc)
 }
 
 
