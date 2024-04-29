@@ -79,26 +79,10 @@ create_coloc_params_df <- function(sumstats_1_args,
   return(list_out)
 }
 
-#' Run coloc function using 2 extracted regions
-#' @param sumstats_1_df data frame.
-#' @param sumstats_1_type quant or cc.
-#' @param sumstats_1_df data frame.
-#' @param sumstats_2_type quant or cc.
-#' @return results of coloc.abf function
-#' @examples
-#' run_coloc()
-#' @export
-run_coloc <- function(sumstats_1_df, sumstats_1_type, sumstats_1_sdY,
-                      sumstats_2_df, sumstats_2_type, sumstats_2_sdY) {
-  sumstats_df_1_coloc <- format_for_coloc(sumstats_1_df, sumstats_1_type, sumstats_1_sdY)
-  sumstats_df_2_coloc <- format_for_coloc(sumstats_2_df, sumstats_2_type, sumstats_2_sdY)
-  coloc_res <- coloc.abf(dataset1=sumstats_df_1_coloc, dataset2=sumstats_df_2_coloc)
-  return(coloc_res)
-}
-
 #' Format input df for the coloc input
 #' @param sumstats_df data frame.
 #' @param sumstats_type quant or cc.
+#' @param sumstats_sdY standard deviation for quantitative traits
 #' @export
 format_for_coloc <- function(sumstats_df, sumstats_type, sumstats_sdY) {
   sumstats_df_coloc <- list(beta=sumstats_df$BETA,
@@ -142,8 +126,6 @@ out_template <- function(CHR_var, BP_START_var, BP_STOP_var,
 #' usually created using 'create_coloc_params_df' function 
 #' @param ellipsis with additional arguments (e.g., annotation files).
 #' @return results of coloc.abf function
-#' @examples
-#' run_coloc()
 #' @export
 coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
                           sumstats_1_file, sumstats_1_function,
@@ -177,12 +159,9 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
                                      sumstats_2_file, sumstats_2_max_nlog10P)
       } else {
         # run coloc if both sumstats have significant SNPs
-        coloc_output <- run_coloc(sumstats_1_df = sumstats_1_df,
-                                  sumstats_1_type = sumstats_1_type,
-                                  sumstats_1_sdY = sumstats_1_sdY,
-                                  sumstats_2_df = sumstats_2_df,
-                                  sumstats_2_type = sumstats_2_type,
-                                  sumstats_2_sdY = sumstats_2_sdY)
+        sumstats_df_1_coloc <- format_for_coloc(sumstats_1_df, sumstats_1_type, sumstats_1_sdY)
+        sumstats_df_2_coloc <- format_for_coloc(sumstats_2_df, sumstats_2_type, sumstats_2_sdY)
+        coloc_output <- coloc.abf(dataset1=sumstats_df_1_coloc, dataset2=sumstats_df_2_coloc)
         coloc_output$region <- data.frame(CHR_var = CHR_var,
                                           BP_START_var = BP_START_var,
                                           BP_STOP_var = BP_STOP_var,
@@ -239,8 +218,6 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
 #' @param remove_full_results Should data.frame with full coloc output be removed?
 #' Usually TRUE, in this case only first SNPs are used in output.
 #' @return results of coloc.abf function
-#' @examples
-#' run_coloc()
 #' @export
 process_wrapper <- function(coloc_output,
                             N_top_SNPs = 5,
