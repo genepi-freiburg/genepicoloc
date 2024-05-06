@@ -132,7 +132,7 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
                           ..., sumstats_1_type, sumstats_1_sdY,
                           sumstats_2_file, sumstats_2_function,
                           sumstats_2_type, sumstats_2_sdY,
-                          hyprcoloc_mode = F,
+                          hyprcoloc_mode = F, check_sumstats_2 = F,
                           do_process_wrapper = T, min_nlog10P = -log10(1e-5)) {
   # Declare nested function
   process_sumstats_2_df <- function(sumstats_1_df, sumstats_2_df) {
@@ -200,6 +200,10 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
   coloc_output <- lapply(sumstats_2_obj, function(sumstats_2_df) {
     # handle character P in case of underflow - already done at preprocessing
     # sumstats_2_df[["P"]] <- as.numeric(sumstats_2_df[["P"]])
+    # sumstats_1_df <- check_sumstats(sumstats_1_df)
+    if (check_sumstats_2) {
+      sumstats_2_df <- check_sumstats(sumstats_2_df)
+    }
     df_out <- process_sumstats_2_df(sumstats_1_df = sumstats_1_df,
                                     sumstats_2_df = sumstats_2_df)
     if ("Phenotype" %in% colnames(sumstats_2_df)) {
@@ -254,7 +258,7 @@ parallel_wrapper <- function(args_df, N_cpus_per_node = 10, output_folder="outpu
                              save_RDS = T, save_RDS_no_annotation = F,
                              dry_run = T, debug_mode = F,
                              min_nlog10P = -log10(1e-5),
-                             run_slurm = NULL) {
+                             run_slurm = NULL, check_sumstats_2 = F) {
   # Setup
   if (!is.null(run_slurm)) {
     stop("Slurm functionality is (temporarily) disabled.",
@@ -298,12 +302,12 @@ parallel_wrapper <- function(args_df, N_cpus_per_node = 10, output_folder="outpu
   if (debug_mode) {
     coloc_out <- lapply(1:nrow(params_df),
                         function(i) {
-                          print(i); do.call(coloc_wrapper, c(params_df[i,], extra_args))
+                          print(i); do.call(coloc_wrapper, c(params_df[i,], extra_args, check_sumstats_2=check_sumstats_2))
                         })
   } else {
     coloc_out <- parallel::mclapply(1:nrow(params_df),
                                     function(i) {
-                                      do.call(coloc_wrapper, c(params_df[i,], extra_args))
+                                      do.call(coloc_wrapper, c(params_df[i,], extra_args, check_sumstats_2=check_sumstats_2))
                                     }, mc.cores = N_cpus_per_node)
   }
   if (do_rbind) {
