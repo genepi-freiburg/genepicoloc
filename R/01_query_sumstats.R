@@ -446,14 +446,40 @@ query_wrapper <- function(sumstats_file,
 }
 
 
+#' @title Query GWAS Catalog harmonized study
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats
+#' @export
+query_GCST_h <- function(sumstats_file,
+                         CHR_var, BP_START_var, BP_STOP_var, ...) {
+  sumstats <- tabix_fun(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, header = F)
+  colnames(sumstats) <- c("chromosome", "base_pair_location", "effect_allele", "other_allele", "beta", "standard_error", "effect_allele_frequency", "p_value", "variant_id", "rsid", "het_i2", "het_p_value", "n_samples", "n_cases", "n_studies", "hm_coordinate_conversion", "hm_code")
+  # format name
+  sumstats[["variant_id"]] <- paste0("chr", gsub("_", ":", sumstats[["variant_id"]]))
+  sumstats <- sumstats[,c("variant_id", "rsid", "chromosome", "base_pair_location", "effect_allele", "other_allele", "beta", "standard_error", "p_value")]
+  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P")
+  return(sumstats)
+}
+
+
+### Helper functions ----
+
 #' tabix_fun
 #' Helper function to create tabix_cmd
 tabix_fun <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var,
-                      colClasses,
-                      sep = "\t", header = T) {
+                      colClasses=NULL, sep = "\t", header = T,
+                      show_cmd=F) {
   tabix_cmd <- paste0("tabix -h ", sumstats_file, " ", CHR_var, ":", BP_START_var, "-", BP_STOP_var)
+  if (show_cmd) {message(tabix_cmd)}
   tabix_txt <- system(tabix_cmd, intern = T)
-  sumstats <- read.table(text=tabix_txt, sep = sep, header = header, colClasses = colClasses)
+  if (!is.null(colClasses)) {
+    sumstats <- read.table(text=tabix_txt, sep = sep, header = header, colClasses = colClasses)
+  } else {
+    sumstats <- read.table(text=tabix_txt, sep = sep, header = header)
+  }
   return(sumstats)
 }
 
@@ -465,3 +491,19 @@ readtable_colCl <- function(ncol_sumstats, colClasses_int) {
   colClasses
 }
 
+# check input sumstats for possible issues
+check_sumstats <- function(sumstats, AF = "AF", BETA = "BETA",
+                           SE = "SE", Name = "Name") {
+  AF_1 <- sumstats[[AF]] == 1
+  if (any(AF_1)) {warning("AF = 1 detected")}
+  AF_0 <- sumstats[[AF]] == 0
+  if (any(AF_0)) {warning("AF = 0 detected")}
+  BETA_INF <- is.infinite(sumstats[[BETA]])
+  if (any(BETA_INF)) {warning("Infinite BETA detected")}
+  SE_INF <- is.infinite(sumstats[[SE]])
+  if (any(SE_INF)) {warning("Infinite SE detected")}
+  Name_dup <- duplicated(sumstats[[Name]])
+  if (any(Name_dup)) {warning("Duplicated Names detected")}
+  # if (nrow(sumstats) == 0) { return(sumstats) }
+  
+}
