@@ -459,8 +459,8 @@ query_GCST_h <- function(sumstats_file,
   colnames(sumstats) <- c("chromosome", "base_pair_location", "effect_allele", "other_allele", "beta", "standard_error", "effect_allele_frequency", "p_value", "variant_id", "rsid", "het_i2", "het_p_value", "n_samples", "n_cases", "n_studies", "hm_coordinate_conversion", "hm_code")
   # format name
   sumstats[["variant_id"]] <- paste0("chr", gsub("_", ":", sumstats[["variant_id"]]))
-  sumstats <- sumstats[,c("variant_id", "rsid", "chromosome", "base_pair_location", "effect_allele", "other_allele", "beta", "standard_error", "p_value")]
-  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P")
+  sumstats <- sumstats[,c("variant_id", "rsid", "chromosome", "base_pair_location", "effect_allele", "other_allele", "beta", "standard_error", "p_value", "effect_allele_frequency")]
+  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF")
   return(sumstats)
 }
 
@@ -492,18 +492,42 @@ readtable_colCl <- function(ncol_sumstats, colClasses_int) {
 }
 
 # check input sumstats for possible issues
-check_sumstats <- function(sumstats, AF = "AF", BETA = "BETA",
-                           SE = "SE", Name = "Name") {
+check_sumstats <- function(sumstats, fix=T,
+                           AF = "AF", BETA = "BETA", SE = "SE", P = "P",
+                           Name = "Name") {
   AF_1 <- sumstats[[AF]] == 1
   if (any(AF_1)) {warning("AF = 1 detected")}
   AF_0 <- sumstats[[AF]] == 0
   if (any(AF_0)) {warning("AF = 0 detected")}
+  # INF
   BETA_INF <- is.infinite(sumstats[[BETA]])
   if (any(BETA_INF)) {warning("Infinite BETA detected")}
   SE_INF <- is.infinite(sumstats[[SE]])
   if (any(SE_INF)) {warning("Infinite SE detected")}
+  P_INF <- is.infinite(sumstats[[P]])
+  if (any(P_INF)) {warning("Infinite P detected")}
+  # 0
+  BETA_0 <- sumstats[[BETA]] == 0
+  if (any(BETA_0)) {warning("BETA = 0 detected")}
+  SE_0 <- sumstats[[SE]] == 0
+  if (any(SE_0)) {warning("SE = 0 detected")}
+  P_0 <- sumstats[[P]] == 0
+  if (any(P_0)) {warning("P = 0 detected")}
+  # Duplicates
   Name_dup <- duplicated(sumstats[[Name]])
   if (any(Name_dup)) {warning("Duplicated Names detected")}
-  # if (nrow(sumstats) == 0) { return(sumstats) }
-  
+  # To fix
+  if (fix) {
+    cols_to_check <- c()
+    if (length(AF_1 != 0)) { sumstats <- subset(sumstats, !AF_1) }
+    if (length(AF_0 != 0)) { sumstats <- subset(sumstats, !AF_0) }
+    if (length(BETA_INF != 0)) { sumstats <- subset(sumstats, !BETA_INF) }
+    if (length(SE_INF != 0)) { sumstats <- subset(sumstats, !SE_INF) }
+    if (length(P_INF != 0)) { sumstats <- subset(sumstats, !P_INF) }
+    if (length(BETA_0 != 0)) { sumstats <- subset(sumstats, !BETA_0) }
+    if (length(SE_0 != 0)) { sumstats <- subset(sumstats, !SE_0) }
+    if (length(P_0 != 0)) { sumstats <- subset(sumstats, !P_0) }
+    if (length(Name_dup != 0)) { sumstats <- subset(sumstats, !Name_dup) }
+    return(sumstats)
+  }
 }
