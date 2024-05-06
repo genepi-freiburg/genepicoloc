@@ -456,6 +456,7 @@ query_wrapper <- function(sumstats_file,
 query_GCST_h <- function(sumstats_file,
                          CHR_var, BP_START_var, BP_STOP_var, ...) {
   sumstats <- tabix_fun(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, header = F)
+  if (nrow(sumstats) == 0) { return(sumstats) }
   colnames(sumstats) <- c("chromosome", "base_pair_location", "effect_allele", "other_allele", "beta", "standard_error", "effect_allele_frequency", "p_value", "variant_id", "rsid", "het_i2", "het_p_value", "n_samples", "n_cases", "n_studies", "hm_coordinate_conversion", "hm_code")
   # format name
   sumstats[["variant_id"]] <- paste0("chr", gsub("_", ":", sumstats[["variant_id"]]))
@@ -475,10 +476,14 @@ tabix_fun <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var,
   tabix_cmd <- paste0("tabix -h ", sumstats_file, " ", CHR_var, ":", BP_START_var, "-", BP_STOP_var)
   if (show_cmd) {message(tabix_cmd)}
   tabix_txt <- system(tabix_cmd, intern = T)
-  if (!is.null(colClasses)) {
-    sumstats <- read.table(text=tabix_txt, sep = sep, header = header, colClasses = colClasses)
+  if (!identical(tabix_txt, character(0))) {
+    if (!is.null(colClasses)) {
+      sumstats <- read.table(text=tabix_txt, sep = sep, header = header, colClasses = colClasses)
+    } else {
+      sumstats <- read.table(text=tabix_txt, sep = sep, header = header)
+    }
   } else {
-    sumstats <- read.table(text=tabix_txt, sep = sep, header = header)
+    sumstats <- data.frame()
   }
   return(sumstats)
 }
