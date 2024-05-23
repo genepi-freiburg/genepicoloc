@@ -1,4 +1,3 @@
-# tmp
 # Tools (supplementary functions) to facilitate other genepicoloc processes
 
 flip_alleles <- function(vec) {
