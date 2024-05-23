@@ -338,13 +338,10 @@ summarize_coloc <- function(selected_studies,
                             output_folder = "output",
                             remove_dirname = T,
                             PP.H4.abf_filt=0.5,
-                            PP.H3.abf_filt=NULL) {
-  if (!"data.table" %in% rownames(installed.packages())) {
-    stop("'data.table' is currently required to run 'summarize_coloc()'")
-  }
-  if (!"writexl" %in% rownames(installed.packages())) {
-    stop("'writexl' is currently required to run 'summarize_coloc()'")
-  }
+                            PP.H3.abf_filt=NULL,
+                            do_summary=T, do_xlsx=T) {
+  if (! "data.table" %in% rownames(installed.packages())) { do_summary <- F }
+  if (! "writexl" %in% rownames(installed.packages())) { do_xlsx <- F }
   files <- list.files(path = output_folder, pattern = ".RDS", full.names = T)
   files <- grep("dryrun|no_annotation|summary", files, invert = T, value = T)
   coloc_out <- sapply(files, readRDS, simplify = F)
@@ -377,10 +374,16 @@ summarize_coloc <- function(selected_studies,
       if (nrow(coloc_out_combined[[i]]) == 0)
         coloc_out_combined[[i]] <- NULL
     }
-    coloc_out_filt[["summary"]] <- data.table::rbindlist(coloc_out_combined, fill=TRUE, idcol = "Dataset")
-    saveRDS(coloc_out_filt[["summary"]], paste0(output_folder, "/summary.RDS"))
+    if (do_summary) {
+      coloc_out_filt[["summary"]] <- data.table::rbindlist(coloc_out_combined, fill=TRUE, idcol = "Dataset")
+      saveRDS(coloc_out_filt[["summary"]], paste0(output_folder, "/summary.RDS"))
+    }
     sapply(names(coloc_out_filt), function(x) {
-      writexl::write_xlsx(coloc_out_filt[[x]], paste0(output_folder, "/", x, ".xlsx"))
+      if (do_xlsx) {
+        writexl::write_xlsx(coloc_out_filt[[x]], paste0(output_folder, "/", x, ".xlsx"))
+      } else {
+        write.csv(coloc_out_filt[[x]], paste0(output_folder, "/", x, ".csv"), row.names = F, quote = F)
+      }
     })
   }
 }

@@ -202,7 +202,7 @@ get_coloc_regions <- function(sumstats,
     if (length(which_max) > 1) {which_max <- which_max[1]}
     min_p_row <- sumstats[which_max,]
     min_p_row[[nlog10p_value_name]] <- as.numeric(min_p_row[[nlog10p_value_name]])
-    print(min_p_row)
+    message(paste0("CHR=", min_p_row[[CHR_name]], "; POS=", min_p_row[[POS_name]], ";", " -log10P=", min_p_row[[nlog10p_value_name]]))
     CHR_var <- min_p_row[[CHR_name]]
     BP_var <- min_p_row[[POS_name]]
     BP_START_var <- BP_var - halfwindow
