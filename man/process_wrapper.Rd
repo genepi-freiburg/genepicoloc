@@ -20,6 +20,3 @@ results of coloc.abf function
 \description{
 Process results of coloc_wrapper function.
 }
-\examples{
-run_coloc()
-}

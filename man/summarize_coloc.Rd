@@ -4,7 +4,13 @@
 \alias{summarize_coloc}
 \title{Summarize coloc results}
 \usage{
-summarize_coloc(selected_studies, output_folder = "output", remove_dirname = T)
+summarize_coloc(
+  selected_studies,
+  output_folder = "output",
+  remove_dirname = T,
+  PP.H4.abf_filt = 0.5,
+  PP.H3.abf_filt = NULL
+)
 }
 \description{
 under development

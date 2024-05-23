@@ -4,7 +4,16 @@
 \alias{query_UKB_PPP_EUR}
 \title{query UKB PPP pGWAS}
 \usage{
-query_UKB_PPP_EUR(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, ...)
+query_UKB_PPP_EUR(
+  sumstats_file,
+  CHR_var,
+  BP_START_var,
+  BP_STOP_var,
+  ...,
+  handle_underflow = F,
+  colClasses_int = c(4L, 5L),
+  ncol_sumstats = 14
+)
 }
 \arguments{
 \item{sumstats_file}{path tabix-indexed sumstats.}

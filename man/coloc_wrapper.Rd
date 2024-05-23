@@ -18,6 +18,7 @@ coloc_wrapper(
   sumstats_2_type,
   sumstats_2_sdY,
   hyprcoloc_mode = F,
+  check_sumstats_2 = F,
   do_process_wrapper = T,
   min_nlog10P = -log10(1e-05)
 )
@@ -33,7 +34,4 @@ results of coloc.abf function
 }
 \description{
 Query sumstats and run coloc, supports multithreading / slurm.
-}
-\examples{
-run_coloc()
 }

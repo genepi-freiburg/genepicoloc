@@ -16,7 +16,8 @@ parallel_wrapper(
   dry_run = T,
   debug_mode = F,
   min_nlog10P = -log10(1e-05),
-  run_slurm = NULL
+  run_slurm = NULL,
+  check_sumstats_2 = F
 )
 }
 \description{

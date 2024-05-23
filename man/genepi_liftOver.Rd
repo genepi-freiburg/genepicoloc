@@ -18,7 +18,8 @@ genepi_liftOver(
   mc_cores = 4,
   keep_lower = F,
   do_soring = T,
-  rm_tmp_liftOver = T
+  rm_tmp_liftOver = T,
+  do_Name_by_position = T
 )
 }
 \description{
