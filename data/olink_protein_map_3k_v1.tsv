@@ -1,0 +1,3 @@
+UKBPPP_ProteinID	olink_target_fullname	OlinkID	UniProt	Assay	Panel	Panel_Lot_Nr	UniProt2	HGNC.symbol	ensembl_id	chr	gene_start	gene_end	Strand	Dilution_factor	block	expansion
+UMOD:P07911:OID20237:v1	Uromodulin	OID20237	P07911	UMOD	Cardiometabolic	B04413	P07911	UMOD	ENSG00000169344	16	20333051	20356301	-1	1:100	C	no
+OTOA:Q7RTW8:OID30825:v1	Otoancorin	OID30825	Q7RTW8	OTOA	Neurology_II	B20707	Q7RTW8	OTOA	ENSG00000155719	16	21663968	21761935	1	1:1	A	yes
