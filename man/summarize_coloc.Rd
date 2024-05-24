@@ -9,7 +9,9 @@ summarize_coloc(
   output_folder = "output",
   remove_dirname = T,
   PP.H4.abf_filt = 0.5,
-  PP.H3.abf_filt = NULL
+  PP.H3.abf_filt = NULL,
+  do_summary = T,
+  do_xlsx = T
 )
 }
 \description{

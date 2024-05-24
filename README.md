@@ -9,7 +9,7 @@ genepicoloc
 
 ***R package to facilitate genetic colocalization analysis.***
 
-**Authors:** Oleg Borisov, Zulema Rodriguez Hernandez, Sara Monteiro Martins, et al.  
+**Authors:** Oleg Borisov, Zulema Rodriguez Hernandez, Sara Monteiro Martins, Pascal Schlosser, et al.  
 **Affiliation:** *Institute of Genetic Epidemiology, Medical Center - University of Freiburg, Germany*  
 **Contact:** *oleg.borisov [at] uniklinik-freiburg [dot] de*  
 
@@ -36,8 +36,11 @@ For more details on the method, please refer to the following resources:
 - devtools R package (see https://cran.r-project.org/web/packages/devtools/index.html)  
   - Usually can be installed with `install.packages("devtools")`  
 - tabix (see http://www.htslib.org/doc/tabix.html)  
+- git (see https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)  
 
-To install *genepicoloc*, please clone the github repo first.
+The code was tested on Linux systems (Ubuntu, Debian) but should work on other systems as well.
+
+To install *genepicoloc*, please clone the github repo first (all the following code can be run using R).
 
 ```
 system("git clone https://github.com/genepi-freiburg/genepicoloc.git")
@@ -47,7 +50,6 @@ Next, load it using *devtools* R package to load *genepicoloc* (if devtools is a
 ```
 devtools::load_all("genepicoloc")
 ```
-
 **Alternatively**, simply source the scripts in "R" subfolder
 ```
 sapply(list.files("genepicoloc/R", full.names = T), source)
@@ -58,9 +60,10 @@ Next, we need to load coloc package and ensure that tabix works:
 library(coloc)
 # Test tabix installation
 tabix_test <- suppressWarnings(system("tabix --version", intern=F, ignore.stdout=T, ignore.stderr=T))
-if (tabix_test != 0) {stop("tabix command produced an error, please check that tabix is installed and accessible")}
+if (tabix_test != 0) {
+  stop("tabix command produced an error, please check that tabix is installed and accessible")
+} else {"tabix is found and can be accessed successfully."}
 ```
-The code was tested on Linux systems (Ubuntu, Debian) but should work on other systems as well.
 
 # Typical use case
 
