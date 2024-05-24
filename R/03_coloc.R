@@ -382,7 +382,7 @@ summarize_coloc <- function(selected_studies,
       if (do_xlsx) {
         writexl::write_xlsx(coloc_out_filt[[x]], paste0(output_folder, "/", x, ".xlsx"))
       } else {
-        write.csv(coloc_out_filt[[x]], paste0(output_folder, "/", x, ".csv"), row.names = F, quote = F)
+        write.table(coloc_out_filt[[x]], paste0(output_folder, "/", x, ".csv"), sep = "\t", row.names = F, quote = F)
       }
     })
   }
