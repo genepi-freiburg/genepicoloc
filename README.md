@@ -9,13 +9,13 @@ genepicoloc
 
 # Overview
 
-tl;dr - please go directly to a [typical use case](#typical-use-case) below (ideally after checking [System requirements](#system-requirements))
+tl;dr - please go directly to a [typical use case](#typical-use-case) below (ideally after checking [system requirements](#system-requirements)).
 
-Genetic colocalization is a statistical approach used to assess whether two complex traits (e.g., chronic kidney disease and gene expression) share a causal genetic variant. As input, it uses summary statistics - the results of genome-wide association studies. Establishing shared genetic signals can reveal common biological mechanisms underlying such complex traits and provide insights into their etiology.
+Genetic colocalization is a statistical approach used to assess whether two complex traits (e.g., chronic kidney disease and type II diabetes, or chronic kidney disease and a molecular trait such as gene expression) share a causal genetic variant. As input, it uses summary statistics - the results of genome-wide association studies (GWASs). Establishing shared genetic signals can reveal common biological mechanisms underlying such complex traits and provide insights into their etiology.
 
-A frequently used tool for genetic colocalization is [coloc](https://chr1swallace.github.io/coloc/) which *genepicoloc* is based on. In particular, it uses the enumeration method implemented in the "coloc.abf" function. This is a Bayesian approach which calculates posterior probabilities (PPs) for colocalizaiton between each pair of traits and tests whether they show evidence of colocalization driven by the same genetic variant (corresponds to the high PP of Hypothesis 4, H4).
+A frequently used tool for genetic colocalization is [coloc](https://chr1swallace.github.io/coloc/) which *genepicoloc* is based on. In particular, it uses the enumeration method implemented in the "coloc.abf" function. This is a Bayesian approach which calculates posterior probabilities (PPs) for colocalization between each pair of traits and tests whether they show evidence of colocalization driven by the same genetic variant (corresponds to the high PP of Hypothesis 4, H4).
 
-In essence, *genepicoloc* colocalizes input summary statistics (sumstats_1) against a set of available traits and phenotypes (sumstats_2) which include molecular traits (transcriptomics, proteomics, metabolomics data) and diseases (clinical outcomes from phenome-wide association studies).
+In essence, *genepicoloc* colocalizes input summary statistics (sumstats_1) against a set of available traits and phenotypes (sumstats_2) which include molecular traits (i.e., transcriptomics, proteomics, metabolomics, and other omics data) and diseases (clinical outcomes from phenome-wide association studies).
 
 For more details on the method, please refer to the following resources:  
 - Genome-wide association studies: [methods primer](https://www.nature.com/articles/s43586-021-00056-9)  
@@ -26,11 +26,11 @@ For more details on the method, please refer to the following resources:
 
 ## System requirements
 - R: tested with version 4, should be compatible with earlier versions as well (see https://www.r-project.org/)  
-- coloc R package (see https://chr1swallace.github.io/coloc/)  
-- devtools R package (see https://cran.r-project.org/web/packages/devtools/index.html)  
+- *coloc* R package (see https://chr1swallace.github.io/coloc/)  
+- *devtools* R package (see https://cran.r-project.org/web/packages/devtools/index.html)  
   - Usually can be installed with `install.packages("devtools")`  
-- tabix (see http://www.htslib.org/doc/tabix.html)  
-- git (see https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)  
+- *tabix* (see http://www.htslib.org/doc/tabix.html)  
+- *git* (see https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)  
 
 The code was tested on Linux systems (Ubuntu, Debian) but should work on other systems as well.
 
@@ -40,11 +40,11 @@ To install *genepicoloc*, please clone the github repo first (all the following 
 system("git clone https://github.com/genepi-freiburg/genepicoloc.git")
 ```
 
-Next, load it using *devtools* R package to load *genepicoloc* (if devtools is available or can be installed).
+Next, load *genepicoloc* R using *devtools* (if the latter is available or can be installed).
 ```
 devtools::load_all("genepicoloc")
 ```
-**Alternatively**, simply source the scripts in "R" subfolder
+Alternatively (if *devtools* is not available), simply source the scripts in "R" subfolder.
 ```
 sapply(list.files("genepicoloc/R", full.names = T), source)
 ```
@@ -63,13 +63,13 @@ if (tabix_test != 0) {
 
 Please note our recommendations for colocalization analysis: [good genepicoloc practice](#good-genepicoloc-practice).
 
-To illustrate the functionality of *genepicoloc*, we will perform colocalization analysis for a complex trait. As an example, we will use a summary statistics of kidney function (eGFR, estimated glomerular filtration rate). The GWAS of eGFR was performed by the CKDGen consortium as described in the [article](https://www.nature.com/articles/s41588-019-0407-x) and the source summary statistics file is available from the [CKDGen website](https://ckdgen.imbi.uni-freiburg.de/datasets/Wuttke_2019).
+To illustrate the functionality of *genepicoloc*, we will perform colocalization analysis for a complex trait. As an example, we will use a summary statistics of kidney function (eGFR, estimated glomerular filtration rate). We will refer to this summary statistics as "sumstats_1". The GWAS of eGFR was performed by the CKDGen consortium as described in the [article](https://www.nature.com/articles/s41588-019-0407-x) and the source summary statistics file is available from the [CKDGen website](https://ckdgen.imbi.uni-freiburg.de/datasets/Wuttke_2019).
 
-For illustration purpuse, we use a subset of this file with chromosome 16 and a 4-megabase window around one of the significant regions (`Chr == 16 & Pos_b37 > 18e6 & Pos_b37 < 22e6`). In addition, the liftOver was performed to map coordinated to build GRCh38 (using [liftOver tool](https://genome.ucsc.edu/cgi-bin/hgLiftOver)).
+For illustration purpose, we use a subset of this file with chromosome 16 and a 4-megabase window around one of the significant regions (`Chr == 16 & Pos_b37 > 18e6 & Pos_b37 < 22e6`). In addition, the liftOver was performed to map coordinated to build GRCh38 (using [liftOver tool](https://genome.ucsc.edu/cgi-bin/hgLiftOver)).
 
 The workflow will consist of two parts:  
-- I. Format and identify significant regions  
-- II. Run colocalization analysis  
+I. Format and identify significant regions.  
+II. Run colocalization analysis.  
 
 
 
@@ -104,8 +104,8 @@ head(sumstats_1, 2)
 Using column names provided by the user, `read_sumstats()` automatically adapts the sumstats table for the required input format.  
 - Name has the format of CHR:POS:REF:ALT (e.g., chr16:17906244:T:C).  
 - rsID column is optional and can be filled with NA.  
-- Note that p-value is represented as negative log10 (this is required for handling underflow issues in case of very low p-values, p < 1e-324, which is not uncommon in, e.g., large size pQTL studies)  
-- For more information on formatting, please check [good genepicoloc practice](#good-genepicoloc-practice)  
+- Note that p-value is represented as negative log10 (this is required for handling underflow issues in case of very low p-values, p < 1e-324, which is not uncommon in, e.g., large size pQTL studies).  
+- For more information on formatting, please check [good genepicoloc practice](#good-genepicoloc-practice).  
 
 
 Next, we will identify significant regions using `get_coloc_regions()` with the following parameters:  
@@ -134,12 +134,12 @@ Finally, we save the obtained results using `save_coloc_regions()` and the `sums
 save_coloc_regions(coloc_regions_list, sumstats_name)
 ```
 
-After running this command, you will find several new files in the working directory (assuming sumstats_name="eGFR_sumstats")  
+After running this command, you will find several new files in the working directory (assuming sumstats_name="eGFR_sumstats"):  
 - `eGFR_sumstats_subset.tsv.gz` (formatted sumstats file) and its index `eGFR_sumstats_subset.tsv.gz.tbi` (created with tabix),  
 - `eGFR_sumstats_coloc_regions_PASS.tsv` - file listing significant regions that will be used for colocalization (and its extended version with leading variants for each region `eGFR_sumstats_coloc_regions.tsv`)  
 - `eGFR_sumstats_log.txt` - log file.  
 
-After these preprocessed files ("sumstats_1") have been created, we are ready to start actual colocalization analysis
+After these preprocessed files ("sumstats_1") have been created, we are ready to start actual colocalization analysis.
 
 ## II. Run colocalization analysis
 
@@ -148,7 +148,7 @@ We are going to colocalize eGFR summary statistics against three other traits ("
 - Proteomics data (UMOD protein) from the [UK Biobank Pharma Proteomics Project](https://metabolomips.org/ukbbpgwas/)  
 - GWAS of chronic kidney disease from the [FinnGen PheWAS, release 9](https://r9.finngen.fi/pheno/N14_CHRONKIDNEYDIS)  
 
-We start by defining a data.frame with parameters (each line correspond to a single colocalization analysis)
+We start by defining a data.frame with parameters (each line correspond to a single colocalization analysis).
 ```
 sumstats_1_args <- data.frame(sumstats_1_file = paste0(sumstats_name, "_subset.tsv.gz"),
                               sumstats_1_function = "query_sumstats_1",
@@ -167,7 +167,7 @@ To run colocalization analysis we use a wrapper function that takes care of all 
 coloc_out <- suppressWarnings(Map(parallel_wrapper, list_of_args, debug_mode=T))
 ```
 
-Finally, we summarize the results in the "output" folder
+Finally, we summarize the results in the "output" folder.
 
 ```
 summarize_coloc(selected_studies=selected_studies,
@@ -176,19 +176,19 @@ summarize_coloc(selected_studies=selected_studies,
                 do_summary=F, do_xlsx=F)
 ```
 
-As you see in the output files, our significant locus (around UMOD gene) in the eGFR summary statistics colocalized with:  
+As you see in the output files, our significant locus (around *UMOD* gene) in the eGFR summary statistics colocalized with:  
 - *UMOD* gene expression in kidneys,  
 - UMOD protein levels in plasma,  
-- Chronic kidney disease (FinnGen)
+- Chronic kidney disease (FinnGen).
 
 
 # Additional information
 ## Good genepicoloc practice
-- Genomic build. Input sumstats should have build GRCh38. If the build is different, please perform liftOver first, genepicoloc::genepi_liftOver() may be helpful.
-- Variant naming. Input sumstats should contain variant name in the following format: CHR:POS:REF:ALT. Some summary statistics are coming from [metal software](https://genome.sph.umich.edu/wiki/METAL) and allele order may be arbitrary, i.e., allele 1 and 2 correspond to ALT and REF only in approximately 50% of cases. If that is the case, genepicoloc::Name_by_position() function may be helpful to find proper variant names. If liftOver needs to be performed, then genepi_liftOver() will run Name_by_position() automatically.
-- p-values. Input sumstats should contain -log10(P) column. If there is a normal "P" column, ensure there is not underflow issues (P<1e-324). If it is the case, please use genepicoloc::handle_underflow() to properly format input sumstats (use return_nlog10P=T if needed).
+- Genomic build. Input sumstats should have build GRCh38. If the build is different, please perform liftOver first, *genepicoloc::genepi_liftOver()* may be helpful.
+- Variant naming. Input sumstats should contain variant name in the following format: CHR:POS:REF:ALT. Some summary statistics are coming from [metal software](https://genome.sph.umich.edu/wiki/METAL) and allele order may be arbitrary, i.e., allele 1 and 2 correspond to ALT and REF only in approximately 50% of cases. If that is the case, *genepicoloc::Name_by_position()* function may be helpful to find proper variant names. If liftOver needs to be performed, then genepi_liftOver() will run Name_by_position() automatically.
+- The p-values. Input sumstats should contain -log10(P) column. If there is a normal "P" column, ensure there is not underflow issues (P<1e-324). If it is the case, please use genepicoloc::handle_underflow() to properly format input sumstats (use return_nlog10P=T if needed).
 - Duplicated variant names. Input sumstats should contain only unique variant names, otherwise coloc will throw an error. Please remove duplicates from the input sumstats when performing QC.
-- BETA an SE. Input sumstats should not contain any missing or NA values in BETA and SE column, otherwise coloc will throw an error. Please remove any missing values from the input sumstats when performing QC.
+- BETA and SE. Input sumstats should not contain any missing or NA values in BETA and SE column, otherwise coloc will throw an error. Please remove any missing values from the input sumstats when performing QC.
 - MAF should be a numeric, strictly >0 & <1
 
 
