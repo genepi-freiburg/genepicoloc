@@ -7,6 +7,8 @@ genepicoloc
 **Affiliation:** *Institute of Genetic Epidemiology, Medical Center - University of Freiburg, Germany*  
 **Contact:** *oleg.borisov [at] uniklinik-freiburg [dot] de*  
 
+Source code: https://github.com/genepi-freiburg/genepicoloc
+
 # Overview
 
 tl;dr - please go directly to a [typical use case](#typical-use-case) below (ideally after checking [system requirements](#system-requirements)).
@@ -189,7 +191,7 @@ As you see in the output files, our significant locus (around *UMOD* gene) in th
 - The p-values. Input sumstats should contain -log10(P) column. If there is a normal "P" column, ensure there is not underflow issues (P<1e-324). If it is the case, please use genepicoloc::handle_underflow() to properly format input sumstats (use return_nlog10P=T if needed).
 - Duplicated variant names. Input sumstats should contain only unique variant names, otherwise coloc will throw an error. Please remove duplicates from the input sumstats when performing QC.
 - BETA and SE. Input sumstats should not contain any missing or NA values in BETA and SE column, otherwise coloc will throw an error. Please remove any missing values from the input sumstats when performing QC.
-- MAF should be a numeric, strictly >0 & <1
+- MAF should be a numeric, strictly >0 & <1.
 
 
 
