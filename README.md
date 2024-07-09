@@ -3,7 +3,8 @@ genepicoloc
 
 ***R package to facilitate genetic colocalization analysis.***
 
-**Authors:** Oleg Borisov, Zulema Rodriguez Hernandez, Sara Monteiro Martins, Pascal Schlosser, et al.  
+**Authors:** Oleg Borisov, Zulema Rodriguez Hernandez, Sara Monteiro Martins,
+Inga Steinbrenner, Pascal Schlosser, et al.  
 **Affiliation:** *Institute of Genetic Epidemiology, Medical Center - University of Freiburg, Germany*  
 **Contact:** *oleg.borisov [at] uniklinik-freiburg [dot] de*  
 
