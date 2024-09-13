@@ -2,13 +2,14 @@
 #' LD_matrix
 #' @export
 LD_matrix <- function(sumstats, fixref=F, tokeep=NULL,
-                      plink2="plink2", bfile=NULL, rm_tmp=T) {
+                      plink2="plink2", bfile=NULL, rm_tmp=T,
+                      Name_var="Name", A1_var="A1") {
   # TODO add functionality to accept precalculated LD matrix
   tmp <- tempfile()
   # bfile for plink2 LD estimation
   if (is.null(bfile)) bfile <- get_bfile(CHR=CHR_var)
   if (fixref) {
-    write.table(sumstats[,c("Name", "A1")], tmp, row.names = F, col.names = F, quote=F)
+    write.table(sumstats[,c(Name_var, A1_var)], tmp, row.names = F, col.names = F, quote=F)
     plink2_cmd <- paste0(plink2, " --bfile ", bfile,
                          " --extract ", tmp,
                          " --ref-allele ", tmp,
