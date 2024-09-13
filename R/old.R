@@ -1,3 +1,148 @@
+#' @title Query Kidney eQTL
+#' @description Query GTEx v8 GWAS data to extract a region of interest
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats.
+#' @examples
+#' under development
+#' @export
+query_kidney_eQTL <- function(sumstats_file,
+                              CHR_var, BP_START_var, BP_STOP_var,
+                              ...) {
+  sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
+                                            CHR_var, ":", BP_START_var, "-",
+                                            BP_STOP_var), intern = T), header = T)
+  if (nrow(sumstats) == 0) { sumstats <- data.frame(); return(sumstats) }
+  sumstats <- unique(sumstats)
+  # format by phenotype ID
+  sumstats_list <- lapply(unique(sumstats$GeneID), function(x) {
+    sumstats <- subset(sumstats, GeneID == x)
+    sumstats$AF <- NA
+    sumstats$N <- NA
+    sumstats <- sumstats[,c("Name", "rsID", "CHR", "POS_hg38", "Alt", "Ref", "Beta", "Std", "Pvalue", "AF", "N", "GeneID")]
+    colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N", "Phenotype")
+    sumstats <- subset(sumstats, (!is.na(BETA)) & (!is.na(SE)))
+    sumstats <- subset(sumstats, (! BETA %in% c(Inf, -Inf)) & (! SE %in% c(Inf, -Inf)))
+    if (length(unique(sumstats$Phenotype)) > 1) {stop("Phenotype not unique in output query")}
+    return(sumstats)
+  })
+  return(sumstats_list)
+}
+
+#' @title query UKB PPP pGWAS
+#' @description Query UKB PPP pGWAS data to extract a region of interest
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats
+#' @export
+query_UKB_PPP_EUR <- function(sumstats_file,
+                              CHR_var, BP_START_var, BP_STOP_var, ...,
+                              handle_underflow=F,
+                              colClasses_int=c(4L,5L), ncol_sumstats=14) {
+  if (CHR_var == "X") {CHR_var <- "23"}
+  colClasses <- readtable_colCl(ncol_sumstats, colClasses_int)
+  sumstats <- tabix_fun(sumstats_file, CHR_var, BP_START_var, BP_STOP_var, colClasses)
+  sumstats$CHROM[sumstats$CHROM == "23"] <- "X"
+  if (nrow(sumstats) == 0) { return(sumstats) }
+  # format
+  sumstats$ID <- paste0("chr", sumstats$CHROM, ":", sumstats$GENPOS, ":", sumstats$ALLELE0, ":", sumstats$ALLELE1)
+  sumstats$rsID <- NA
+  if (handle_underflow) {
+    sumstats$P <- 10^(-handle_underflow(sumstats[["LOG10P"]]))
+  } else {
+    sumstats$P <- 10^(-sumstats$LOG10P)
+  }
+  sumstats <- sumstats[,c("ID", "rsID", "CHROM", "GENPOS", "ALLELE1", "ALLELE0", "BETA", "SE", "P", "A1FREQ", "N")]
+  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF", "N")
+  return(sumstats)
+}
+
+#' @title Query finngen GWAS
+#' @description Query finngen GWAS data to extract a region of interest
+#' @param sumstats_file path tabix-indexed sumstats.
+#' @param CHR_var chromosome (as.character "1", "2", ..., "X").
+#' @param BP_START_var start of region, integer
+#' @param BP_STOP_var end of region, integer
+#' @return data frame with extracted sumstats.
+#' @examples
+#' query_finngen_GWAS(sumstats_file = "finngen_R9_E4_DM2REN.gz", CHR_var = "1", BP_START_var = 100000, BP_STOP_var = 110000)
+#' @export
+query_finngen_GWAS <- function(sumstats_file,
+                               CHR_var, BP_START_var, BP_STOP_var, ...) {
+  if (CHR_var == "X") {CHR_var <- "23"}
+  sumstats <- read.delim(text=system(paste0("tabix -h ", sumstats_file, " ",
+                                            CHR_var, ":", BP_START_var, "-",
+                                            BP_STOP_var), intern = T),  header = T, stringsAsFactors = FALSE, 
+                         colClasses = c(alt = "character", ref= "character"))
+  
+  if (nrow(sumstats) == 0) { return(sumstats) }
+  # format
+  sumstats$X.chrom[sumstats$X.chrom == "23"] <- "X"
+  sumstats$Name <- paste0("chr", sumstats$X.chrom, ":", sumstats$pos, ":", sumstats$ref, ":", sumstats$alt)
+  sumstats <- sumstats[,c("Name", "rsids", "X.chrom", "pos", "alt", "ref", "beta", "sebeta", "pval", "af_alt")]
+  colnames(sumstats) <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "P", "AF")
+  return(sumstats)
+}
+
+
+### Helper functions ----
+
+#' tabix_fun
+#' Helper function to create tabix_cmd
+tabix_fun <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var,
+                      colClasses=NULL, sep = "\t", header = T,
+                      show_cmd=F) {
+  tabix_cmd <- paste0("tabix -h ", sumstats_file, " ", CHR_var, ":", BP_START_var, "-", BP_STOP_var)
+  if (show_cmd) {message(tabix_cmd)}
+  tabix_txt <- system(tabix_cmd, intern = T)
+  if (!identical(tabix_txt, character(0))) {
+    if (!is.null(colClasses)) {
+      sumstats <- read.table(text=tabix_txt, sep = sep, header = header, colClasses = colClasses)
+    } else {
+      sumstats <- read.table(text=tabix_txt, sep = sep, header = header)
+    }
+  } else {
+    sumstats <- data.frame()
+  }
+  return(sumstats)
+}
+
+#' readtable_colCl
+#' Helper function to create tabix_cmd
+readtable_colCl <- function(ncol_sumstats, colClasses_int) {
+  colClasses <- as.character(rep(NA, ncol_sumstats))
+  colClasses[colClasses_int] <- "character"
+  colClasses
+}
+
+
+#' Save coloc regions
+#' @export
+save_coloc_regions <- function(coloc_regions_list, sumstats_name, max_row=100000,
+                               SKIP_name="Name", CHR_place=3, POS_place=4,
+                               bgzip_bin="bgzip", tabix_bin="tabix",
+                               regions_log="regions_log", coloc_regions="coloc_regions",
+                               coloc_regions_PASS="coloc_regions_PASS",
+                               sumstats_filt="sumstats_filt") {
+  writeLines(coloc_regions_list[[regions_log]], con = paste0(sumstats_name, "_log.txt"))
+  write.table(coloc_regions_list[[coloc_regions]], paste0(sumstats_name, "_", coloc_regions, ".tsv"),
+              sep="\t", row.names = F, col.names = T, quote = F)
+  write.table(coloc_regions_list[[coloc_regions_PASS]], paste0(sumstats_name, "_", coloc_regions_PASS, ".tsv"),
+              sep="\t", row.names = F, col.names = T, quote = F)
+  # if (nrow(coloc_regions_list[[sumstats_filt]]) > max_row) {
+  write.table(coloc_regions_list[[sumstats_filt]], paste0(sumstats_name, "_subset.tsv"),
+              sep="\t", row.names = F, col.names = T, quote = F)
+  system(paste0(bgzip_bin, " -f ", sumstats_name, "_subset.tsv"))
+  system(paste0("tabix -f -s", CHR_place, " -b", POS_place, " -e", POS_place, " ", sumstats_name, "_subset.tsv.gz -c ", SKIP_name))
+  # } else {
+  #   saveRDS(coloc_regions_list[[sumstats_filt]], paste0(sumstats_name, "_subset.RDS"))
+  # }
+}
+
 # new line
 #' Create data.frame with input parameters for coloc
 #' @param sumstats_path path to folder with indexed sumstats.
@@ -214,8 +359,6 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
   return(coloc_output)
 }
 
-
-
 #' Process results of coloc_wrapper function.
 #' @param coloc_output output of coloc_wrapper function.
 #' @param N_top_SNPs Number of SNPs with highest PP.H4 to output.
@@ -389,16 +532,144 @@ summarize_coloc <- function(selected_studies,
 }
 
 
-#' run all colocs
-#' @description under development
+list_to_create_args_list <- list(
+  Kidney_eQTL =
+    list(EXPERIMENT = "Kidney_eQTL",
+         sumstats_path = NULL,
+         files = c("genepicoloc/data/Kidney_eQTL.txt.gz"),
+         sumstats_pattern = "gz$",
+         sumstats_function = "query_kidney_eQTL",
+         sumstats_type = "quant",
+         sumstats_sdY = 1,
+         do_annotate = T,
+         annotation_function = "transcriptomics_annotation",
+         annotation_function_args = data.frame(annotation_file = "genepicoloc/data/gencode.v26.GRCh38.genes.gtf_genes_format.txt")
+    ),
+  UKB_PPP_EUR =
+    list(EXPERIMENT = "UKB_PPP_EUR",
+         sumstats_path = NULL,
+         files = c("genepicoloc/data/UMOD_P07911_OID20237_v1_Cardiometabolic.txt.gz"),
+         sumstats_pattern = "gz$",
+         sumstats_function = "query_UKB_PPP_EUR",
+         sumstats_type = "quant",
+         sumstats_sdY = NA,
+         do_annotate = T,
+         annotation_function = "proteomics_annotation",
+         annotation_function_args = data.frame(annotation_file = "genepicoloc/data/olink_protein_map_3k_v1.tsv")
+         ),
+  FinnGen_r9 =
+    list(EXPERIMENT = "FinnGen_r9",
+         sumstats_path = NULL,
+         files = c("genepicoloc/data/finngen_R9_N14_CHRONKIDNEYDIS.gz"),
+         sumstats_pattern = "gz$",
+         sumstats_function = "query_finngen_GWAS",
+         sumstats_type = "cc",
+         sumstats_sdY = NA,
+         do_annotate = T,
+         annotation_function = "standard_annotation",
+         annotation_function_args = list(annotation_file = "genepicoloc/data/endpoints.tsv")
+    )
+)
+
+#' transcriptomics annotation
+#' @param annotation_file path to annotation file
+#' @return data.frame with annotated information.
+#' @examples
+#' Under development
 #' @export
-run_all_colocs <- function(list_to_create_args_list, sumstats_1_args, ...) {
-  extra_args <- list(...)
-  list_of_args <- lapply(list_to_create_args_list, function(x) {
-    do.call(create_coloc_params_df, c(x, list(sumstats_1_args = sumstats_1_args)))
-  })
-  coloc_out <- Map(parallel_wrapper,
-                   list_of_args,
-                   MoreArgs = extra_args)
+transcriptomics_annotation <- function(study, annotation_file,
+                                       sumstats_file = "sumstats_2_file",
+                                       coloc_out,
+                                       CHR_var = "CHR_var", BP_START_var = "BP_START_var",
+                                       BP_STOP_var = "BP_STOP_var") {
+  annotation_df <- read.delim(annotation_file)
+  colnames(annotation_df) <- paste0(study, "_", colnames(annotation_df))
+  merge_column <- paste0(study, "_gene_id_no_dot")
+  annotation_df[[merge_column]] <- gsub("(ENSG[0-9]+).?.*", "\\1", annotation_df[[paste0(study, "_gene_id")]])
+  coloc_out[[merge_column]] <- gsub(".*(ENSG[0-9]+).?.*", "\\1", basename(coloc_out[[sumstats_file]]))
+  coloc_out[[paste0(study, "_Tissue")]] <- gsub("_ENSG.*", "", gsub("Formated", "" , gsub("_hg38.txt.gz", "", basename(coloc_out[[sumstats_file]]))))
+  coloc_out <- merge(coloc_out, annotation_df, by = merge_column, all.x=T,
+                     sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+  coloc_out[[paste0(study, "_cis_trans")]] <- cis_trans_annotation(region_CHR_vec = coloc_out[[CHR_var]],
+                                                                   region_BP_START_vec = coloc_out[[BP_START_var]],
+                                                                   region_BP_STOP_vec = coloc_out[[BP_STOP_var]],
+                                                                   gene_chr_vec = coloc_out[[paste0(study, "_chr")]],
+                                                                   gene_start_vec = coloc_out[[paste0(study, "_gene_start")]],
+                                                                   suggestive_window = 1e6)
   return(coloc_out)
 }
+
+#' proteomics annotation
+#' @param annotation_file path to annotation file
+#' @return data.frame with annotated information.
+#' @examples
+#' Under development
+#' @export
+proteomics_annotation <- function(study, annotation_file,
+                                  sumstats_file = "sumstats_2_file",
+                                  coloc_out, CHR_var = "CHR_var", BP_START_var = "BP_START_var",
+                                  BP_STOP_var = "BP_STOP_var") {
+  merge_column <- paste0(study, "_OlinkID")
+  annotation_df <- read.delim(annotation_file, sep="\t")
+  colnames(annotation_df) <- paste0(study, "_", colnames(annotation_df))
+  annotation_df[[paste0(study, "_multiple_genes_per_OID")]] <- 0
+  selected_cols <- paste0(study, "_", c("OlinkID", "olink_target_fullname", "UniProt", "Assay",
+                                        "HGNC.symbol", "ensembl_id", "chr", "gene_start", "gene_end",
+                                        "multiple_genes_per_OID"))
+  annotation_df <- annotation_df[,selected_cols]
+  if (sumstats_file == "sumstats_2_file") {
+    coloc_out[[merge_column]] <- gsub(".*(OID[0-9]+).*", "\\1", coloc_out[[sumstats_file]])
+  }
+  cis_trans_column <- paste0(study, "_cis_trans")
+  gene_chr_vec_name <- paste0(study, "_chr")
+  gene_start_vec_name <- paste0(study, "_gene_start")
+  coloc_out <- merge(coloc_out, annotation_df, by=merge_column, all.x=T,
+                     sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+  coloc_out[[cis_trans_column]] <- cis_trans_annotation(region_CHR_vec = coloc_out[[CHR_var]],
+                                                        region_BP_START_vec = coloc_out[[BP_START_var]],
+                                                        region_BP_STOP_vec = coloc_out[[BP_STOP_var]],
+                                                        gene_chr_vec = coloc_out[[gene_chr_vec_name]],
+                                                        gene_start_vec = coloc_out[[gene_start_vec_name]],
+                                                        suggestive_window = 1e6)
+  return(coloc_out)
+}
+
+
+#' standard annotation
+#' mGWAS, UKB TOPMed, FinnGen r9
+#' @param annotation_file path to annotation file
+#' @return data.frame with annotated information.
+#' @examples
+#' Under development
+#' @export
+standard_annotation <- function(study, annotation_file,
+                                sumstats_file = "sumstats_2_file",
+                                coloc_out) {
+  merge_column <- paste0(study, "_phenocode")
+  annotation_df <- read.delim(annotation_file, colClasses = "character")
+  coloc_out[[merge_column]] <- gsub("finngen_R9_(.*).gz", "\\1", basename(coloc_out[[sumstats_file]]))
+  colnames(annotation_df) <- paste0(study, "_", colnames(annotation_df))
+  nrow_before <- nrow(coloc_out)
+  coloc_out <- merge(coloc_out, by = merge_column, all.x=T,
+                     annotation_df, sort = FALSE)[, union(names(coloc_out), names(annotation_df))]
+ if(nrow_before != nrow(coloc_out)) { stop("Merge produced different number of rows, check duplicates or missing annotations") }
+  return(coloc_out)
+}
+
+cis_trans_annotation <- function(region_CHR_vec, region_BP_START_vec, region_BP_STOP_vec,
+                                 gene_chr_vec, gene_start_vec,
+                                 suggestive_window = 1e6) {
+  cis_condition <- (gene_chr_vec == region_CHR_vec) &
+    (gene_start_vec >= region_BP_START_vec & gene_start_vec <= region_BP_STOP_vec)
+  suggestive_cis_condition <- (gene_chr_vec == region_CHR_vec) &
+    (gene_start_vec >= region_BP_START_vec-suggestive_window &
+       gene_start_vec <= region_BP_STOP_vec+suggestive_window)
+  trans_condition <- ((gene_chr_vec != region_CHR_vec) | 
+                        (gene_start_vec < region_BP_START_vec-suggestive_window) |
+                        (gene_start_vec > region_BP_STOP_vec+suggestive_window))
+  cis_trans <- ifelse(cis_condition, "cis",
+                      ifelse(suggestive_cis_condition, "suggestive_cis",
+                             ifelse(trans_condition, "trans", NA)))
+  return(cis_trans)
+}
+
