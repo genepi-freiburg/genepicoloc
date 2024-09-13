@@ -2,7 +2,6 @@
 
 #' handle_underflow
 #' Process p-values to handle underflow in case of very small p-values (p<1e-320)
-#' @importFrom Rmpfr mpfr
 #' @export
 handle_underflow <- function(pvalue_vec,
                              return_nlog10P=F) {
