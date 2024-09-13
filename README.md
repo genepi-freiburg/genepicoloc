@@ -10,10 +10,14 @@ Inga Steinbrenner, Pascal Schlosser, et al.
 
 Source code: https://github.com/genepi-freiburg/genepicoloc
 
-# Overview
-
-## Maintenance in progress
+# ! Maintenance in progress
 Maintenance is in progress as of September 2024, some functionalities can be limited or not available. Please check for updates in October 2024.
+
+# ----
+# ----
+# ----
+
+# Overview
 
 tl;dr - please go directly to a [typical use case](#typical-use-case) below (ideally after checking [system requirements](#system-requirements)).
 
