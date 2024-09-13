@@ -12,6 +12,9 @@ Source code: https://github.com/genepi-freiburg/genepicoloc
 
 # Overview
 
+## Maintenance in progress
+Maintenance is in progress as of September 2024, some functionalities can be limited or not available. Please check for updates in October 2024.
+
 tl;dr - please go directly to a [typical use case](#typical-use-case) below (ideally after checking [system requirements](#system-requirements)).
 
 Genetic colocalization is a statistical approach used to assess whether two complex traits (e.g., chronic kidney disease and type II diabetes, or chronic kidney disease and a molecular trait such as gene expression) share a causal genetic variant. As input, it uses summary statistics - the results of genome-wide association studies (GWASs). Establishing shared genetic signals can reveal common biological mechanisms underlying such complex traits and provide insights into their etiology.
