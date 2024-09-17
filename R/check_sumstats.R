@@ -1,6 +1,19 @@
 #' check_sumstats
 #' check input sumstats for possible issues
-check_sumstats <- function(sumstats, fix=T,
+check_sumstats <- function(sumstats, Name = "Name") {
+  attributes(sumstats)$QC <- ""
+  # Duplicates
+  Name_dup <- duplicated(sumstats[[Name]])
+  if (any(Name_dup)) {
+    sumstats <- subset(sumstats, !Name_dup)
+    attributes(sumstats)$QC <- paste0(attributes(sumstats)$QC, "sumstats_2_duplicated_names")
+  }
+  return(sumstats)
+}
+
+#' check_sumstats_full
+#' check input sumstats for possible issues
+check_sumstats_full <- function(sumstats, fix=T,
                            AF = "AF", BETA = "BETA", SE = "SE", P = "P",
                            Name = "Name") {
   AF_1 <- sumstats[[AF]] == 1
