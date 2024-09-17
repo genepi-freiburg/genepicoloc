@@ -19,11 +19,11 @@ Maintenance is in progress as of September 2024, some functionalities can be lim
 
 tl;dr - please go directly to a [typical use case](#typical-use-case) below (ideally after checking [system requirements](#system-requirements)).
 
-Genetic colocalization is a statistical approach used to assess whether two complex traits (e.g., chronic kidney disease and type II diabetes, or chronic kidney disease and a molecular trait such as gene expression) share a causal genetic variant. As input, it uses summary statistics - the results of genome-wide association studies (GWASs). Establishing shared genetic signals can reveal common biological mechanisms underlying such complex traits and provide insights into their etiology.
+Genetic colocalization is a statistical approach used to assess whether two complex traits (e.g., chronic kidney disease and type II diabetes, or chronic kidney disease and a molecular trait such as gene expression) share a causal genetic variant. As input, it uses the results of genome-wide association studies (GWASs) - summary statistics. Establishing shared genetic signals can reveal common biological mechanisms underlying such complex traits and provide insights into their etiology.
 
 A frequently used tool for genetic colocalization is [coloc](https://chr1swallace.github.io/coloc/) which *genepicoloc* is based on. In particular, it uses the enumeration method implemented in the "coloc.abf" function. This is a Bayesian approach which calculates posterior probabilities (PPs) for colocalization between each pair of traits and tests whether they show evidence of colocalization driven by the same genetic variant (corresponds to the high PP of Hypothesis 4, H4).
 
-In essence, *genepicoloc* colocalizes input summary statistics (sumstats_1) against a set of available traits and phenotypes (sumstats_2) which include molecular traits (i.e., transcriptomics, proteomics, metabolomics, and other omics data) and diseases (clinical outcomes from phenome-wide association studies).
+In essence, *genepicoloc* is aimed at colocalizing input summary statistics (sumstats_1) against a set of available traits and phenotypes (sumstats_2) which include molecular traits (i.e., transcriptomics, proteomics, metabolomics, and other omics data) and diseases (clinical outcomes from phenome-wide association studies).
 
 For more details on the method, please refer to the following resources:  
 - Genome-wide association studies: [methods primer](https://www.nature.com/articles/s43586-021-00056-9)  
@@ -35,36 +35,24 @@ For more details on the method, please refer to the following resources:
 ## System requirements
 - R: tested with version 4, should be compatible with earlier versions as well (see https://www.r-project.org/)  
 - *coloc* R package (see https://chr1swallace.github.io/coloc/)  
-- *devtools* R package (see https://cran.r-project.org/web/packages/devtools/index.html)  
-  - Usually can be installed with `install.packages("devtools")`  
+- *remotes* R package (see https://cran.r-project.org/web/packages/remotes/index.html)  
 - *tabix* (see http://www.htslib.org/doc/tabix.html)  
 - *git* (see https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)  
 
-The code was tested on Linux systems (Ubuntu, Debian) but should work on other systems as well.
+The code was tested on Linux systems (Ubuntu, Debian) but should work on other systems as well.  
 
-To install *genepicoloc*, please clone the github repo first (all the following code can be run using R).
-
+To install *genepicoloc*, please run:
 ```
-system("git clone https://github.com/genepi-freiburg/genepicoloc.git")
-```
-
-Next, load *genepicoloc* R using *devtools* (if the latter is available or can be installed).
-```
-devtools::load_all("genepicoloc")
-```
-Alternatively (if *devtools* is not available), simply source the scripts in "R" subfolder.
-```
-sapply(list.files("genepicoloc/R", full.names = T), source)
+remotes::install_github("https://github.com/genepi-freiburg/genepicoloc.git")
+library(genepicoloc)
 ```
 
 Next, we need to load coloc package and ensure that tabix works:
 ```
 library(coloc)
 # Test tabix installation
-tabix_test <- suppressWarnings(system("tabix --version", intern=F, ignore.stdout=T, ignore.stderr=T))
-if (tabix_test != 0) {
-  stop("tabix command produced an error, please check that tabix is installed and accessible")
-} else {"tabix is found and can be accessed successfully."}
+tabix_test_fail <- suppressWarnings(system("tabix --version", intern=F, ignore.stdout=T, ignore.stderr=T))
+if (tabix_test_fail) stop("Please check that tabix is installed and accessible")
 ```
 
 # Typical use case
@@ -78,7 +66,6 @@ For illustration purpose, we use a subset of this file with chromosome 16 and a 
 The workflow will consist of two parts:  
 I. Format and identify significant regions.  
 II. Run colocalization analysis.  
-
 
 
 ## I. Format and identify significant regions

@@ -5,7 +5,7 @@
 \title{coloc_out_summary}
 \usage{
 coloc_out_summary(
-  coloc_out,
+  coloc_out_all,
   output_folder,
   remove_dirname = T,
   PP.H4.abf_filt = 0.5,

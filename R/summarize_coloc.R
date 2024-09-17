@@ -23,12 +23,12 @@ write_coloc_out <- function(coloc_out, study, output_folder,
 
 #' coloc_out_summary
 #' @importFrom data.table rbindlist
-coloc_out_summary <- function(coloc_out, output_folder,
+coloc_out_summary <- function(coloc_out_all, output_folder,
                               remove_dirname = T,
                               PP.H4.abf_filt=0.5,
                               PP.H3.abf_filt=NULL) {
   coloc_out_all <- data.table::rbindlist(coloc_out_all, fill=TRUE, idcol = "Dataset")
-  coloc_out_all <- coloc_out_filter(coloc_out_all, remove_dirname=remove_dirname,
+  coloc_out_all <- coloc_out_filter(coloc_out_all,
                                     PP.H4.abf_filt=PP.H4.abf_filt,
                                     PP.H3.abf_filt=PP.H3.abf_filt)
   writexl::write_xlsx(coloc_out_all, paste0(output_folder, "/summary.xlsx"))

@@ -16,7 +16,8 @@ map_over_args <- function(args_df, mc_cores=10, dry_run=F,
   vec_to_map <- 1:nrow(args_df)
   if (verbose) {
     when_message <- sapply(split(vec_to_map, sort(vec_to_map%%100)), function(x) x[1])
-    gc_timer(time_start=Sys.time(), nrow_args_df=nrow(args_df),
+    time_start <- Sys.time()
+    gc_timer(time_start=time_start, nrow_args_df=nrow(args_df),
              mc_cores=mc_cores, sumstats_2_file=args_df$sumstats_2_file[1])
   }
   coloc_out <- parallel::mclapply(vec_to_map, function(i) {
@@ -36,13 +37,31 @@ map_over_args <- function(args_df, mc_cores=10, dry_run=F,
   return(coloc_out)
 }
 
+#' coloc_out_wrapper
+coloc_out_wrapper <- function(args_list, output_folder = "output",
+                              mc_cores=10, dry_run=F, debug_mode=F) {
+  dir.create(output_folder, showWarnings = F)
+  coloc_out_all <- sapply(names(args_list), function(study) {
+    cat("-----------------------------\n")
+    message("Processing study ", study)
+    coloc_out <- map_over_args(args_list[[study]], mc_cores=mc_cores, dry_run=dry_run, debug_mode=debug_mode)
+    attributes(coloc_out)$"study" <- study
+    if (dry_run) study <- paste0(study, "_dry_run")
+    write_coloc_out(coloc_out=coloc_out, study=study, output_folder=output_folder)
+    coloc_out
+  }, simplify=F)
+  return(coloc_out_all)
+}
+
 # helpers
 #' gc_timer
 gc_timer <- function(gc_speed=6, time_start, nrow_args_df, mc_cores, sumstats_2_file) {
   if (grepl("sQTLs", sumstats_2_file)) {
     gc_speed <- 0.05
     message("sQTLs processing takes substantially more time than other datasets (approximately x10), and the progress bar is not linear.")}
-  if (grepl("QTS", sumstats_2_file)) {gc_speed <- 0.6}
+  if (grepl("QTD", sumstats_2_file)) {
+    gc_speed <- 0.05
+  }
   cat("-----------------------------\n")
   message(paste0("Timestamp: ", time_start))
   message(paste0("Total number of jobs: ", nrow_args_df))
@@ -50,6 +69,6 @@ gc_timer <- function(gc_speed=6, time_start, nrow_args_df, mc_cores, sumstats_2_
   message(paste0("Approximate speed: ", gc_speed, " jobs per core per second"))
   message(paste0("Estimated time: ", round(nrow_args_df/mc_cores/gc_speed), " seconds"))
   progress_bar <- ifelse(nrow_args_df > 100, 100, nrow_args_df)
-  cat(paste0(paste0(rep(" ", progress_bar), collapse = ""), "|100%\r"))
+  cat(paste0("0%|", paste0(rep(" ", progress_bar), collapse = ""), "|100%\r"))
 }
 

@@ -1,0 +1,3 @@
+Solving region 1: Most significant variant 16:20381010
+No hits on this chromosome so far
+----------------
