@@ -1,6 +1,7 @@
 Package: genepicoloc
 Title: Scale Up Genetic Colocalization Analysis
-Version: 0.1.20240913
+Date: 2024-09-17
+Version: 0.1.1
 Authors@R: 
     person("Oleg", "Borisov", , "oleg.borisov@uniklinik-freiburg.de", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-8700-4335"))
