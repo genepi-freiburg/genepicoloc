@@ -76,10 +76,14 @@ We will start with three following steps:
 3. Save and index the data (`save_coloc_regions()`).
 
 ```
-# declare output name variable
-sumstats_name <- "eGFR_sumstats"
+# declare mandatory variables
+sumstats_1_name <- "eGFR_sumstats"
+sumstats_1_type <- "quant"
+sumstats_1_sdY <- NA
+output_folder <- "output"
 # read input summary statistics into memory
-sumstats <- read.csv(gzfile("genepicoloc/data/eGFR_sumstats_subset.csv.gz"))
+test_file <- system.file("data/test_sumstats.RDS", package="genepicoloc")
+sumstats <- readRDS(test_file)
 # Function 1: format input sumstats
 sumstats_1 <- read_sumstats(sumstats = sumstats,
                             Name = "Name_hg38",
@@ -107,26 +111,18 @@ Next, we will identify significant regions using `get_coloc_regions()` with the 
 - Standard GWAS p-value threshold (5e-8),  
 - and 1-megabase window around the index variant with lowest p-value (i.e., halfwindow = 500000)
 ```
-coloc_regions_list <- get_coloc_regions(sumstats = sumstats_1,
-                                        nlogP_threshold = -log10(5e-8),
-                                        halfwindow = 500000)
+coloc_regions_list <- get_coloc_regions(sumstats = sumstats_1)
 ```
 
-While running, the `get_coloc_regions()` function outputs logs with the identified window. There is only 1-megabase window containing significant variants.   
+While running, the `get_coloc_regions()` function outputs logs with the identified window. There is only 1-megabase window containing significant variants.  
 
-To test the functionality, we can modify the parameters as following:
-```
-coloc_regions_list_test <- suppressMessages(get_coloc_regions(sumstats = sumstats_1,
-                                        nlogP_threshold = -log10(1e-5),
-                                        halfwindow = 20000))
-print(coloc_regions_list_test$regions_log)
-```
-As we can see, four "significant" regions were identified, and two of them were merged to the first one as they were located closer than a half window to the border of the latter.  
-
-Finally, we save the obtained results using `save_coloc_regions()` and the `sumstats_name` variable that we declared in the beginning (e.g., "eGFR_sumstats").
+Finally, we save the obtained results using `save_coloc_regions()` and the `sumstats_name` variable that we declared in the beginning (e.g., "eGFR_sumstats").  
 
 ```
-save_coloc_regions(coloc_regions_list, sumstats_name)
+sumstats_1_file <- write_regions(coloc_regions_list, sumstats_1_name)
+sumstats_1_args <- create_sumstats_1_args(sumstats_1_file=sumstats_1_file,
+                                          sumstats_1_type=sumstats_1_type,
+                                          sumstats_1_sdY=sumstats_1_sdY)
 ```
 
 After running this command, you will find several new files in the working directory (assuming sumstats_name="eGFR_sumstats"):  
@@ -138,43 +134,42 @@ After these preprocessed files ("sumstats_1") have been created, we are ready to
 
 ## II. Run colocalization analysis
 
-We are going to colocalize eGFR summary statistics against three other traits ("sumstats_2"):  
-- Transcriptomics data from [the Human Kidney eQTL Atlas](https://susztaklab.com/Kidney_eQTL/)  
-- Proteomics data (UMOD protein) from the [UK Biobank Pharma Proteomics Project](https://metabolomips.org/ukbbpgwas/)  
-- GWAS of chronic kidney disease from the [FinnGen PheWAS, release 9](https://r9.finngen.fi/pheno/N14_CHRONKIDNEYDIS)  
-
-We start by defining a data.frame with parameters (each line correspond to a single colocalization analysis).
+We are going to colocalize eGFR summary statistics against GTEx eQTLs from eQTL Catalog.  
 ```
-sumstats_1_args <- data.frame(sumstats_1_file = paste0(sumstats_name, "_subset.tsv.gz"),
-                              sumstats_1_function = "query_sumstats_1",
-                              sumstats_1_type = "quant",
-                              sumstats_1_sdY = NA)
-sumstats_1_args <- data.frame(sumstats_1_args, coloc_regions_list[["coloc_regions_PASS"]])
-list_of_args <- lapply(list_to_create_args_list, function(x) {
-  do.call(create_coloc_params_df, 
-          c(x, list(sumstats_1_args = sumstats_1_args)))
-})
+eQTL_Catalogue <- make_eQTL_Catalogue_args()
+args_df <- do.call(create_args_df, c(coloc_regions_list$coloc_regions_PASS,
+                                     sumstats_1_args,
+                                     eQTL_Catalogue))
 ```
 
 To run colocalization analysis we use a wrapper function that takes care of all data wrangling.
 
 ```
-coloc_out <- suppressWarnings(Map(parallel_wrapper, list_of_args, debug_mode=T))
+coloc_out <- map_over_args(args_df[c(30,49),], mc_cores=2)
+annotation_file <- system.file("data/ENSG_HGNC.RDS", package="genepicoloc")
+annotation_df <- readRDS(annotation_file)
+
+datasets_eQTL_Catalogue <- get_datasets_eQTL_Catalogue()
+coloc_out_annot <- annotate_eQTL_Catalog(coloc_out=coloc_out,
+                                         annotation_df=annotation_df,
+                                         datasets_eQTL_Catalogue=datasets_eQTL_Catalogue)
 ```
 
 Finally, we summarize the results in the "output" folder.
 
 ```
-summarize_coloc(selected_studies=selected_studies,
-                output_folder = "output",
-                remove_dirname = F,
-                do_summary=F, do_xlsx=F)
+args_df_example <- create_args_df(CHR_var="16",
+                                  BP_START_var=19850119,
+                                  BP_STOP_var=20850119,
+                                  sumstats_1_file="eGFR_test_sumstats_subset.tsv.gz",
+                                  sumstats_1_function="query_sumstats_1",
+                                  sumstats_1_type="quant",
+                                  sumstats_1_sdY=NA,
+                                  sumstats_2_files="QTD000356",
+                                  sumstats_2_function="query_eQTL_Catalogue",
+                                  sumstats_2_type="quant",
+                                  sumstats_2_sdY=1)
 ```
-
-As you see in the output files, our significant locus (around *UMOD* gene) in the eGFR summary statistics colocalized with:  
-- *UMOD* gene expression in kidneys,  
-- UMOD protein levels in plasma,  
-- Chronic kidney disease (FinnGen).
 
 
 # Additional information
@@ -192,27 +187,3 @@ As you see in the output files, our significant locus (around *UMOD* gene) in th
 
 A number of summary statistics are suppored by the *genepicoloc*. Due to the very large size of the input files, we are not able to upload them on github. However, we have implemented a colocalization framework at our local computing cluster in Freiburg (Germany). We are open for collaborations, feel free to reach out in case you are interested to run colocalization analysis for your GWAS summary statistics.
 
-### List of supported studies
-
-#### Molecular traits  
-
-**Transcriptome**
-- GTEx V8 <https://www.gtexportal.org/home/>
-  - 49 tissues, 39867 unique transcripts (phenotypes)
-- Kidney eQTL <https://susztaklab.com/Kidney_eQTL/>
-  - 5 summary statistics, 14694 unique transcripts (phenotypes)
-
-**Proteome**
-
-- UKB PPP <https://www.nature.com/articles/s41586-023-06592-6>
-  - 2940 unique protein analytes
-- Icelanders pGWAS <https://pubmed.ncbi.nlm.nih.gov/34857953/>
-  - 4909 unique protein analytes
-- Atherosclerosis Risk in Communities (ARIC) study <http://nilanjanchatterjeelab.org/pwas/>
-  - 4657 unique protein analytes
-
-#### Biobanks
-- UKB-TOPMed <https://pheweb.org/UKB-TOPMed/about>
-  - 1419 clinical outcomes (diseases)
-- FinnGen release 9 <https://r9.finngen.fi/>
-  - 2272 clinical outcomes (diseases)
