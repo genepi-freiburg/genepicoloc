@@ -73,7 +73,7 @@ II. Run colocalization analysis.
 We will start with three following steps:  
 1. Read and format input summary statistics (`read_sumstats()`).
 2. Identify significant regions (`get_coloc_regions()`).
-3. Save and index the data (`save_coloc_regions()`).
+3. Save and index the data (`write_regions()`).
 
 ```
 # declare mandatory variables
@@ -116,7 +116,7 @@ coloc_regions_list <- get_coloc_regions(sumstats = sumstats_1)
 
 While running, the `get_coloc_regions()` function outputs logs with the identified window. There is only 1-megabase window containing significant variants.  
 
-Finally, we save the obtained results using `save_coloc_regions()` and the `sumstats_name` variable that we declared in the beginning (e.g., "eGFR_sumstats").  
+Finally, we save the obtained results using `write_regions()` and the `sumstats_name` variable that we declared in the beginning (e.g., "eGFR_sumstats"). At the same time, we will create a data.frame with arguments for colocalization.  
 
 ```
 sumstats_1_file <- write_regions(coloc_regions_list, sumstats_1_name)
@@ -142,7 +142,7 @@ args_df <- do.call(create_args_df, c(coloc_regions_list$coloc_regions_PASS,
                                      eQTL_Catalogue))
 ```
 
-To run colocalization analysis we use a wrapper function that takes care of all data wrangling.
+To run colocalization analysis we use a wrapper function `map_over_args()` that takes care of all data wrangling. `annotate_eQTL_Catalog()` will annotate the results.  
 
 ```
 coloc_out <- map_over_args(args_df[c(30,49),], mc_cores=2)
@@ -155,7 +155,7 @@ coloc_out_annot <- annotate_eQTL_Catalog(coloc_out=coloc_out,
                                          datasets_eQTL_Catalogue=datasets_eQTL_Catalogue)
 ```
 
-Finally, we summarize the results in the "output" folder.
+An example on how to create a data.frame with arguments manually.  
 
 ```
 args_df_example <- create_args_df(CHR_var="16",
