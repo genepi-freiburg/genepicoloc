@@ -5,15 +5,7 @@
 \title{check_sumstats
 check input sumstats for possible issues}
 \usage{
-check_sumstats(
-  sumstats,
-  fix = T,
-  AF = "AF",
-  BETA = "BETA",
-  SE = "SE",
-  P = "P",
-  Name = "Name"
-)
+check_sumstats(sumstats, Name = "Name")
 }
 \description{
 check_sumstats

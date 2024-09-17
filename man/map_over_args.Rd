@@ -10,7 +10,8 @@ map_over_args(
   dry_run = F,
   debug_mode = F,
   verbose = T,
-  do_rbind = T
+  do_rbind = T,
+  save_tmp = F
 )
 }
 \description{

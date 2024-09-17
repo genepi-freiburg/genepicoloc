@@ -6,7 +6,7 @@
 \usage{
 genepicoloc_susie_rss(
   sumstats,
-  LD_matrix_mat,
+  LD_matrix,
   Name_name = "Name",
   BETA_name = "BETA",
   SE_name = "SE",

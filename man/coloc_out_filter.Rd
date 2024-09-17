@@ -4,12 +4,7 @@
 \alias{coloc_out_filter}
 \title{coloc_out_filter}
 \usage{
-coloc_out_filter(
-  coloc_out,
-  remove_dirname = T,
-  PP.H4.abf_filt = 0.5,
-  PP.H3.abf_filt = NULL
-)
+coloc_out_filter(coloc_out, PP.H4.abf_filt = 0.5, PP.H3.abf_filt = NULL)
 }
 \description{
 coloc_out_filter

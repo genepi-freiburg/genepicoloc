@@ -2,7 +2,7 @@
 % Please edit documentation in R/query_sumstats.R
 \name{query_sumstats_1}
 \alias{query_sumstats_1}
-\title{Read sumstats 1}
+\title{query_sumstats_1}
 \usage{
 query_sumstats_1(sumstats_file, CHR_var, BP_START_var, BP_STOP_var)
 }
@@ -19,5 +19,5 @@ query_sumstats_1(sumstats_file, CHR_var, BP_START_var, BP_STOP_var)
 data frame with extracted sumstats.
 }
 \description{
-Read sumstats 1
+query_sumstats_1
 }
