@@ -142,7 +142,7 @@ args_df <- do.call(create_args_df, c(coloc_regions_list$coloc_regions_PASS,
                                      eQTL_Catalogue))
 ```
 
-To run colocalization analysis we use a wrapper function `map_over_args()` that takes care of all data wrangling. `annotate_eQTL_Catalog()` will annotate the results.  
+To run colocalization analysis we use a wrapper function `map_over_args()` that takes care of all data wrangling. We select only two GTEx tissues for illustration purpose `c(30,49)`. `annotate_eQTL_Catalog()` will annotate the results.  
 
 ```
 coloc_out <- map_over_args(args_df[c(30,49),], mc_cores=2)
