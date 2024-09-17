@@ -1,7 +1,11 @@
+#' manhattan.plot
 manhattan.plot <- function(sumstats, manhattan_title = NA, manhattan_subtitle = NA,
                            position = "position", chr = "chr", pval = "pval",
                            SNP = "SNP", pval_filtering, pval_threshold,
                            nlog10 = F, annotate_all = F) {
+  # inspired by RColorBrewer::brewer.pal(8, "Dark2"), not importing to limit dependencies:
+  favorite_colors <- c("#1B9E77", "#D95F02", "#7570B3", "#E7298A",
+                       "#66A61E", "#E6AB02", "#A6761D", "#666666")
   if (any(sumstats[[chr]] == "X")) {
     warning("X chromosome coded as 'X', changing values to '23' and class to numeric")
     sumstats[[chr]][sumstats[[chr]] == "X"] <- "23"
@@ -65,7 +69,7 @@ manhattan.plot <- function(sumstats, manhattan_title = NA, manhattan_subtitle = 
   # plot
   manh_gg <- ggplot2::ggplot(sumstats_merged, aes_string(x="BP_cumsum_updated", y=pval)) +
     geom_point(aes_string(color=chr), size=1) + # alpha=0.8, 
-    scale_color_manual(values = rep(brewer.pal(8, "Dark2"), 3)) +
+    scale_color_manual(values = rep(favorite_colors, 3)) +
     scale_x_continuous(expand = c(0.02, 0.02),
                        label = axis_x$CHR,
                        breaks= axis_x$BP_cumsum_updated_median) +
@@ -83,10 +87,11 @@ manhattan.plot <- function(sumstats, manhattan_title = NA, manhattan_subtitle = 
       plot.subtitle = element_text(hjust = 0.5)
     )
   if (nrow(sumstats_merged_sign) > 0) {
-    # manh_gg <- manh_gg + 
-    #   geom_text(data = top_snps, aes_string(x = "BP_cumsum_updated", y = pval, label = SNP), size = 2, vjust = -1)
-    manh_gg <- manh_gg + geom_label_repel(data = top_snps, aes_string(x = "BP_cumsum_updated", y = pval, label = SNP),
-                                          min.segment.length = unit(0, 'lines'))
+    manh_gg <- manh_gg +
+      geom_text(data = top_snps, aes_string(x = "BP_cumsum_updated", y = pval, label = SNP), size = 2, vjust = -1)
+    # disable to limit dependencies
+    # manh_gg <- manh_gg + geom_label_repel(data = top_snps, aes_string(x = "BP_cumsum_updated", y = pval, label = SNP),
+    #                                       min.segment.length = unit(0, 'lines'))
   }
   if (!is.na(manhattan_title)) {
     manh_gg <- manh_gg + ggtitle(label=manhattan_title)
