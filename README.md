@@ -11,7 +11,7 @@ Inga Steinbrenner, Pascal Schlosser, et al.
 Source code: https://github.com/genepi-freiburg/genepicoloc
 
 # ! Maintenance in progress
-Maintenance is in progress as of September 2024, some functionalities can be limited or not available. Please check for updates in October 2024.
+Maintenance is in progress as of September 2024, some functions can be limited.
 
 # ----
 
