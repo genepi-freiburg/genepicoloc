@@ -33,8 +33,9 @@ coloc_wrapper <- function(CHR_var, BP_START_var, BP_STOP_var,
       coloc_template$comment <- "no_SNP_intersect"
       return(coloc_template)
     }
-    # temporarily disabled - needs more checks
-    # sumstats_2_df <- check_sumstats(sumstats_2_df)
+    # check_sumstats - preliminary version, needs more testing
+    sumstats_2_df <- check_sumstats(sumstats_2_df)
+    coloc_template$QC <- attr(sumstats_2_df, "QC")
     # Add Phenotype column if present
     if ("Phenotype" %in% colnames(sumstats_2_df)) {
       coloc_template$sumstats_2_file <- paste0(coloc_template$sumstats_2_file, "_",
@@ -109,7 +110,7 @@ out_template <- function(CHR_var, BP_START_var, BP_STOP_var,
              PP.H0.abf = NA, PP.H1.abf = NA, PP.H2.abf = NA,
              PP.H3.abf = NA, PP.H4.abf = NA,
              Top_coloc_SNP = NA, Top_coloc_SNP.PP.H4 = NA, priors = NA,
-             comment=NA)
+             comment=NA, QC=NA)
 }
 
 #' Format sumstats data.frame for the coloc.abf input
