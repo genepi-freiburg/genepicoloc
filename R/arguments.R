@@ -1,4 +1,5 @@
 #' make_eQTL_Catalogue_args
+#' @export
 make_eQTL_Catalogue_args <- function(QTS="QTS000015") {
   datasets_eQTL_Catalogue <- get_datasets_eQTL_Catalogue()
   datasets_eQTL_Catalogue <- subset(datasets_eQTL_Catalogue,

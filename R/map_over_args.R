@@ -27,7 +27,7 @@ map_over_args <- function(args_df, mc_cores=10, dry_run=F,
     return(c_out)
   }, mc.cores = mc_cores)
   if (verbose) {
-    cat(" Done.\n")
+    cat("\nDone.\n")
     time_stop <- Sys.time()
     message(paste0("Timestamp: ", time_stop))
     message("Time elapsed: ", round(as.numeric(time_stop-time_start,units="secs")), " seconds")
@@ -69,6 +69,6 @@ gc_timer <- function(gc_speed=6, time_start, nrow_args_df, mc_cores, sumstats_2_
   message(paste0("Approximate speed: ", gc_speed, " jobs per core per second"))
   message(paste0("Estimated time: ", round(nrow_args_df/mc_cores/gc_speed), " seconds"))
   progress_bar <- ifelse(nrow_args_df > 100, 100, nrow_args_df)
-  cat(paste0("0%|", paste0(rep(" ", progress_bar), collapse = ""), "|100%\r"))
+  cat(paste0(paste0(rep(" ", progress_bar), collapse = ""), "  |100%\r0%|"))
 }
 
