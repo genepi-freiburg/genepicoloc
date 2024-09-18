@@ -1,5 +1,6 @@
 #' map_over_args
 #' @importFrom parallel mclapply
+#' @export
 map_over_args <- function(args_df, mc_cores=10, dry_run=F,
                           debug_mode=F, verbose=T, do_rbind=T, save_tmp=F) {
   if (debug_mode) { mc_cores <- 1; cat("\n**\nDebugging mode\n**\n\n") }
