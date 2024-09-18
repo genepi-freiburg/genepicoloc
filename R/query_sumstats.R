@@ -7,7 +7,8 @@
 #' @export
 query_sumstats_1 <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var) {
   tabix_cmd <- paste0("tabix -h ", sumstats_file, " ", CHR_var, ":", BP_START_var, "-", BP_STOP_var)
-  sumstats <- read.table(text=system(tabix_cmd, intern = T), sep = "\t", header = T)
+  sumstats <- read.table(text=system(tabix_cmd, intern = T), sep = "\t", header = T,
+                         stringsAsFactors = F)
   if (nrow(sumstats) == 0) { return(sumstats) }
   sumstats <- subset(sumstats, CHR == CHR_var & POS >= BP_START_var & POS <= BP_STOP_var)
   return(sumstats)
