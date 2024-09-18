@@ -161,7 +161,7 @@ An example on how to create a data.frame with arguments manually.
 args_df_example <- create_args_df(CHR_var="16",
                                   BP_START_var=19850119,
                                   BP_STOP_var=20850119,
-                                  sumstats_1_file="eGFR_test_sumstats_subset.tsv.gz",
+                                  sumstats_1_file="eGFR_sumstats_subset.tsv.gz",
                                   sumstats_1_function="query_sumstats_1",
                                   sumstats_1_type="quant",
                                   sumstats_1_sdY=NA,
