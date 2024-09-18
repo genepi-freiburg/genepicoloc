@@ -19,6 +19,7 @@ query_sumstats_1 <- function(sumstats_file, CHR_var, BP_START_var, BP_STOP_var) 
 #' @importFrom httr content
 #' @importFrom httr status_code
 #' @importFrom jsonlite fromJSON
+#' @export
 query_eQTL_Catalogue <- function(sumstats_file,
                                  CHR_var, BP_START_var, BP_STOP_var,
                                  start=0, size=1000) {
@@ -59,14 +60,13 @@ query_eQTL_Catalogue <- function(sumstats_file,
   return(sumstats)
 }
 
-
-# helpers
 #' get_datasets_eQTL_Catalogue
 #' @importFrom httr GET
 #' @importFrom httr accept_json
 #' @importFrom httr content
 #' @importFrom httr status_code
 #' @importFrom jsonlite fromJSON
+#' @export
 get_datasets_eQTL_Catalogue <- function() {
   message("Querying datasets_eQTL_Catalogue table.")
   datasets_url <- "https://www.ebi.ac.uk/eqtl/api/v2/datasets/?size=1000&start=0"
@@ -76,6 +76,7 @@ get_datasets_eQTL_Catalogue <- function() {
   return(datasets_eQTL_Catalogue)
 }
 
+# helpers
 #' format_eQTL_Cat
 format_eQTL_Catalogue <- function(sumstats) {
   sumstats$Name <- paste0("chr", sumstats$chromosome, ":", sumstats$position, ":",
