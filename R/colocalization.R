@@ -1,4 +1,4 @@
-# coloc ----
+# main wrapper ----
 #' Wrapper for parallel colocalization analysis
 #' 
 #' @param dir_out Output directory for results
@@ -50,19 +50,28 @@ genepicoloc_wrapper <- function(dir_out, sumstats_1, coloc_regions_PASS, args_2_
   invisible(do.call(parallel_func, mapply_args))
 }
 
-#' Process colocalization for a secondary dataset across multiple regions
-#' 
+# colocalization functions ----
+#' Process colocalization analysis for a secondary trait
+#'
+#' @description Processes a secondary trait summary statistics file, performs
+#' colocalization analysis against a primary trait across multiple genomic regions,
+#' and saves the results.
+#'
 #' @param study Study identifier
 #' @param sumstats_2_file Path to secondary summary statistics file
 #' @param sumstats_2_function Function used to process secondary data
-#' @param sumstats_2_type Type of secondary summary statistics
-#' @param sumstats_2_sdY Standard deviation for secondary trait
+#' @param sumstats_2_type Type of secondary summary statistics ('quant' or 'cc')
+#' @param sumstats_2_sdY Standard deviation for secondary trait (for quantitative traits)
 #' @param sumstats_1 Primary summary statistics object
-#' @param coloc_regions_PASS Regions to analyze
+#' @param coloc_regions_PASS Data frame with regions to analyze (must contain CHR_var, BP_START_var, BP_STOP_var)
 #' @param dir_out Base output directory
-#' @param test_mode Run in test mode (limited regions)
-#' @param verbose Print detailed messages
-#' @return NULL (results are written to file)
+#' @param test_mode If TRUE, limit analysis to first two regions (default: FALSE)
+#' @param verbose If TRUE, print detailed progress messages (default: FALSE)
+#' @param write_excel If TRUE, create Excel files with filtered results (default: FALSE)
+#' @param PP_H4_threshold Minimum PP.H4.abf value for filtered results (default: 0.5)
+#' @return Invisibly returns path to the output file
+#' @importFrom data.table rbindlist
+#' @export
 process_sumstats_2 <- function(study,
                                sumstats_2_file,
                                sumstats_2_function,
@@ -72,7 +81,9 @@ process_sumstats_2 <- function(study,
                                coloc_regions_PASS,
                                dir_out,
                                test_mode = FALSE,
-                               verbose = FALSE) {
+                               verbose = FALSE,
+                               write_excel = FALSE,
+                               PP_H4_threshold = 0.5) {
   
   # Set up output paths and limit regions for test mode
   if (test_mode) coloc_regions_PASS <- coloc_regions_PASS[1:2, ]
@@ -80,10 +91,13 @@ process_sumstats_2 <- function(study,
   study_dir <- file.path(dir_out, study)
   if (!dir.exists(study_dir)) dir.create(study_dir, recursive = TRUE)
   
-  file_out <- file.path(study_dir, paste0(basename(sumstats_2_file), "_gc.txt.gz"))
+  file_base <- tools::file_path_sans_ext(basename(sumstats_2_file))
+  file_out <- file.path(study_dir, paste0(file_base, "_gc.txt.gz"))
   if (test_mode) file_out <- paste0(file_out, "_test_mode")
   
   # Process secondary summary statistics
+  if (verbose) message("Processing secondary summary statistics for ", study)
+  
   sumstats_2 <- sumstats_tabix(
     sumstats_file = sumstats_2_file,
     coloc_regions_PASS = coloc_regions_PASS
@@ -101,6 +115,8 @@ process_sumstats_2 <- function(study,
   sumstats_2 <- sumstats_check(sumstats = sumstats_2)
   
   # Run colocalization on each region
+  if (verbose) message("Running colocalization across ", nrow(coloc_regions_PASS), " regions")
+  
   coloc_results <- mapply(
     run_region,
     CHR_var = coloc_regions_PASS$CHR_var,
@@ -110,13 +126,21 @@ process_sumstats_2 <- function(study,
     SIMPLIFY = FALSE
   )
   
-  # Combine results and write to file
+  # Combine results
   coloc_df <- data.table::rbindlist(coloc_results)
-  data.table::fwrite(coloc_df, file_out)
   
-  if (verbose) message("Results written to ", file_out)
+  # Write results using the appropriate function
+  save_coloc_results(
+    coloc_df = coloc_df, 
+    file_out = file_out,
+    write_excel = write_excel,
+    PP_H4_threshold = PP_H4_threshold,
+    verbose = verbose
+  )
   
-  return(NULL)
+  if (verbose) message("Colocalization analysis completed for ", study)
+  
+  return(invisible(file_out))
 }
 
 #' Run colocalization for a specific genomic region
@@ -370,4 +394,52 @@ create_result_template <- function(CHR_var, BP_START_var, BP_STOP_var,
     
     stringsAsFactors = FALSE
   )
+}
+
+#' Save colocalization results to files
+#'
+#' @description Saves colocalization results to text and optionally RDS/Excel files.
+#'
+#' @param coloc_df Data frame containing colocalization results
+#' @param file_out Path for the main compressed text output file
+#' @param write_excel Whether to create Excel files (default: FALSE)
+#' @param PP_H4_threshold Threshold for filtering results by PP.H4.abf (default: 0.5)
+#' @param verbose Whether to print progress messages (default: FALSE)
+#' @return Invisibly returns path to main output file
+#' @importFrom data.table fwrite
+#' @importFrom writexl write_xlsx
+#' @export
+save_coloc_results <- function(coloc_df,
+                               file_out,
+                               write_excel = FALSE,
+                               PP_H4_threshold = 0.5,
+                               verbose = FALSE) {
+  
+  # Check inputs
+  if (is.null(coloc_df) || nrow(coloc_df) == 0) {
+    warning("Empty colocalization results provided")
+    return(invisible(NULL))
+  }
+  
+  # Extract directory and base name for additional files
+  study_dir <- dirname(file_out)
+  base_name <- tools::file_path_sans_ext(basename(file_out))
+  
+  # Save RDS version
+  rds_file <- file.path(study_dir, paste0(base_name, ".RDS"))
+  saveRDS(coloc_df, rds_file)
+  if (verbose) message("Unfiltered results saved to: ", rds_file)
+  
+  # Optionally create Excel files
+  if (write_excel) {
+    # Filter results by PP.H4.abf threshold
+    coloc_df_filt <- coloc_df[!is.na(coloc_df$PP.H4.abf) & coloc_df$PP.H4.abf >= PP_H4_threshold, ]
+    
+    # Create Excel file
+    xlsx_file <- file.path(study_dir, paste0(base_name, "_filt.xlsx"))
+    writexl::write_xlsx(coloc_df_filt, xlsx_file)
+    if (verbose) message("Filtered results saved to: ", xlsx_file)
+  }
+  
+  return(invisible(file_out))
 }
