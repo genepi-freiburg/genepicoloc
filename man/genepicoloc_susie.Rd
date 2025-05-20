@@ -4,7 +4,13 @@
 \alias{genepicoloc_susie}
 \title{genepicoloc_susie_rss}
 \usage{
-genepicoloc_susie(raw_gt, pheno, pheno_name, scale_genotypes = F)
+genepicoloc_susie(
+  raw_gt,
+  pheno,
+  pheno_name,
+  coverage = 0.95,
+  scale_genotypes = F
+)
 }
 \description{
 genepicoloc_susie_rss

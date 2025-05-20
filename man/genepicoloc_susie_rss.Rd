@@ -11,6 +11,8 @@ genepicoloc_susie_rss(
   BETA_name = "BETA",
   SE_name = "SE",
   N_name = "N",
+  N,
+  coverage = 0.95,
   ...
 )
 }

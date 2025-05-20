@@ -112,7 +112,6 @@ get_snp_details <- function(rsid) {
 
 #' download_GCST
 #' @importFrom RCurl getURL
-#' @example download_GCST(url_in=, dest_folder="output")
 download_GCST <- function(url_in, dest_folder) {
   if (missing(dest_folder)) stop("dest_folder not provided")
   if (!dir.exists(dest_folder)) dir.create(dest_folder)
