@@ -208,6 +208,8 @@ get_cols_to <- function() {
 #' }
 match_cols <- function(sumstats, Name, rsID, CHR, POS, A1, A2, 
                        BETA, SE, nlog10P, AF, N) {
+  if (!is.data.table(sumstats)) stop("data.table object expected")
+  
   # Check if all specified columns exist in the data
   input_cols <- c(Name, rsID, CHR, POS, A1, A2, BETA, SE, nlog10P, AF, N)
   if (!all(input_cols %in% colnames(sumstats))) {
@@ -239,7 +241,7 @@ match_cols <- function(sumstats, Name, rsID, CHR, POS, A1, A2,
   
   # Select and reorder columns to match standard format
   std_cols <- get_cols_to()
-  sumstats <- sumstats[, std_cols]
+  sumstats <- sumstats[, ..std_cols]
   
   return(sumstats)
 }
