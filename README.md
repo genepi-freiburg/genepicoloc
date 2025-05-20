@@ -86,22 +86,24 @@ output_folder <- "output"
 test_file <- system.file("data/test_sumstats.RDS", package="genepicoloc")
 sumstats <- readRDS(test_file)
 # Function 1: format input sumstats
-sumstats_1 <- read_sumstats(sumstats = sumstats,
-                            Name = "Name_hg38",
-                            rsID = "rs",
-                            CHR = "CHR_hg38",
-                            POS = "POS_hg38",
-                            A1 = "A1_hg38",
-                            A2 = "A2_hg38",
-                            BETA = "Effect",
-                            SE = "StdErr",
-                            nlog10p_value = "nlog10P",
-                            AF = "Freq1",
-                            N = "n_total_sum")
+sumstats_1 <- match_cols(
+  sumstats = sumstats,
+  Name = "Name_hg38",
+  rsID = "rs",
+  CHR = "CHR_hg38",
+  POS = "POS_hg38",
+  A1 = "A1_hg38",
+  A2 = "A2_hg38",
+  BETA = "Effect",
+  SE = "StdErr",
+  nlog10P = "nlog10P",
+  AF = "Freq1",
+  N = "n_total_sum"
+)
 head(sumstats_1, 2)
 ```
 
-Using column names provided by the user, `read_sumstats()` automatically adapts the sumstats table for the required input format.  
+Using column names provided by the user, `match_cols()` automatically adapts the sumstats table for the required input format.  
 - Name has the format of CHR:POS:REF:ALT (e.g., chr16:17906244:T:C).  
 - rsID column is optional and can be filled with NA.  
 - Note that p-value is represented as negative log10 (this is required for handling underflow issues in case of very low p-values, p < 1e-324, which is not uncommon in, e.g., large size pQTL studies).  
@@ -112,7 +114,7 @@ Next, we will identify significant regions using `get_coloc_regions()` with the 
 - Standard GWAS p-value threshold (5e-8),  
 - and 1-megabase window around the index variant with lowest p-value (i.e., halfwindow = 500000)
 ```
-coloc_regions_list <- get_coloc_regions(sumstats = sumstats_1)
+coloc_regions_list3 <- get_coloc_regions(sumstats = sumstats_1)
 ```
 
 While running, the `get_coloc_regions()` function outputs logs with the identified window. There is only 1-megabase window containing significant variants.  
