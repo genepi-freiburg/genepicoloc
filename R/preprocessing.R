@@ -43,7 +43,6 @@ sumstats_tabix <- function(sumstats_file, coloc_regions_PASS,
   # Set attributes
   attr(sumstats, "tabix") <- tabix_attr
   attr(sumstats, "sumstats_file") <- sumstats_file
-  attr(sumstats, "QC") <- "not_checked"
   class(sumstats) <- unique(c("sumstats", class(sumstats)))
   
   # Clean up
@@ -103,7 +102,7 @@ sumstats_check <- function(sumstats, verbose = FALSE) {
   
   # Check required attributes
   req_attrs <- c("sumstats_type", "sumstats_sdY", "sumstats_file", 
-                 "max_nlog10P", "tabix")
+                 "sumstats_function", "max_nlog10P", "tabix")
   missing <- req_attrs[sapply(req_attrs, function(a) is.null(attr(sumstats, a)))]
   if (length(missing) > 0)
     stop("Missing attributes: ", paste(missing, collapse = ", "))

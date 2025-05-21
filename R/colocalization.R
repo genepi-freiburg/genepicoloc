@@ -31,8 +31,10 @@ genepicoloc_wrapper <- function(dir_out, sumstats_1, coloc_regions_PASS, args_2_
     parallel_func <- "mapply"  # Sequential for debugging
   } else if (use_pbmcapply) {
     parallel_func <- "pbmcmapply"  # With progress bar
+    shared_args <- c(shared_args, mc_cores = mc_cores)
   } else {
     parallel_func <- "mcmapply"  # Standard parallel
+    shared_args <- c(shared_args, mc_cores = mc_cores)
   }
   
   # Prepare arguments from the data frame
@@ -92,15 +94,19 @@ process_sumstats_2 <- function(study,
   if (!dir.exists(study_dir)) dir.create(study_dir, recursive = TRUE)
   
   file_base <- tools::file_path_sans_ext(basename(sumstats_2_file))
-  file_out <- file.path(study_dir, paste0(file_base, "_gc.txt.gz"))
+  file_out <- file.path(study_dir, file_base)
   if (test_mode) file_out <- paste0(file_out, "_test_mode")
   
   # Process secondary summary statistics
   if (verbose) message("Processing secondary summary statistics for ", study)
   
-  sumstats_2 <- sumstats_tabix(
-    sumstats_file = sumstats_2_file,
-    coloc_regions_PASS = coloc_regions_PASS
+  # sumstats_2 <- sumstats_tabix(
+  #   sumstats_file = sumstats_2_file,
+  #   coloc_regions_PASS = coloc_regions_PASS
+  # )
+  sumstats_2 <- do.call(sumstats_2_function,
+    list(sumstats_file = sumstats_2_file,
+    coloc_regions_PASS = coloc_regions_PASS)
   )
   
   sumstats_2 <- sumstats_nlog10P(sumstats_2)
@@ -111,7 +117,7 @@ process_sumstats_2 <- function(study,
     sumstats_type = sumstats_2_type,
     sumstats_sdY = sumstats_2_sdY
   )
-  
+
   sumstats_2 <- sumstats_check(sumstats = sumstats_2)
   
   # Run colocalization on each region
@@ -134,8 +140,7 @@ process_sumstats_2 <- function(study,
     coloc_df = coloc_df, 
     file_out = file_out,
     write_excel = write_excel,
-    PP_H4_threshold = PP_H4_threshold,
-    verbose = verbose
+    PP_H4_threshold = PP_H4_threshold
   )
   
   if (verbose) message("Colocalization analysis completed for ", study)
@@ -211,8 +216,8 @@ run_region <- function(sumstats_1, sumstats_2,
   
   # Run colocalization
   coloc_output <- run_coloc(
-    sumstats_1_df = sumstats_1_sub,
-    sumstats_2_df = sumstats_2_sub
+    sumstats_1 = sumstats_1_sub,
+    sumstats_2 = sumstats_2_sub
   )
   
   # Format and return results
@@ -293,13 +298,10 @@ prepare_coloc_dataset <- function(sumstats, sumstats_type, sumstats_sdY) {
       dataset$MAF <- sumstats$AF
       dataset$N <- sumstats$N
     }
-  } else if (sumstats_type == "cc") {
-    # For case-control studies
-    # Note: May need to add fields here depending on coloc.abf requirements
-    dataset$s <- NULL  # Uncomment and add proportion of cases if available
-    dataset$N <- sumstats$N  # Total sample size
-  }
-  
+  } 
+  # TODO: Add support for p-values depending on coloc.abf requirements
+  # https://github.com/chr1swallace/coloc/blob/main/R/claudia.R#L222
+
   return(dataset)
 }
 
@@ -413,7 +415,7 @@ save_coloc_results <- function(coloc_df,
                                file_out,
                                write_excel = FALSE,
                                PP_H4_threshold = 0.5,
-                               verbose = FALSE) {
+                               verbose = TRUE) {
   
   # Check inputs
   if (is.null(coloc_df) || nrow(coloc_df) == 0) {
