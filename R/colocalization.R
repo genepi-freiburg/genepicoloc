@@ -17,12 +17,18 @@ genepicoloc_wrapper <- function(dir_out, sumstats_1, coloc_regions_PASS, args_2_
                                 mc_cores = 10, use_pbmcapply = FALSE, test_mode = FALSE, 
                                 verbose = FALSE, debug_mode = FALSE) {
   
+  # Limit regions for test mode
+  if (test_mode) {
+    args_2_df <- args_2_df[1,]
+    coloc_regions_PASS <- coloc_regions_PASS[1,]
+    dir_out <- paste0(dir_out, "_test_mode")
+  }
+  
   # Setup common arguments for all iterations
   shared_args <- list(
     dir_out = dir_out,
     sumstats_1 = sumstats_1,
     coloc_regions_PASS = coloc_regions_PASS,
-    test_mode = test_mode,
     verbose = verbose
   )
   
@@ -67,70 +73,97 @@ genepicoloc_wrapper <- function(dir_out, sumstats_1, coloc_regions_PASS, args_2_
 #' @param sumstats_1 Primary summary statistics object
 #' @param coloc_regions_PASS Data frame with regions to analyze (must contain CHR_var, BP_START_var, BP_STOP_var)
 #' @param dir_out Base output directory
-#' @param test_mode If TRUE, limit analysis to first two regions (default: FALSE)
 #' @param verbose If TRUE, print detailed progress messages (default: FALSE)
 #' @param write_excel If TRUE, create Excel files with filtered results (default: FALSE)
 #' @param PP_H4_threshold Minimum PP.H4.abf value for filtered results (default: 0.5)
 #' @return Invisibly returns path to the output file
 #' @importFrom data.table rbindlist
 #' @export
-process_sumstats_2 <- function(study,
-                               sumstats_2_file,
+process_sumstats_2 <- function(sumstats_2_file,
                                sumstats_2_function,
+                               coloc_regions_PASS,
+                               study,
                                sumstats_2_type,
                                sumstats_2_sdY,
                                sumstats_1,
-                               coloc_regions_PASS,
                                dir_out,
-                               test_mode = FALSE,
                                verbose = FALSE,
                                write_excel = FALSE,
                                PP_H4_threshold = 0.5) {
   
-  # Set up output paths and limit regions for test mode
-  if (test_mode) coloc_regions_PASS <- coloc_regions_PASS[1:2, ]
-  
-  study_dir <- file.path(dir_out, study)
-  if (!dir.exists(study_dir)) dir.create(study_dir, recursive = TRUE)
-  
-  file_base <- tools::file_path_sans_ext(basename(sumstats_2_file))
-  file_out <- file.path(study_dir, file_base)
-  if (test_mode) file_out <- paste0(file_out, "_test_mode")
-  
   # Process secondary summary statistics
+  sumstats_2 <- retrieve_sumstats_wrapper(sumstats_file = sumstats_2_file,
+                                          sumstats_function = sumstats_2_function,
+                                          coloc_regions_PASS = coloc_regions_PASS)
+  
   if (verbose) message("Processing secondary summary statistics for ", study)
+
+  args_list <- list(study = study,
+                    sumstats_2_type = sumstats_2_type,
+                    sumstats_2_sdY = sumstats_2_sdY,
+                    sumstats_1 = sumstats_1,
+                    coloc_regions_PASS = coloc_regions_PASS,
+                    dir_out = dir_out,
+                    verbose = verbose,
+                    write_excel = write_excel,
+                    PP_H4_threshold = PP_H4_threshold)
   
-  # sumstats_2 <- sumstats_tabix(
-  #   sumstats_file = sumstats_2_file,
-  #   coloc_regions_PASS = coloc_regions_PASS
-  # )
-  sumstats_2 <- do.call(sumstats_2_function,
-    list(sumstats_file = sumstats_2_file,
-    coloc_regions_PASS = coloc_regions_PASS)
-  )
+  if (attr(sumstats_2, "sumstats_str") == "multiple") {
+    lapply(unique(sumstats_2$Phenotype), function(x) {
+      sumstats_2_pheno <- subset(sumstats_2, Phenotype == x)
+      attr(sumstats_2_pheno, "sumstats_str") <- "single"
+      attr(sumstats_2_pheno, "sumstats_file") <- 
+        paste0(attr(sumstats_2_pheno, "sumstats_file"), "_", x)
+      sumstats_2_pheno$Phenotype <- NULL
+      args_list <- c(args_list, list(sumstats_2=sumstats_2_pheno))
+      do.call(what = process_sumstats_2_str, args = args_list)
+    })
+  }
   
-  sumstats_2 <- sumstats_nlog10P(sumstats_2)
   
-  sumstats_2 <- sumstats_attr(
+}
+
+
+process_sumstats_2_str <- function(sumstats_2,
+                                   study,
+                                   sumstats_2_type,
+                                   sumstats_2_sdY,
+                                   sumstats_1,
+                                   coloc_regions_PASS,
+                                   dir_out,
+                                   verbose,
+                                   write_excel,
+                                   PP_H4_threshold) {
+  # Process sumstats_2
+  sumstats_2 <- perform_sumstats_qc(sumstats = sumstats_2)
+  sumstats_2 <- set_max_nlog10P(sumstats = sumstats_2)
+  sumstats_2 <- check_sumstats_attributes(
     sumstats = sumstats_2,
-    sumstats_function = sumstats_2_function,
     sumstats_type = sumstats_2_type,
     sumstats_sdY = sumstats_2_sdY
   )
 
-  sumstats_2 <- sumstats_check(sumstats = sumstats_2)
+  # Set up output paths
+  sumstats_2_file <- attr(sumstats_2, "sumstats_file")
   
+  study_dir <- file.path(dir_out, study)
+  if (!dir.exists(study_dir)) dir.create(study_dir, recursive = TRUE)
+  
+  file_base <- basename(sumstats_2_file) #tools::file_path_sans_ext()
+  file_out <- file.path(study_dir, file_base)
+
   # Run colocalization on each region
   if (verbose) message("Running colocalization across ", nrow(coloc_regions_PASS), " regions")
   
-  coloc_results <- mapply(
-    run_region,
-    CHR_var = coloc_regions_PASS$CHR_var,
-    BP_START_var = coloc_regions_PASS$BP_START_var,
-    BP_STOP_var = coloc_regions_PASS$BP_STOP_var,
-    MoreArgs = list(sumstats_1 = sumstats_1, sumstats_2 = sumstats_2),
-    SIMPLIFY = FALSE
-  )
+  coloc_results <- with(coloc_regions_PASS, 
+                        mapply(FUN = run_region,
+                               CHR_var = CHR_var,
+                               BP_START_var = BP_START_var,
+                               BP_STOP_var = BP_STOP_var,
+                               MoreArgs = list(sumstats_1 = sumstats_1,
+                                               sumstats_2 = sumstats_2),
+                               SIMPLIFY = FALSE
+                        ))
   
   # Combine results
   coloc_df <- data.table::rbindlist(coloc_results)
@@ -146,7 +179,9 @@ process_sumstats_2 <- function(study,
   if (verbose) message("Colocalization analysis completed for ", study)
   
   return(invisible(file_out))
+  
 }
+
 
 #' Run colocalization for a specific genomic region
 #' 
@@ -166,6 +201,22 @@ run_region <- function(sumstats_1, sumstats_2,
   
   if (!inherits(sumstats_2, "sumstats")) 
     stop("Expected a sumstats object for sumstats_2")
+
+  # Create output template with metadata
+  result <- create_result_template(
+    CHR_var = CHR_var, 
+    BP_START_var = BP_START_var,
+    BP_STOP_var = BP_STOP_var,
+    sumstats_1_file = attr(sumstats_1, "sumstats_file"),
+    sumstats_2_file = attr(sumstats_2, "sumstats_file"),
+    tabix = paste0("s1_", attr(sumstats_1, "tabix"), "_s2_", attr(sumstats_2, "tabix")),
+    sumstats_1_QC = attr(sumstats_1, "QC"),
+    sumstats_2_QC = attr(sumstats_2, "QC")
+  )
+  
+  if (attr(sumstats_2, "tabix") == "tabix_failed") {
+    return(result)
+  }
   
   # Extract region-specific data
   region_filter <- function(data) {
@@ -176,24 +227,12 @@ run_region <- function(sumstats_1, sumstats_2,
   sumstats_2_sub <- region_filter(sumstats_2)
   
   # Get max significance values
-  sumstats_1_sub <- sumstats_nlog10P(sumstats_1_sub)
-  sumstats_2_sub <- sumstats_nlog10P(sumstats_2_sub)
+  sumstats_1_sub <- set_max_nlog10P(sumstats_1_sub)
+  sumstats_2_sub <- set_max_nlog10P(sumstats_2_sub)
   sumstats_1_max_nlog10P <- attr(sumstats_1_sub, "max_nlog10P")
   sumstats_2_max_nlog10P <- attr(sumstats_2_sub, "max_nlog10P")
-  
-  # Create output template with metadata
-  result <- create_result_template(
-    CHR_var = CHR_var, 
-    BP_START_var = BP_START_var,
-    BP_STOP_var = BP_STOP_var,
-    sumstats_1_file = attr(sumstats_1, "sumstats_file"),
-    sumstats_1_max_nlog10P = sumstats_1_max_nlog10P,
-    sumstats_2_file = attr(sumstats_2, "sumstats_file"),
-    sumstats_2_max_nlog10P = sumstats_2_max_nlog10P,
-    tabix = paste0("s1_", attr(sumstats_1, "tabix"), "_s2_", attr(sumstats_2, "tabix")),
-    sumstats_1_QC = attr(sumstats_1, "QC"),
-    sumstats_2_QC = attr(sumstats_2, "QC")
-  )
+  result$sumstats_1_max_nlog10P <- sumstats_1_max_nlog10P
+  result$sumstats_2_max_nlog10P <- sumstats_2_max_nlog10P
   
   # Check if primary dataset has significant SNPs
   if (is.na(sumstats_1_max_nlog10P) || sumstats_1_max_nlog10P < min_nlog10P) {
@@ -359,8 +398,8 @@ format_coloc_output <- function(coloc_output, coloc_template, n_top_snps = 5) {
 #' @return Data frame template for colocalization results
 #' @export
 create_result_template <- function(CHR_var, BP_START_var, BP_STOP_var,
-                                   sumstats_1_file, sumstats_1_max_nlog10P,
-                                   sumstats_2_file, sumstats_2_max_nlog10P, 
+                                   sumstats_1_file, sumstats_1_max_nlog10P = NA,
+                                   sumstats_2_file, sumstats_2_max_nlog10P = NA, 
                                    nsnps = NA, tabix = NA, 
                                    sumstats_1_QC = NA, sumstats_2_QC = NA, coloc = NA) {
   
@@ -423,12 +462,9 @@ save_coloc_results <- function(coloc_df,
     return(invisible(NULL))
   }
   
-  # Extract directory and base name for additional files
-  study_dir <- dirname(file_out)
-  base_name <- tools::file_path_sans_ext(basename(file_out))
-  
+
   # Save RDS version
-  rds_file <- file.path(study_dir, paste0(base_name, ".RDS"))
+  rds_file <- paste0(file_out, ".RDS")
   saveRDS(coloc_df, rds_file)
   if (verbose) message("Unfiltered results saved to: ", rds_file)
   
@@ -438,7 +474,7 @@ save_coloc_results <- function(coloc_df,
     coloc_df_filt <- coloc_df[!is.na(coloc_df$PP.H4.abf) & coloc_df$PP.H4.abf >= PP_H4_threshold, ]
     
     # Create Excel file
-    xlsx_file <- file.path(study_dir, paste0(base_name, "_filt.xlsx"))
+    xlsx_file <- paste0(file_out, "_filt.xlsx")
     writexl::write_xlsx(coloc_df_filt, xlsx_file)
     if (verbose) message("Filtered results saved to: ", xlsx_file)
   }

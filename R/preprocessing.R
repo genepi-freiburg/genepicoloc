@@ -1,4 +1,14 @@
 # preprocessing ----
+retrieve_sumstats_wrapper <- function(sumstats_function,
+                                      sumstats_file,
+                                      coloc_regions_PASS) {
+  sumstats <- do.call(what = sumstats_function, 
+                      args = list(sumstats_file = sumstats_file,
+                                  coloc_regions_PASS = coloc_regions_PASS))
+  attr(sumstats, "sumstats_function") <- sumstats_function
+  return(sumstats)
+}
+
 
 #' Extract GWAS summary statistics from tabix-indexed file
 #'
@@ -8,8 +18,9 @@
 #' @param test_mode If TRUE, only use the first region
 #' @param file_remove Whether to remove temporary files
 #' @return A sumstats object
-sumstats_tabix <- function(sumstats_file, coloc_regions_PASS,
-                           verbose = FALSE, test_mode = FALSE, file_remove = TRUE) {
+retrieve_sumstats_tabix <- function(sumstats_file, coloc_regions_PASS,
+                                    verbose = FALSE, test_mode = FALSE,
+                                    file_remove = TRUE) {
   # Check required columns
   req_cols <- c("CHR_var", "BP_START_var", "BP_STOP_var")
   if (!all(req_cols %in% colnames(coloc_regions_PASS))) {
@@ -26,23 +37,27 @@ sumstats_tabix <- function(sumstats_file, coloc_regions_PASS,
   write.table(sorted, file_regions, sep = "\t", row.names = FALSE, 
               col.names = FALSE, quote = FALSE)
   
-  # Run tabix
-  tabix_cmd <- paste0("tabix -h ", sumstats_file, " -R ", file_regions)
+  # Run tabix with fread
+  tabix_cmd <- paste0("tabix -h ", shQuote(sumstats_file), " -R ",
+                      shQuote(file_regions), " 2>/dev/null")
   if (verbose) message("Running tabix: ", tabix_cmd)
-  text_in <- suppressWarnings(system(tabix_cmd, intern = TRUE, ignore.stderr = TRUE))
   
-  # Process results
-  if (is.null(attr(text_in, "status"))) {
-    sumstats <- data.table::fread(text = text_in, showProgress = FALSE)
-    tabix_attr <- if (nrow(sumstats) == 0) "tabix_ok_no_data" else "tabix_ok"
-  } else {
+  sumstats <- suppressWarnings(
+    data.table::fread(cmd = tabix_cmd, showProgress = FALSE)
+  )
+  
+  # Determine status
+  if (is.null(sumstats) || (nrow(sumstats) == 0 && ncol(sumstats) == 0)) {
     tabix_attr <- "tabix_failed"
     sumstats <- data.table::data.table()
+  } else {
+    tabix_attr <- if (nrow(sumstats) == 0) "tabix_ok_no_data" else "tabix_ok"
   }
   
   # Set attributes
   attr(sumstats, "tabix") <- tabix_attr
   attr(sumstats, "sumstats_file") <- sumstats_file
+  # attr(sumstats, "sumstats_str") <- sumstats_str
   class(sumstats) <- unique(c("sumstats", class(sumstats)))
   
   # Clean up
@@ -51,12 +66,11 @@ sumstats_tabix <- function(sumstats_file, coloc_regions_PASS,
   return(sumstats)
 }
 
-
 #' Calculate and set max_nlog10P attribute for a sumstats object
 #'
 #' @param sumstats A sumstats object
 #' @return The sumstats object with updated max_nlog10P attribute
-sumstats_nlog10P <- function(sumstats) {
+set_max_nlog10P <- function(sumstats) {
   if (!inherits(sumstats, "sumstats")) 
     stop("Expected a sumstats object")
   
@@ -71,50 +85,23 @@ sumstats_nlog10P <- function(sumstats) {
   return(sumstats)
 }
 
-#' Add core attributes to a sumstats object
+
+#' Perform QC on a sumstats object
 #'
-#' @param sumstats A sumstats object
-#' @param sumstats_function Name of the function that created the data
-#' @param sumstats_type Type of summary statistics ('quantitative' or 'binary')
-#' @param sumstats_sdY Standard deviation for quantitative trait
-#' @return sumstats object with additional attributes
-sumstats_attr <- function(sumstats, sumstats_function,
-                          sumstats_type, sumstats_sdY) {
-  if (!inherits(sumstats, "sumstats")) 
-    stop("Expected a sumstats object")
-  
-  # Add attributes
-  attr(sumstats, "sumstats_function") <- sumstats_function
-  attr(sumstats, "sumstats_type") <- sumstats_type
-  attr(sumstats, "sumstats_sdY") <- sumstats_sdY
-  
-  return(sumstats)
-}
-#' Check and clean a sumstats object
-#'
-#' @param sumstats A sumstats object
+#' @param sumstats A validated sumstats object
 #' @param verbose Whether to print progress messages
-#' @return Validated and cleaned sumstats object
-sumstats_check <- function(sumstats, verbose = FALSE) {
-  # Check object type and required attributes
-  if (!inherits(sumstats, "sumstats")) 
-    stop("Expected a sumstats object")
+#' @return QC'd sumstats object with QC attribute set
+perform_sumstats_qc <- function(sumstats, verbose = FALSE) {
+  # Skip QC if tabix failed
+  if (attr(sumstats, "tabix") == "tabix_failed") {
+    attr(sumstats, "QC") <- "skipped_tabix_failed"
+    if (verbose) message("Skipping QC - tabix failed")
+    return(sumstats)
+  }
   
-  # Check required attributes
-  req_attrs <- c("sumstats_type", "sumstats_sdY", "sumstats_file", 
-                 "sumstats_function", "max_nlog10P", "tabix")
-  missing <- req_attrs[sapply(req_attrs, function(a) is.null(attr(sumstats, a)))]
-  if (length(missing) > 0)
-    stop("Missing attributes: ", paste(missing, collapse = ", "))
-  
-  # Check column names
-  if (!all(colnames(sumstats) == get_cols_to()))
-    stop("Column names don't match expected format")
-  
-  # Start QC tracking
   QC <- ""
   
-  # Remove duplicates
+  # Remove duplicated variants
   dups <- duplicated(sumstats$Name)
   if (any(dups)) {
     if (verbose) message("Removing ", sum(dups), " duplicated variants")
@@ -122,9 +109,8 @@ sumstats_check <- function(sumstats, verbose = FALSE) {
     sumstats <- sumstats[!dups, ]
   }
   
-  # Check numeric columns
+  # Clean numeric columns
   for (col in c("BETA", "SE")) {
-    # Remove infinite values
     inf_vals <- is.infinite(sumstats[[col]])
     if (any(inf_vals)) {
       if (verbose) message("Removing ", sum(inf_vals), " infinite values in ", col)
@@ -132,7 +118,6 @@ sumstats_check <- function(sumstats, verbose = FALSE) {
       sumstats <- sumstats[!inf_vals, ]
     }
     
-    # Remove NAs
     na_vals <- is.na(sumstats[[col]])
     if (any(na_vals)) {
       if (verbose) message("Removing ", sum(na_vals), " NA values in ", col)
@@ -140,7 +125,6 @@ sumstats_check <- function(sumstats, verbose = FALSE) {
       sumstats <- sumstats[!na_vals, ]
     }
     
-    # Remove zeros
     zero_vals <- sumstats[[col]] == 0
     if (any(zero_vals)) {
       if (verbose) message("Removing ", sum(zero_vals), " zero values in ", col)
@@ -149,12 +133,44 @@ sumstats_check <- function(sumstats, verbose = FALSE) {
     }
   }
   
-  # Set QC status
   attr(sumstats, "QC") <- if (QC == "") "ok" else substring(QC, 2)
   
   if (verbose) message("QC completed")
   return(sumstats)
 }
+
+#' Check required attributes of a sumstats object
+#'
+#' @param sumstats A sumstats object
+#' @param sumstats_function Name of the function that created the data
+#' @param sumstats_type Type of summary statistics ('quantitative' or 'binary')
+#' @param sumstats_sdY Standard deviation for quantitative trait
+#' @return The input object if valid; otherwise, stops with an error
+check_sumstats_attributes <- function(sumstats, sumstats_function,
+                                      sumstats_type, sumstats_sdY) {
+  # Check object type
+  if (!inherits(sumstats, "sumstats")) 
+    stop("Expected a sumstats object")
+  
+  # Add attributes if provided
+    attr(sumstats, "sumstats_type") <- sumstats_type
+  if (!missing(sumstats_sdY)) 
+    attr(sumstats, "sumstats_sdY") <- sumstats_sdY
+  
+  # Required attributes
+  req_attrs <- c("sumstats_type", "sumstats_sdY", "sumstats_file", 
+                 "sumstats_function", "tabix")
+  missing <- req_attrs[sapply(req_attrs, function(a) is.null(attr(sumstats, a)))]
+  if (length(missing) > 0)
+    stop("Missing attributes: ", paste(missing, collapse = ", "))
+  
+  # Check expected columns
+  if (!all(colnames(sumstats) == get_cols_to()))
+    stop("Column names don't match expected format")
+  
+  return(sumstats)
+}
+
 
 #' Get standard column names for GWAS summary statistics
 #'
@@ -206,7 +222,7 @@ get_cols_to <- function() {
 #' )
 #' }
 match_cols <- function(sumstats, Name, rsID, CHR, POS, A1, A2, 
-                       BETA, SE, nlog10P, AF, N) {
+                       BETA, SE, nlog10P, AF, N, Phenotype=NULL) {
   if (!is.data.table(sumstats)) stop("data.table object expected")
   
   # Check if all specified columns exist in the data
@@ -231,6 +247,7 @@ match_cols <- function(sumstats, Name, rsID, CHR, POS, A1, A2,
     AF = AF,
     N = N
   )
+  if (!is.null(Phenotype)) col_mapping <- c(col_mapping, Phenotype = Phenotype)
   
   # Rename columns using the mapping
   for (std_name in names(col_mapping)) {
@@ -240,6 +257,7 @@ match_cols <- function(sumstats, Name, rsID, CHR, POS, A1, A2,
   
   # Select and reorder columns to match standard format
   std_cols <- get_cols_to()
+  if (!is.null(Phenotype)) std_cols <- c(std_cols, Phenotype = Phenotype)
   sumstats <- sumstats[, ..std_cols]
   
   return(sumstats)
