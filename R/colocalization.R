@@ -26,17 +26,6 @@ genepicoloc_wrapper <- function(dir_out, sumstats_1, coloc_regions_PASS, args_2_
     verbose = verbose
   )
   
-  # Choose parallel function based on parameters
-  if (debug_mode) {
-    parallel_func <- "mapply"  # Sequential for debugging
-  } else if (use_pbmcapply) {
-    parallel_func <- "pbmcmapply"  # With progress bar
-    shared_args <- c(shared_args, mc_cores = mc_cores)
-  } else {
-    parallel_func <- "mcmapply"  # Standard parallel
-    shared_args <- c(shared_args, mc_cores = mc_cores)
-  }
-  
   # Prepare arguments from the data frame
   mapply_args <- list(
     FUN = process_sumstats_2,
@@ -47,9 +36,20 @@ genepicoloc_wrapper <- function(dir_out, sumstats_1, coloc_regions_PASS, args_2_
     sumstats_2_sdY = args_2_df$sumstats_2_sdY,
     MoreArgs = shared_args
   )
+
+  # Choose parallel function based on parameters
+  if (debug_mode) {
+    parallel_func <- "mapply"  # Sequential for debugging
+  } else if (use_pbmcapply) {
+    parallel_func <- "pbmcmapply"  # With progress bar
+    mapply_args <- c(mapply_args, mc.cores=mc_cores)
+  } else {
+    parallel_func <- "mcmapply"  # Standard parallel
+    mapply_args <- c(mapply_args, mc.cores=mc_cores)
+  }
   
   # Execute parallel mapping function
-  invisible(do.call(parallel_func, mapply_args))
+  do.call(parallel_func, mapply_args) 
 }
 
 # colocalization functions ----
