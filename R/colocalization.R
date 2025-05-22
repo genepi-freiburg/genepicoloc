@@ -13,36 +13,53 @@
 #' @return Invisible result of parallel execution
 #' @importFrom parallel mcmapply
 #' @importFrom pbmcapply pbmcmapply
-genepicoloc_wrapper <- function(dir_out, sumstats_1, coloc_regions_PASS, args_2_df,
-                                mc_cores = 10, use_pbmcapply = FALSE, test_mode = FALSE, 
-                                verbose = FALSE, debug_mode = FALSE) {
+genepicoloc_wrapper <- function(dir_out,
+                                sumstats_1_function,
+                                sumstats_1_file,
+                                sumstats_1_type,
+                                sumstats_1_sdY,
+                                coloc_regions_PASS,
+                                args_2_df,
+                                mc_cores = 10,
+                                use_pbmcapply = FALSE,
+                                test_mode = FALSE, 
+                                verbose = FALSE,
+                                debug_mode = FALSE) {
   
   # Limit regions for test mode
   if (test_mode) {
-    args_2_df <- args_2_df[1,]
+    args_2_df <- args_2_df[, .SD[1], by = sumstats_2_study]
     coloc_regions_PASS <- coloc_regions_PASS[1,]
     dir_out <- paste0(dir_out, "_test_mode")
   }
   
+  # retrieve and format sumstats_1
+  # We need to run it only one time here, while sumstats_2
+  sumstats_1_form <- format_sumstats_1(
+    sumstats_1_function=sumstats_1_function,
+    sumstats_1_file=sumstats_1_file,
+    sumstats_1_type=sumstats_1_type,
+    sumstats_1_sdY=sumstats_1_sdY
+  )
+  
   # Setup common arguments for all iterations
   shared_args <- list(
     dir_out = dir_out,
-    sumstats_1 = sumstats_1,
-    coloc_regions_PASS = coloc_regions_PASS,
+    sumstats_1 = sumstats_1_form,
     verbose = verbose
   )
   
   # Prepare arguments from the data frame
   mapply_args <- list(
-    FUN = process_sumstats_2,
-    study = args_2_df$study,
+    FUN = process_sumstats_form,
+    sumstats_2_study = args_2_df$sumstats_2_study,
     sumstats_2_file = args_2_df$sumstats_2_files,
     sumstats_2_function = args_2_df$sumstats_2_function,
     sumstats_2_type = args_2_df$sumstats_2_type,
     sumstats_2_sdY = args_2_df$sumstats_2_sdY,
     MoreArgs = shared_args
   )
-
+  
   # Choose parallel function based on parameters
   if (debug_mode) {
     parallel_func <- "mapply"  # Sequential for debugging
@@ -54,18 +71,40 @@ genepicoloc_wrapper <- function(dir_out, sumstats_1, coloc_regions_PASS, args_2_
     mapply_args <- c(mapply_args, mc.cores=mc_cores)
   }
   
+  # save args_2_df
+  args_2_df_file <- paste0(dir_out, "/args_2_df.RDS")
+  if (verbose) message("Saving args_2_df_file to ", args_2_df_file)
+  saveRDS(args_2_df, args_2_df_file)
+
   # Execute parallel mapping function
+  if (verbose) message("Starting colocalization analysis")
   do.call(parallel_func, mapply_args) 
 }
 
 # colocalization functions ----
+format_sumstats_1 <- function(sumstats_1_function,
+                              sumstats_1_file,
+                              sumstats_1_type,
+                              sumstats_1_sdY) {
+  sumstats_1_raw <- retrieve_sumstats_raw(
+    sumstats_function = sumstats_1_function,
+    sumstats_file = sumstats_1_file,
+    coloc_regions_PASS = coloc_regions_PASS
+  )
+  sumstats_1_form <- format_sumstats(
+    sumstats = sumstats_1_raw,
+    sumstats_type = sumstats_1_type,
+    sumstats_sdY = sumstats_1_sdY
+  )
+}
+
 #' Process colocalization analysis for a secondary trait
 #'
 #' @description Processes a secondary trait summary statistics file, performs
 #' colocalization analysis against a primary trait across multiple genomic regions,
 #' and saves the results.
 #'
-#' @param study Study identifier
+#' @param sumstats_2_study Study identifier
 #' @param sumstats_2_file Path to secondary summary statistics file
 #' @param sumstats_2_function Function used to process secondary data
 #' @param sumstats_2_type Type of secondary summary statistics ('quant' or 'cc')
@@ -79,109 +118,172 @@ genepicoloc_wrapper <- function(dir_out, sumstats_1, coloc_regions_PASS, args_2_
 #' @return Invisibly returns path to the output file
 #' @importFrom data.table rbindlist
 #' @export
-process_sumstats_2 <- function(sumstats_2_file,
-                               sumstats_2_function,
-                               coloc_regions_PASS,
-                               study,
-                               sumstats_2_type,
-                               sumstats_2_sdY,
-                               sumstats_1,
-                               dir_out,
-                               verbose = FALSE,
-                               write_excel = FALSE,
-                               PP_H4_threshold = 0.5) {
+format_sumstats_2 <- function(sumstats_2_function,
+                              sumstats_2_file,
+                              sumstats_2_type,
+                              sumstats_2_sdY,
+                              sumstats_2_study) {
+  sumstats_2_raw <- retrieve_sumstats_raw(
+    sumstats_function = sumstats_2_function,
+    sumstats_file = sumstats_2_file,
+    coloc_regions_PASS = coloc_regions_PASS
+  )
   
-  # Process secondary summary statistics
-  sumstats_2 <- retrieve_sumstats_wrapper(sumstats_file = sumstats_2_file,
-                                          sumstats_function = sumstats_2_function,
-                                          coloc_regions_PASS = coloc_regions_PASS)
-  
-  if (verbose) message("Processing secondary summary statistics for ", study)
-
-  args_list <- list(study = study,
-                    sumstats_2_type = sumstats_2_type,
-                    sumstats_2_sdY = sumstats_2_sdY,
-                    sumstats_1 = sumstats_1,
-                    coloc_regions_PASS = coloc_regions_PASS,
-                    dir_out = dir_out,
-                    verbose = verbose,
-                    write_excel = write_excel,
-                    PP_H4_threshold = PP_H4_threshold)
-  
-  if (attr(sumstats_2, "sumstats_str") == "multiple") {
-    lapply(unique(sumstats_2$Phenotype), function(x) {
-      sumstats_2_pheno <- subset(sumstats_2, Phenotype == x)
-      attr(sumstats_2_pheno, "sumstats_str") <- "single"
-      attr(sumstats_2_pheno, "sumstats_file") <- 
-        paste0(attr(sumstats_2_pheno, "sumstats_file"), "_", x)
-      sumstats_2_pheno$Phenotype <- NULL
-      args_list <- c(args_list, list(sumstats_2=sumstats_2_pheno))
-      do.call(what = process_sumstats_2_str, args = args_list)
-    })
+  # check that input is valid
+  if (is.null(attr(sumstats_2_raw, "sumstats_pheno"))) {
+    stop("sumstats_pheno attribute in sumstats_2_raw not found")
+  }
+  if (!attr(sumstats_2_raw, "sumstats_pheno") %in% c("single", "multiple")) {
+    stop("sumstats_pheno should be either single or multiple")
   }
   
-  
+  if (attr(sumstats_2_raw, "sumstats_pheno") == "multiple") {
+    if (! "Phenotype" %in% colnames(sumstats_2_raw)) {
+      stop("'Phenotype' column in sumstats_2_raw not found, ",
+           "required for 'multiple' sumstats_pheno attribute")
+    }
+    sumstats_2_form <- 
+      lapply(unique(sumstats_2_raw$Phenotype), function(x) {
+        sumstats_2_pheno <- subset(sumstats_2_raw, Phenotype == x)
+        attr(sumstats_2_pheno, "sumstats_pheno") <- "single"
+        attr(sumstats_2_pheno, "sumstats_file") <- 
+          paste0(attr(sumstats_2_pheno, "sumstats_file"), "_", x)
+        sumstats_2_pheno$Phenotype <- NULL
+        sumstats_2_pheno <- format_sumstats(
+          sumstats = sumstats_2_pheno,
+          sumstats_type = sumstats_2_type,
+          sumstats_sdY = sumstats_2_sdY)
+      })
+    attr(sumstats_2_form, "sumstats_pheno") <- "multiple"
+    attr(sumstats_2_form, "sumstats_file") <- sumstats_2_file
+  } else {
+    sumstats_2_form <- format_sumstats(
+      sumstats = sumstats_2_raw,
+      sumstats_type = sumstats_2_type,
+      sumstats_sdY = sumstats_2_sdY)
+    attr(sumstats_2_form, "sumstats_pheno") <- "single"
+  }
+  class(sumstats_2_form) <- c("sumstats_2_form", class(sumstats_2_form))
+  return(sumstats_2_form)
 }
 
 
-process_sumstats_2_str <- function(sumstats_2,
-                                   study,
-                                   sumstats_2_type,
-                                   sumstats_2_sdY,
-                                   sumstats_1,
-                                   coloc_regions_PASS,
-                                   dir_out,
-                                   verbose,
-                                   write_excel,
-                                   PP_H4_threshold) {
-  # Process sumstats_2
-  sumstats_2 <- perform_sumstats_qc(sumstats = sumstats_2)
-  sumstats_2 <- set_max_nlog10P(sumstats = sumstats_2)
-  sumstats_2 <- check_sumstats_attributes(
-    sumstats = sumstats_2,
-    sumstats_type = sumstats_2_type,
-    sumstats_sdY = sumstats_2_sdY
+process_sumstats_form <- function(dir_out,
+                                  sumstats_1_form,
+                                  sumstats_2_function,
+                                  sumstats_2_file,
+                                  sumstats_2_type,
+                                  sumstats_2_sdY,
+                                  sumstats_2_study,
+                                  write_excel = FALSE,
+                                  PP_H4_threshold = 0.5,
+                                  verbose = TRUE) {
+  
+  sumstats_1_form <- format_sumstats_1(
+    sumstats_1_function,
+    sumstats_1_file,
+    sumstats_1_type,
+    sumstats_1_sdY
   )
-
-  # Set up output paths
-  sumstats_2_file <- attr(sumstats_2, "sumstats_file")
   
-  study_dir <- file.path(dir_out, study)
-  if (!dir.exists(study_dir)) dir.create(study_dir, recursive = TRUE)
+  sumstats_2_form <- format_sumstats_2(
+    sumstats_2_function,
+    sumstats_2_file,
+    sumstats_2_type,
+    sumstats_2_sdY,
+    sumstats_2_study
+  )
   
-  file_base <- basename(sumstats_2_file) #tools::file_path_sans_ext()
-  file_out <- file.path(study_dir, file_base)
-
+  # check input, consider creating class "sumstats_1_form"
+  if (is.null(attr(sumstats_1_form, "coloc_regions_PASS"))) {
+    stop("'coloc_regions_PASS' attribute not found in sumstats_1_form object")
+  } else {
+    coloc_regions_PASS <- attr(sumstats_1_form, "coloc_regions_PASS")
+  }
+  
+  # TODO create a helper to check for sumstats_2_form
+  # check that is has sumstats_pheno attribute
+  # and the values should be only single or multiple
+  if (!inherits(sumstats_2_form, "sumstats_2_form")) {
+    stop("sumstats_2_form should have 'sumstats_2_form' class")
+  }
+  
   # Run colocalization on each region
   if (verbose) message("Running colocalization across ", nrow(coloc_regions_PASS), " regions")
+
+  file_out <- set_output_path(
+    sumstats_2_file = attr(sumstats_2_form, "sumstats_file"),
+    dir_out = dir_out,
+    sumstats_2_study = sumstats_2_study
+  )
+  if (verbose) message("Output file: ", file_out, "\nStarting coloc.abf")
   
-  coloc_results <- with(coloc_regions_PASS, 
-                        mapply(FUN = run_region,
-                               CHR_var = CHR_var,
-                               BP_START_var = BP_START_var,
-                               BP_STOP_var = BP_STOP_var,
-                               MoreArgs = list(sumstats_1 = sumstats_1,
-                                               sumstats_2 = sumstats_2),
-                               SIMPLIFY = FALSE
-                        ))
+  # now there are two options, if sumstats_pheno == "single",
+  # i.e., there is only one phenotype
+  if (attr(sumstats_2_form, "sumstats_pheno") == "single") {
+    coloc_results <- run_single_phenotype(
+      sumstats_1 = sumstats_1_form,
+      sumstats_2 = sumstats_2_form,
+      coloc_regions_PASS = coloc_regions_PASS)
+    # Combine all regions (there is just a single phenotype)
+    coloc_results <- data.table::rbindlist(coloc_results)
+  } else { # if there are multiple phenotypes
+    coloc_results <- lapply(sumstats_2_form, function(sumstats_2) {
+      coloc_results <- run_single_phenotype(
+        sumstats_1 = sumstats_1_form,
+        sumstats_2 = sumstats_2,
+        coloc_regions_PASS = coloc_regions_PASS)
+      # Combine all regions across each phenotype
+      coloc_results <- data.table::rbindlist(coloc_results)
+    })
+    # Combine all phenotypes
+    coloc_results <- data.table::rbindlist(coloc_results)
+  }
   
-  # Combine results
-  coloc_df <- data.table::rbindlist(coloc_results)
   
   # Write results using the appropriate function
   save_coloc_results(
-    coloc_df = coloc_df, 
+    coloc_results = coloc_results, 
     file_out = file_out,
     write_excel = write_excel,
     PP_H4_threshold = PP_H4_threshold
   )
   
-  if (verbose) message("Colocalization analysis completed for ", study)
+  if (verbose) message("Colocalization analysis completed for ", sumstats_2_study)
   
   return(invisible(file_out))
   
 }
 
+
+# Set up output paths
+set_output_path <- function(dir_out,
+                            sumstats_2_file,
+                            sumstats_2_study) {
+  
+  study_dir <- file.path(dir_out, sumstats_2_study)
+  if (!dir.exists(study_dir)) dir.create(study_dir, recursive = TRUE)
+  
+  file_base <- basename(sumstats_2_file)
+  file_out <- file.path(study_dir, file_base)
+  
+  return(file_out)
+}
+
+#
+run_single_phenotype <- function(sumstats_1, sumstats_2, coloc_regions_PASS) {
+  MoreArgs <- list(sumstats_1 = sumstats_1,
+                   sumstats_2 = sumstats_2)
+  coloc_results <- with(coloc_regions_PASS, 
+                        mapply(
+                          FUN = run_region,
+                          CHR_var = CHR_var,
+                          BP_START_var = BP_START_var,
+                          BP_STOP_var = BP_STOP_var,
+                          MoreArgs = MoreArgs,
+                          SIMPLIFY = FALSE
+                        ))
+}
 
 #' Run colocalization for a specific genomic region
 #' 
@@ -201,7 +303,7 @@ run_region <- function(sumstats_1, sumstats_2,
   
   if (!inherits(sumstats_2, "sumstats")) 
     stop("Expected a sumstats object for sumstats_2")
-
+  
   # Create output template with metadata
   result <- create_result_template(
     CHR_var = CHR_var, 
@@ -209,7 +311,8 @@ run_region <- function(sumstats_1, sumstats_2,
     BP_STOP_var = BP_STOP_var,
     sumstats_1_file = attr(sumstats_1, "sumstats_file"),
     sumstats_2_file = attr(sumstats_2, "sumstats_file"),
-    tabix = paste0("s1_", attr(sumstats_1, "tabix"), "_s2_", attr(sumstats_2, "tabix")),
+    sumstats_1_tabix = attr(sumstats_1, "tabix"),
+    sumstats_2_tabix = attr(sumstats_2, "tabix"),
     sumstats_1_QC = attr(sumstats_1, "QC"),
     sumstats_2_QC = attr(sumstats_2, "QC")
   )
@@ -340,7 +443,7 @@ prepare_coloc_dataset <- function(sumstats, sumstats_type, sumstats_sdY) {
   } 
   # TODO: Add support for p-values depending on coloc.abf requirements
   # https://github.com/chr1swallace/coloc/blob/main/R/claudia.R#L222
-
+  
   return(dataset)
 }
 
@@ -397,11 +500,19 @@ format_coloc_output <- function(coloc_output, coloc_template, n_top_snps = 5) {
 #' @param coloc Colocalization status
 #' @return Data frame template for colocalization results
 #' @export
-create_result_template <- function(CHR_var, BP_START_var, BP_STOP_var,
-                                   sumstats_1_file, sumstats_1_max_nlog10P = NA,
-                                   sumstats_2_file, sumstats_2_max_nlog10P = NA, 
-                                   nsnps = NA, tabix = NA, 
-                                   sumstats_1_QC = NA, sumstats_2_QC = NA, coloc = NA) {
+create_result_template <- function(CHR_var,
+                                   BP_START_var,
+                                   BP_STOP_var,
+                                   sumstats_1_file,
+                                   sumstats_2_file,
+                                   sumstats_1_tabix, 
+                                   sumstats_2_tabix, 
+                                   sumstats_1_max_nlog10P = NA,
+                                   sumstats_2_max_nlog10P = NA, 
+                                   nsnps = NA,
+                                   sumstats_1_QC = NA,
+                                   sumstats_2_QC = NA,
+                                   coloc = NA) {
   
   # Create results data frame with NA values for fields to be filled later
   data.frame(
@@ -412,13 +523,14 @@ create_result_template <- function(CHR_var, BP_START_var, BP_STOP_var,
     
     # Summary statistics metadata
     sumstats_1_file = sumstats_1_file,
+    sumstats_1_tabix = sumstats_1_tabix,
     sumstats_1_max_nlog10P = sumstats_1_max_nlog10P,
     sumstats_2_file = sumstats_2_file,
     sumstats_2_max_nlog10P = sumstats_2_max_nlog10P,
+    sumstats_2_tabix = sumstats_2_tabix,
     
     # Analysis metadata
     nsnps = nsnps,
-    tabix = tabix,
     sumstats_1_QC = sumstats_1_QC,
     sumstats_2_QC = sumstats_2_QC,
     coloc = coloc,
@@ -450,28 +562,29 @@ create_result_template <- function(CHR_var, BP_START_var, BP_STOP_var,
 #' @importFrom data.table fwrite
 #' @importFrom writexl write_xlsx
 #' @export
-save_coloc_results <- function(coloc_df,
+save_coloc_results <- function(coloc_results,
                                file_out,
                                write_excel = FALSE,
                                PP_H4_threshold = 0.5,
-                               verbose = TRUE) {
+                               verbose = TRUE,
+                               sans_ext = TRUE) {
   
   # Check inputs
-  if (is.null(coloc_df) || nrow(coloc_df) == 0) {
+  if (is.null(coloc_results) || nrow(coloc_results) == 0) {
     warning("Empty colocalization results provided")
     return(invisible(NULL))
   }
   
-
   # Save RDS version
-  rds_file <- paste0(file_out, ".RDS")
-  saveRDS(coloc_df, rds_file)
-  if (verbose) message("Unfiltered results saved to: ", rds_file)
+  if (sans_ext) file_out <- tools::file_path_sans_ext(file_out)
+  csv_file <- paste0(file_out, "_ge.csv.gz")
+  data.table::fwrite(coloc_results, csv_file)
+  if (verbose) message("Unfiltered results saved to: ", csv_file)
   
   # Optionally create Excel files
   if (write_excel) {
     # Filter results by PP.H4.abf threshold
-    coloc_df_filt <- coloc_df[!is.na(coloc_df$PP.H4.abf) & coloc_df$PP.H4.abf >= PP_H4_threshold, ]
+    coloc_df_filt <- coloc_results[!is.na(coloc_results$PP.H4.abf) & coloc_results$PP.H4.abf >= PP_H4_threshold, ]
     
     # Create Excel file
     xlsx_file <- paste0(file_out, "_filt.xlsx")

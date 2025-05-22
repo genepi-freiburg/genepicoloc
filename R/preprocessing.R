@@ -1,5 +1,8 @@
 # preprocessing ----
-retrieve_sumstats_wrapper <- function(sumstats_function,
+
+#' Wrapper to indicate sumstats_function
+#' As not all external studies use retrieve_sumstats_tabix by default
+retrieve_sumstats_raw <- function(sumstats_function = "retrieve_sumstats_tabix",
                                       sumstats_file,
                                       coloc_regions_PASS) {
   sumstats <- do.call(what = sumstats_function, 
@@ -19,8 +22,10 @@ retrieve_sumstats_wrapper <- function(sumstats_function,
 #' @param file_remove Whether to remove temporary files
 #' @return A sumstats object
 retrieve_sumstats_tabix <- function(sumstats_file, coloc_regions_PASS,
+                                    sumstats_pheno="single",
                                     verbose = FALSE, test_mode = FALSE,
-                                    file_remove = TRUE) {
+                                    file_remove = TRUE,
+                                    return_tabix_cmd=FALSE) {
   # Check required columns
   req_cols <- c("CHR_var", "BP_START_var", "BP_STOP_var")
   if (!all(req_cols %in% colnames(coloc_regions_PASS))) {
@@ -29,6 +34,15 @@ retrieve_sumstats_tabix <- function(sumstats_file, coloc_regions_PASS,
   
   # Create temporary file with regions
   file_regions <- tempfile()
+  
+  # Set up cleanup on function exit
+  if (file_remove) {
+    on.exit({
+      file.remove(file_regions)
+    }, add = TRUE)
+  }
+  
+  
   if (test_mode) coloc_regions_PASS <- coloc_regions_PASS[1, ]
   
   # Sort and write regions
@@ -40,6 +54,11 @@ retrieve_sumstats_tabix <- function(sumstats_file, coloc_regions_PASS,
   # Run tabix with fread
   tabix_cmd <- paste0("tabix -h ", shQuote(sumstats_file), " -R ",
                       shQuote(file_regions), " 2>/dev/null")
+  if (return_tabix_cmd) {
+    attr(tabix_cmd, "file_regions") <- file_regions
+    return(tabix_cmd)
+  }
+  
   if (verbose) message("Running tabix: ", tabix_cmd)
   
   sumstats <- suppressWarnings(
@@ -57,12 +76,10 @@ retrieve_sumstats_tabix <- function(sumstats_file, coloc_regions_PASS,
   # Set attributes
   attr(sumstats, "tabix") <- tabix_attr
   attr(sumstats, "sumstats_file") <- sumstats_file
-  # attr(sumstats, "sumstats_str") <- sumstats_str
+  attr(sumstats, "coloc_regions_PASS") <- coloc_regions_PASS
+  attr(sumstats, "sumstats_pheno") <- sumstats_pheno
   class(sumstats) <- unique(c("sumstats", class(sumstats)))
-  
-  # Clean up
-  if (file_remove) file.remove(file_regions)
-  
+
   return(sumstats)
 }
 
@@ -158,8 +175,10 @@ check_sumstats_attributes <- function(sumstats, sumstats_function,
     attr(sumstats, "sumstats_sdY") <- sumstats_sdY
   
   # Required attributes
-  req_attrs <- c("sumstats_type", "sumstats_sdY", "sumstats_file", 
-                 "sumstats_function", "tabix")
+  req_attrs <- c("sumstats_function", "sumstats_file",
+                 "tabix", "coloc_regions_PASS",
+                 "sumstats_type", "sumstats_sdY",
+                 "sumstats_pheno")
   missing <- req_attrs[sapply(req_attrs, function(a) is.null(attr(sumstats, a)))]
   if (length(missing) > 0)
     stop("Missing attributes: ", paste(missing, collapse = ", "))
@@ -170,6 +189,20 @@ check_sumstats_attributes <- function(sumstats, sumstats_function,
   
   return(sumstats)
 }
+
+#' Wrapper for three functions
+#' set_max_nlog10P deactivated as it's used separately downstream
+format_sumstats <- function(sumstats,
+                            sumstats_type,
+                            sumstats_sdY) {
+  sumstats <- perform_sumstats_qc(sumstats = sumstats)
+  sumstats <- check_sumstats_attributes(
+    sumstats = sumstats,
+    sumstats_type = sumstats_type,
+    sumstats_sdY = sumstats_sdY
+  )
+}
+
 
 
 #' Get standard column names for GWAS summary statistics
@@ -248,16 +281,16 @@ match_cols <- function(sumstats, Name, rsID, CHR, POS, A1, A2,
     N = N
   )
   if (!is.null(Phenotype)) col_mapping <- c(col_mapping, Phenotype = Phenotype)
-  
+
   # Rename columns using the mapping
   for (std_name in names(col_mapping)) {
     input_name <- col_mapping[std_name]
     colnames(sumstats)[colnames(sumstats) == input_name] <- std_name
   }
-  
+
   # Select and reorder columns to match standard format
   std_cols <- get_cols_to()
-  if (!is.null(Phenotype)) std_cols <- c(std_cols, Phenotype = Phenotype)
+  if (!is.null(Phenotype)) std_cols <- c(std_cols, Phenotype = "Phenotype")
   sumstats <- sumstats[, ..std_cols]
   
   return(sumstats)
