@@ -14,11 +14,7 @@
 #' @importFrom parallel mcmapply
 #' @importFrom pbmcapply pbmcmapply
 genepicoloc_wrapper <- function(dir_out,
-                                sumstats_1_function,
-                                sumstats_1_file,
-                                sumstats_1_type,
-                                sumstats_1_sdY,
-                                coloc_regions_PASS,
+                                sumstats_1_form,
                                 args_2_df,
                                 mc_cores = 10,
                                 use_pbmcapply = FALSE,
@@ -29,19 +25,10 @@ genepicoloc_wrapper <- function(dir_out,
   # Limit regions for test mode
   if (test_mode) {
     args_2_df <- args_2_df[, .SD[1], by = sumstats_2_study]
-    coloc_regions_PASS <- coloc_regions_PASS[1,]
+    coloc_regions_PASS <- attr(sumstats_1_form, "coloc_regions_PASS")[1,]
     dir_out <- paste0(dir_out, "_test_mode")
   }
-  
-  # retrieve and format sumstats_1
-  # We need to run it only one time here, while sumstats_2
-  sumstats_1_form <- format_sumstats_1(
-    sumstats_1_function=sumstats_1_function,
-    sumstats_1_file=sumstats_1_file,
-    sumstats_1_type=sumstats_1_type,
-    sumstats_1_sdY=sumstats_1_sdY
-  )
-  
+
   # Setup common arguments for all iterations
   shared_args <- list(
     dir_out = dir_out,
@@ -82,7 +69,8 @@ genepicoloc_wrapper <- function(dir_out,
 }
 
 # colocalization functions ----
-format_sumstats_1 <- function(sumstats_1_function,
+format_sumstats_1 <- function(coloc_regions_PASS,
+                              sumstats_1_function,
                               sumstats_1_file,
                               sumstats_1_type,
                               sumstats_1_sdY) {
@@ -118,7 +106,8 @@ format_sumstats_1 <- function(sumstats_1_function,
 #' @return Invisibly returns path to the output file
 #' @importFrom data.table rbindlist
 #' @export
-format_sumstats_2 <- function(sumstats_2_function,
+format_sumstats_2 <- function(coloc_regions_PASS,
+                              sumstats_2_function,
                               sumstats_2_file,
                               sumstats_2_type,
                               sumstats_2_sdY,
@@ -128,7 +117,7 @@ format_sumstats_2 <- function(sumstats_2_function,
     sumstats_file = sumstats_2_file,
     coloc_regions_PASS = coloc_regions_PASS
   )
-  
+
   # check that input is valid
   if (is.null(attr(sumstats_2_raw, "sumstats_pheno"))) {
     stop("sumstats_pheno attribute in sumstats_2_raw not found")
@@ -142,18 +131,30 @@ format_sumstats_2 <- function(sumstats_2_function,
       stop("'Phenotype' column in sumstats_2_raw not found, ",
            "required for 'multiple' sumstats_pheno attribute")
     }
-    sumstats_2_form <- 
-      lapply(unique(sumstats_2_raw$Phenotype), function(x) {
-        sumstats_2_pheno <- subset(sumstats_2_raw, Phenotype == x)
-        attr(sumstats_2_pheno, "sumstats_pheno") <- "single"
-        attr(sumstats_2_pheno, "sumstats_file") <- 
-          paste0(attr(sumstats_2_pheno, "sumstats_file"), "_", x)
-        sumstats_2_pheno$Phenotype <- NULL
-        sumstats_2_pheno <- format_sumstats(
-          sumstats = sumstats_2_pheno,
-          sumstats_type = sumstats_2_type,
-          sumstats_sdY = sumstats_2_sdY)
-      })
+    # handle case with tabix_ok_no_data - tmp
+    # TODO implement proper handling using sumstats_2_raw class
+    Phenotypes <- unique(sumstats_2_raw$Phenotype)
+    if (length(Phenotypes) == 0) {
+      attr(sumstats_2_raw, "sumstats_pheno") <- "single"
+      sumstats_2_raw$Phenotype <- NULL
+      sumstats_2_form <- list(format_sumstats(
+        sumstats = sumstats_2_raw,
+        sumstats_type = sumstats_2_type,
+        sumstats_sdY = sumstats_2_sdY))
+    } else {
+      sumstats_2_form <- 
+        lapply(Phenotypes, function(x) {
+          sumstats_2_pheno <- subset(sumstats_2_raw, Phenotype == x)
+          attr(sumstats_2_pheno, "sumstats_file") <- 
+            paste0(attr(sumstats_2_pheno, "sumstats_file"), "_", x)
+          attr(sumstats_2_pheno, "sumstats_pheno") <- "single"
+          sumstats_2_pheno$Phenotype <- NULL
+          sumstats_2_pheno <- format_sumstats(
+            sumstats = sumstats_2_pheno,
+            sumstats_type = sumstats_2_type,
+            sumstats_sdY = sumstats_2_sdY)
+        })
+    }
     attr(sumstats_2_form, "sumstats_pheno") <- "multiple"
     attr(sumstats_2_form, "sumstats_file") <- sumstats_2_file
   } else {
@@ -179,27 +180,21 @@ process_sumstats_form <- function(dir_out,
                                   PP_H4_threshold = 0.5,
                                   verbose = TRUE) {
   
-  sumstats_1_form <- format_sumstats_1(
-    sumstats_1_function,
-    sumstats_1_file,
-    sumstats_1_type,
-    sumstats_1_sdY
-  )
-  
-  sumstats_2_form <- format_sumstats_2(
-    sumstats_2_function,
-    sumstats_2_file,
-    sumstats_2_type,
-    sumstats_2_sdY,
-    sumstats_2_study
-  )
-  
   # check input, consider creating class "sumstats_1_form"
   if (is.null(attr(sumstats_1_form, "coloc_regions_PASS"))) {
     stop("'coloc_regions_PASS' attribute not found in sumstats_1_form object")
   } else {
     coloc_regions_PASS <- attr(sumstats_1_form, "coloc_regions_PASS")
   }
+  
+  sumstats_2_form <- format_sumstats_2(
+    coloc_regions_PASS = coloc_regions_PASS,
+    sumstats_2_function = sumstats_2_function,
+    sumstats_2_file = sumstats_2_file,
+    sumstats_2_type = sumstats_2_type,
+    sumstats_2_sdY = sumstats_2_sdY,
+    sumstats_2_study = sumstats_2_study
+  )
   
   # TODO create a helper to check for sumstats_2_form
   # check that is has sumstats_pheno attribute
@@ -303,7 +298,7 @@ run_region <- function(sumstats_1, sumstats_2,
   
   if (!inherits(sumstats_2, "sumstats")) 
     stop("Expected a sumstats object for sumstats_2")
-  
+
   # Create output template with metadata
   result <- create_result_template(
     CHR_var = CHR_var, 
@@ -317,7 +312,8 @@ run_region <- function(sumstats_1, sumstats_2,
     sumstats_2_QC = attr(sumstats_2, "QC")
   )
   
-  if (attr(sumstats_2, "tabix") == "tabix_failed") {
+  if (attr(sumstats_2, "tabix") == "tabix_failed" || 
+      attr(sumstats_2, "tabix") == "tabix_ok_no_data") {
     return(result)
   }
   
@@ -325,8 +321,8 @@ run_region <- function(sumstats_1, sumstats_2,
   region_filter <- function(data) {
     subset(data, CHR == CHR_var & POS > BP_START_var & POS < BP_STOP_var)
   }
-  
   sumstats_1_sub <- region_filter(sumstats_1)
+  if (nrow(sumstats_1_sub) == 0) stop ("No data found in sumstats_1")
   sumstats_2_sub <- region_filter(sumstats_2)
   
   # Get max significance values
@@ -339,14 +335,12 @@ run_region <- function(sumstats_1, sumstats_2,
   
   # Check if primary dataset has significant SNPs
   if (is.na(sumstats_1_max_nlog10P) || sumstats_1_max_nlog10P < min_nlog10P) {
-    stop(if (is.na(sumstats_1_max_nlog10P)) 
-      "No data found in sumstats_1" 
-      else "No significant SNPs in sumstats_1")
+    stop("No significant SNPs in sumstats_1")
   }
   
   # Check if secondary dataset has significant SNPs
   if (is.na(sumstats_2_max_nlog10P) || sumstats_2_max_nlog10P < min_nlog10P) {
-    result$coloc <- ifelse(is.na(sumstats_2_max_nlog10P), "no_data_sumstats_2", "no_signif_sumstats_2")
+    result$coloc <- "no_signif_sumstats_2"
     return(result)
   }
   

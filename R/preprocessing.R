@@ -3,8 +3,8 @@
 #' Wrapper to indicate sumstats_function
 #' As not all external studies use retrieve_sumstats_tabix by default
 retrieve_sumstats_raw <- function(sumstats_function = "retrieve_sumstats_tabix",
-                                      sumstats_file,
-                                      coloc_regions_PASS) {
+                                  sumstats_file,
+                                  coloc_regions_PASS) {
   sumstats <- do.call(what = sumstats_function, 
                       args = list(sumstats_file = sumstats_file,
                                   coloc_regions_PASS = coloc_regions_PASS))
@@ -112,7 +112,10 @@ perform_sumstats_qc <- function(sumstats, verbose = FALSE) {
   # Skip QC if tabix failed
   if (attr(sumstats, "tabix") == "tabix_failed") {
     attr(sumstats, "QC") <- "skipped_tabix_failed"
-    if (verbose) message("Skipping QC - tabix failed")
+    return(sumstats)
+  }
+  if (attr(sumstats, "tabix") == "tabix_ok_no_data") {
+    attr(sumstats, "QC") <- "no_data"
     return(sumstats)
   }
   
@@ -125,9 +128,9 @@ perform_sumstats_qc <- function(sumstats, verbose = FALSE) {
     QC <- paste0(QC, "_dupvar")
     sumstats <- sumstats[!dups, ]
   }
-  
+
   # Clean numeric columns
-  for (col in c("BETA", "SE")) {
+  for (col in c("BETA", "SE", "AF")) {
     inf_vals <- is.infinite(sumstats[[col]])
     if (any(inf_vals)) {
       if (verbose) message("Removing ", sum(inf_vals), " infinite values in ", col)
@@ -150,6 +153,14 @@ perform_sumstats_qc <- function(sumstats, verbose = FALSE) {
     }
   }
   
+  col <- "AF"
+  one_vals <- sumstats[[col]] == 1
+  if (any(one_vals)) {
+    if (verbose) message("Removing ", sum(one_vals), " values=1 in ", col)
+    QC <- paste0(QC, "_1in", col)
+    sumstats <- sumstats[!one_vals, ]
+  }
+
   attr(sumstats, "QC") <- if (QC == "") "ok" else substring(QC, 2)
   
   if (verbose) message("QC completed")
