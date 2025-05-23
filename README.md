@@ -34,13 +34,15 @@ For more details on the method, please refer to the following resources:
 # Installation
 
 ## System requirements
-- R: tested with version 4, should be compatible with earlier versions as well (see https://www.r-project.org/)  
-- *coloc* R package (see https://chr1swallace.github.io/coloc/)  
+- R: version 4.0 or higher (see https://www.r-project.org/)  
+- *coloc* R package v5.0 or higher (see https://chr1swallace.github.io/coloc/)  
+- *data.table* R package (see https://rdatatable.gitlab.io/data.table/)  
 - *remotes* R package (see https://cran.r-project.org/web/packages/remotes/index.html)  
-- *tabix* (see http://www.htslib.org/doc/tabix.html)  
+- *tabix* v1.11 or higher (see http://www.htslib.org/doc/tabix.html)  
+- *bgzip* (part of htslib/tabix)  
 - *git* (see https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)  
 
-The code was tested on Linux systems (Ubuntu, Debian) but should work on other systems as well.  
+The code was tested on Linux systems (Ubuntu 20.04+, Debian 11+) and macOS. Windows users may need to use WSL (Windows Subsystem for Linux).  
 
 To install *genepicoloc*, please run:
 ```
@@ -119,6 +121,14 @@ coloc_regions_list3 <- get_coloc_regions(sumstats = sumstats_1)
 
 While running, the `get_coloc_regions()` function outputs logs with the identified window. There is only 1-megabase window containing significant variants.  
 
+The resulting `coloc_regions_list$coloc_regions_PASS` contains the genomic regions to be analyzed:
+```
+  CHR_var BP_START_var BP_STOP_var
+1       1     20344893    22435732
+2       5    176233818   178447049
+3       6     32724153    35332658
+```
+
 Finally, we save the obtained results using `write_regions()` and the `sumstats_name` variable that we declared in the beginning (e.g., "eGFR_sumstats"). At the same time, we will create a data.frame with arguments for colocalization.  
 
 ```
@@ -143,6 +153,17 @@ eQTL_Catalogue <- make_eQTL_Catalogue_args()
 args_df <- do.call(create_args_df, c(coloc_regions_list$coloc_regions_PASS,
                                      sumstats_1_args,
                                      eQTL_Catalogue))
+```
+
+The resulting `args_df` is a data.table containing all the parameters needed for colocalization:
+```
+str(args_df)
+Classes 'data.table' and 'data.frame':    15383 obs. of  5 variables:
+ $ sumstats_2_study   : chr  "GTEXv8_eQTL" "GTEXv8_eQTL" "GTEXv8_eQTL" "GTEXv8_eQTL" ...
+ $ sumstats_2_file    : chr  "/data/public_resources/GTeX/eQTLs/V8/all_associations_EUR_bed/GTEx_Analysis_v8_QTLs-GTEx_Analysis_v8_EUR_eQTL_a"| __truncated__ ...
+ $ sumstats_2_function: chr  "tabix_GTEXv8" "tabix_GTEXv8" "tabix_GTEXv8" "tabix_GTEXv8" ...
+ $ sumstats_2_type    : chr  "quant" "quant" "quant" "quant" ...
+ $ sumstats_2_sdY     : num  1 1 1 1 1 1 1 1 1 1 ...
 ```
 
 To run colocalization analysis we use a wrapper function `map_over_args()` that takes care of all data wrangling. We select only two GTEx tissues for illustration purpose `c(30,49)`. `annotate_eQTL_Catalog()` will annotate the results.  
@@ -172,6 +193,17 @@ args_df_example <- create_args_df(CHR_var="16",
                                   sumstats_2_function="query_eQTL_Catalogue",
                                   sumstats_2_type="quant",
                                   sumstats_2_sdY=1)
+```
+
+Alternatively, you can use `format_sumstats_1()` to preprocess the summary statistics:
+
+```
+sumstats_1_form <- format_sumstats_1(
+  coloc_regions_PASS = tmp_coloc_regions_PASS(),
+  sumstats_1_function = "retrieve_sumstats_tabix",
+  sumstats_1_file = "preprocessing/regions/phosphate_20250221.multi.tbl_subset.tsv.gz",
+  sumstats_1_type = "quant",
+  sumstats_1_sdY = NA)
 ```
 
 

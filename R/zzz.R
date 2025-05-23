@@ -25,7 +25,23 @@
   
   # Create startup message
   packageStartupMessage(
-    "genepicoloc v", version, " - R package to facilitate genetic (colocalization) analyses\n",
+    "genepicoloc v", version, " - R package to facilitate genetic (colocalization) analyses\n"
     # "For citation information, use: citation('", pkgname, "')"
   )
 }
+
+# Suppress R CMD check NOTEs about undefined global variables
+# These are typically column names used with data.table syntax
+utils::globalVariables(c(
+  "..required_cols",
+  "..std_cols",
+  "CHR",
+  "Name",
+  "POS",
+  "Phenotype",
+  "copy",
+  "effectAlleleFreq",
+  "region",
+  "study_id",
+  "sumstats_2_study"
+))
