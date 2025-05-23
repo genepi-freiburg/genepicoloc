@@ -1,5 +1,5 @@
 Package: genepicoloc
-Title: Scale Up Genetic Colocalization Analysis
+Title: R Package to Facilitate Genetic (Colocalization) Analyses
 Date: 2025-01-23
 Version: 0.9.1
 Authors@R: 
