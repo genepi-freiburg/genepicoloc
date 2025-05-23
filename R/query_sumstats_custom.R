@@ -269,7 +269,96 @@ format_UKB_TOPMed <- function(sumstats) {
   
 }
 
-#' tabix_FinnGen_r9
+
+tabix_GCKD_pGWAS <- function(sumstats_file, coloc_regions_PASS) {
+  sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
+                                      coloc_regions_PASS=coloc_regions_PASS)
+  if (attr(sumstats, "tabix") != "tabix_failed") {
+    sumstats <- format_GCKD_pGWAS(sumstats=sumstats)
+    OID <- gsub(".*(OID[0-9]+).*", "\\1", sumstats_file)
+    attr(sumstats, "sumstats_file") <- 
+      paste0(attr(sumstats, "sumstats_file"), "_", OID)
+  }
+  return(sumstats)
+}
+
+format_GCKD_pGWAS <- function(sumstats) {
+  # check
+  cols_from <- c("SNP","chr","position","coded_all","noncoded_all","strand_genome","beta","SE","pval","AF_coded_all","HWE_pval","FreqSE","MinFreq","MaxFreq","Direction","HetISq","HetChiSq","HetDf","HetPVal","callrate","n_total","oevar_imp","imputed")
+  if (!identical(cols_from, colnames(sumstats))) {
+    stop("Column mismatch when reading ", attr(sumstats, "sumstats_file"))
+  }
+  # format
+  pval <- sumstats[["pval"]]
+  sumstats$nlog10P <- NA
+  # handle underflow if p<1e-322
+  if (is.character(pval)) {
+    l1 <- grepl("e", pval)
+    l2 <- !l1
+    # Scientific notation cases
+    sumstats$nlog10P[l1] <- sapply(pval[l1], function(x) {
+      parts <- as.numeric(strsplit(x, "e")[[1]])
+      mantissa <- parts[1]
+      exponent <- parts[2]
+      -log10(mantissa) - exponent
+    })
+    # Regular decimal cases
+    sumstats$nlog10P[l2] <- -log10(as.numeric(pval[l2]))
+  } else {
+    sumstats$nlog10P <- -log10(sumstats$pval)
+  }
+  sumstats$rsID <- NA
+  sumstats <- match_cols(sumstats=sumstats,
+                         Name="SNP",
+                         rsID="rsID",
+                         CHR="chr",
+                         POS="position",
+                         A1="coded_all",
+                         A2="noncoded_all",
+                         BETA="beta",
+                         SE="SE",
+                         nlog10P="nlog10P",
+                         AF="AF_coded_all",
+                         N="n_total")
+  return(sumstats)
+}
+
+
+
+tabix_GCKD_mGWAS <- function(sumstats_file, coloc_regions_PASS) {
+  sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
+                                      coloc_regions_PASS=coloc_regions_PASS)
+  if (attr(sumstats, "tabix") != "tabix_failed") {
+    sumstats <- format_GCKD_mGWAS(sumstats=sumstats)
+  }
+  return(sumstats)
+}
+
+format_GCKD_mGWAS <- function(sumstats) {
+  # check
+  cols_from <- c("CHROM","GENPOS","ID","ALLELE0","ALLELE1","A1FREQ","INFO","N","TEST","BETA","SE","CHISQ","LOG10P","EXTRA")
+  if (!identical(cols_from, colnames(sumstats))) {
+    stop("Column mismatch when reading ", attr(sumstats, "sumstats_file"))
+  }
+  # format
+  sumstats$rsID <- NA
+  sumstats <- match_cols(sumstats=sumstats,
+                         Name="ID",
+                         rsID="rsID",
+                         CHR="CHROM",
+                         POS="GENPOS",
+                         A1="ALLELE1",
+                         A2="ALLELE0",
+                         BETA="BETA",
+                         SE="SE",
+                         nlog10P="LOG10P",
+                         AF="A1FREQ",
+                         N="N")
+  return(sumstats)
+}
+
+
+
 #' https://finngen.gitbook.io/documentation/data-description
 tabix_FinnGen_r9 <- function(sumstats_file, coloc_regions_PASS) {
   coloc_regions_PASS$CHR_var[coloc_regions_PASS$CHR_var == "X"] <- "23"
@@ -305,6 +394,39 @@ format_FinnGen_r9 <- function(sumstats) {
                          nlog10P="mlogp",
                          AF="af_alt",
                          N="N")
+  return(sumstats)
+}
+
+
+tabix_CKDGen_r4 <- function(sumstats_file, coloc_regions_PASS) {
+  sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
+                                      coloc_regions_PASS=coloc_regions_PASS)
+  if (attr(sumstats, "tabix") != "tabix_failed") {
+    sumstats <- format_CKDGen_r4(sumstats=sumstats)
+  }
+  return(sumstats)
+}
+
+format_CKDGen_r4 <- function(sumstats) {
+  # check
+  cols_from <- c("CHR_hg38","POS_hg38","A1_hg38","A2_hg38","Name_hg38","RSID","Freq1","Effect","StdErr","P-value","n_total_sum")
+  if (!identical(cols_from, colnames(sumstats))) {
+    stop("Column mismatch when reading ", attr(sumstats, "sumstats_file"))
+  }
+  # format
+  sumstats$nlog10P <- -log10(sumstats$`P-value`)
+  sumstats <- match_cols(sumstats=sumstats,
+                         Name="Name_hg38",
+                         rsID="RSID",
+                         CHR="CHR_hg38",
+                         POS="POS_hg38",
+                         A1="A1_hg38",
+                         A2="A2_hg38",
+                         BETA="Effect",
+                         SE="StdErr",
+                         nlog10P="nlog10P",
+                         AF="Freq1",
+                         N="n_total_sum")
   return(sumstats)
 }
 
