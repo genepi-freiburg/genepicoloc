@@ -1,3 +1,14 @@
+#' flip_alleles
+#' flip alleles according to complementary base pairing 
+flip_alleles <- function(vec) {
+  vec_out <- vec
+  vec_out <- toupper(vec_out)
+  vec_out[vec == "A"] <- "T"
+  vec_out[vec == "T"] <- "A"
+  vec_out[vec == "C"] <- "G"
+  vec_out[vec == "G"] <- "C"
+  return(vec_out)
+}
 #' Check if a binary is available in the system path
 #'
 #' @param bin_name Name or path of the binary to check

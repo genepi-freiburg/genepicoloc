@@ -4,7 +4,7 @@
 #' @param dir_out Output directory for results
 #' @param sumstats_1 Primary summary statistics object
 #' @param coloc_regions_PASS Regions to analyze
-#' @param args_2_df Data frame with secondary dataset parameters
+#' @param args_df Data frame with secondary dataset parameters
 #' @param mc_cores Number of cores for parallel processing
 #' @param use_pbmcapply Whether to use pbmcapply for progress tracking
 #' @param test_mode Run in test mode (limited execution)
@@ -15,20 +15,25 @@
 #' @importFrom pbmcapply pbmcmapply
 genepicoloc_wrapper <- function(dir_out,
                                 sumstats_1_form,
-                                args_2_df,
+                                args_df,
                                 mc_cores = 10,
                                 use_pbmcapply = FALSE,
                                 test_mode = FALSE, 
                                 verbose = FALSE,
                                 debug_mode = FALSE) {
-  
   # Limit regions for test mode
   if (test_mode) {
-    args_2_df <- args_2_df[, .SD[1], by = sumstats_2_study]
+    args_df <- args_df[, .SD[1], by = sumstats_2_study]
     coloc_regions_PASS <- attr(sumstats_1_form, "coloc_regions_PASS")[1,]
     dir_out <- paste0(dir_out, "_test_mode")
   }
+  
+  message("Starting genepicoloc: ", nrow(args_df), " sumstats to be processed.")
 
+  # Create folder structure
+  if (!dir.exists(dir_out)) dir.create(dir_out, recursive = TRUE)
+  if (verbose) message("Output will be written to ", dir_out)
+  
   # Setup common arguments for all iterations
   shared_args <- list(
     dir_out = dir_out,
@@ -39,11 +44,11 @@ genepicoloc_wrapper <- function(dir_out,
   # Prepare arguments from the data frame
   mapply_args <- list(
     FUN = process_sumstats_form,
-    sumstats_2_study = args_2_df$sumstats_2_study,
-    sumstats_2_file = args_2_df$sumstats_2_files,
-    sumstats_2_function = args_2_df$sumstats_2_function,
-    sumstats_2_type = args_2_df$sumstats_2_type,
-    sumstats_2_sdY = args_2_df$sumstats_2_sdY,
+    sumstats_2_study = args_df$sumstats_2_study,
+    sumstats_2_file = args_df$sumstats_2_file,
+    sumstats_2_function = args_df$sumstats_2_function,
+    sumstats_2_type = args_df$sumstats_2_type,
+    sumstats_2_sdY = args_df$sumstats_2_sdY,
     MoreArgs = shared_args
   )
   
@@ -58,14 +63,13 @@ genepicoloc_wrapper <- function(dir_out,
     mapply_args <- c(mapply_args, mc.cores=mc_cores)
   }
   
-  # save args_2_df
-  args_2_df_file <- paste0(dir_out, "/args_2_df.RDS")
-  if (verbose) message("Saving args_2_df_file to ", args_2_df_file)
-  saveRDS(args_2_df, args_2_df_file)
+  # save args_df
+  args_df_file <- paste0(dir_out, "/args_df.csv.gz")
+  if (verbose) message("Saving args_df_file to ", args_df_file)
+  data.table::fwrite(args_df, args_df_file)
 
   # Execute parallel mapping function
-  if (verbose) message("Starting colocalization analysis")
-  do.call(parallel_func, mapply_args) 
+  invisible(do.call(parallel_func, mapply_args))
 }
 
 # colocalization functions ----
@@ -350,6 +354,13 @@ run_region <- function(sumstats_1, sumstats_2,
     return(result)
   }
   
+  # beta effect directionality module - simple implementation first
+  directionality_df <- get_directionality(
+    sumstats_1 = sumstats_1_sub,
+    sumstats_2 = sumstats_2_sub
+  )
+  for (i in colnames(directionality_df)) result[[i]] <- directionality_df[[i]]
+
   # Run colocalization
   coloc_output <- run_coloc(
     sumstats_1 = sumstats_1_sub,
@@ -408,6 +419,58 @@ run_coloc <- function(sumstats_1, sumstats_2, silent = TRUE) {
   
   return(coloc_output)
 }
+
+get_directionality <- function(sumstats_1, sumstats_2) {
+  common_names <- intersect(sumstats_1$Name, sumstats_2$Name)
+  sumstats_1 <- subset(sumstats_1, Name %in% common_names)
+  sumstats_2 <- subset(sumstats_2, Name %in% common_names)
+  
+  index_1 <- sumstats_1[which.max(sumstats_1$nlog10P),]
+  index_2 <- subset(sumstats_2, Name  == index_1$Name)
+  
+  directionality_df <- data.frame(
+    sumstats_1_ind_Name = index_1$Name,
+    sumstats_1_ind_A1 = index_1$A1,
+    sumstats_1_ind_A2 = index_1$A2,
+    sumstats_1_ind_nlog10P = index_1$nlog10P,
+    sumstats_1_ind_BETA = index_1$BETA,
+    sumstats_1_ind_BETA_sign = sign(index_1$BETA),
+    sumstats_2_ind_A1 = index_2$A1,
+    sumstats_2_ind_A2 = index_2$A2,
+    sumstats_2_ind_nlog10P = index_2$nlog10P,
+    sumstats_2_ind_BETA = index_2$BETA,
+    sumstats_2_ind_BETA_sign = sign(index_2$BETA)
+  )
+  directionality_df <- detect_directionality(ind_df=directionality_df)
+  return(directionality_df)
+}
+
+detect_directionality <- function(ind_df) {
+  # case 1, same A1
+  if (ind_df$sumstats_1_ind_A1 == ind_df$sumstats_2_ind_A1) {
+    directionality <- ifelse(
+      test = ind_df$sumstats_1_ind_BETA_sign == ind_df$sumstats_2_ind_BETA_sign,
+      yes = 1,
+      no = -1
+    )
+  } else {
+    # try to compare with A2
+    if (ind_df$sumstats_1_ind_A1 == ind_df$sumstats_2_ind_A2) {
+      # if yes, then compare opposite directionality
+      directionality <- ifelse(
+        test = ind_df$sumstats_1_ind_BETA_sign == ind_df$sumstats_2_ind_BETA_sign,
+        yes = -1,
+        no = 1
+      )
+    } else {
+      # directionality undefined - need to handle this special case
+      directionality <- NA
+    }
+  }
+  ind_df$directionality <- directionality
+  return(ind_df)
+}
+
 
 #' Format sumstats data.frame for the coloc.abf input
 #'
@@ -539,6 +602,21 @@ create_result_template <- function(CHR_var,
     Top_coloc_SNP.PP.H4 = NA, 
     priors = NA,
     
+    # directionality module
+    sumstats_1_ind_Name = NA,
+    sumstats_1_ind_A1 = NA,
+    sumstats_1_ind_A2 = NA,
+    sumstats_1_ind_nlog10P = NA,
+    sumstats_1_ind_BETA = NA,
+    sumstats_1_ind_BETA_sign = NA,
+    sumstats_2_ind_A1 = NA,
+    sumstats_2_ind_A2 = NA,
+    sumstats_2_ind_nlog10P = NA,
+    sumstats_2_ind_BETA = NA,
+    sumstats_2_ind_BETA_sign = NA,
+    directionality = NA,
+    
+    # stringsAsFactors
     stringsAsFactors = FALSE
   )
 }
