@@ -2,10 +2,34 @@
 % Please edit documentation in R/ebi_interface.R
 \name{get_datasets_eQTL_Catalogue}
 \alias{get_datasets_eQTL_Catalogue}
-\title{get_datasets_eQTL_Catalogue}
+\title{Get eQTL Catalogue dataset information}
 \usage{
 get_datasets_eQTL_Catalogue()
 }
+\value{
+A data.frame containing dataset metadata with columns including:
+dataset_id, study_id, tissue_id, condition, quant_method, etc.
+}
 \description{
-get_datasets_eQTL_Catalogue
+Retrieves metadata for all datasets available in the eQTL Catalogue,
+including study information, tissue types, and analysis methods.
+}
+\details{
+This function is useful for:
+\itemize{
+\item Finding available datasets for a tissue of interest
+\item Filtering datasets by quantification method (ge, tx, etc.)
+\item Getting study metadata for result annotation
+}
+}
+\examples{
+\dontrun{
+# Get all available datasets
+datasets <- get_datasets_eQTL_Catalogue()
+
+# Filter for gene expression in specific tissue
+blood_ge <- subset(datasets, quant_method == "ge" & 
+                   grepl("blood", tissue_label, ignore.case = TRUE))
+}
+
 }

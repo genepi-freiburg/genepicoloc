@@ -2,10 +2,32 @@
 % Please edit documentation in R/ebi_interface.R
 \name{annotate_eQTL_Catalog}
 \alias{annotate_eQTL_Catalog}
-\title{annotate_eQTL_Catalog}
+\title{Annotate colocalization results with eQTL Catalogue metadata}
 \usage{
 annotate_eQTL_Catalog(coloc_out, annotation_df, datasets_eQTL_Catalogue)
 }
+\arguments{
+\item{coloc_out}{Data.frame. Colocalization results with sumstats_2_file column.}
+
+\item{annotation_df}{Data.frame. Gene annotations (e.g., ENSG to gene symbol mapping).}
+
+\item{datasets_eQTL_Catalogue}{Data.frame. Dataset metadata from get_datasets_eQTL_Catalogue().}
+}
+\value{
+The input coloc_out data.frame with additional annotation columns:
+\itemize{
+\item dataset_id: Extracted dataset identifier
+\item gene_id: Extracted gene identifier (ENSG)
+\item Columns from annotation_df (e.g., gene_symbol)
+\item Columns from datasets_eQTL_Catalogue (e.g., tissue_label, study_id)
+}
+}
 \description{
-annotate_eQTL_Catalog
+Adds gene annotations and dataset metadata to colocalization results
+from eQTL Catalogue analyses.
+}
+\details{
+The function parses the sumstats_2_file name to extract dataset and gene
+identifiers, then merges relevant metadata. File names are expected to
+follow the pattern: "dataset_id_gene_id".
 }

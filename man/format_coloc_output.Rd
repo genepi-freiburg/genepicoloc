@@ -2,20 +2,45 @@
 % Please edit documentation in R/colocalization.R
 \name{format_coloc_output}
 \alias{format_coloc_output}
-\title{Format the output of colocalization analysis}
+\title{Format colocalization analysis output}
 \usage{
 format_coloc_output(coloc_output, coloc_template, n_top_snps = 5)
 }
 \arguments{
-\item{coloc_output}{Output from coloc::coloc.abf function}
+\item{coloc_output}{A list returned by coloc.abf containing:
+\itemize{
+\item summary: Named vector with posterior probabilities
+\item results: Data frame with per-SNP results
+\item priors: Prior probabilities used
+}}
 
-\item{coloc_template}{Results template from create_result_template}
+\item{coloc_template}{A data.frame created by create_result_template
+containing region metadata and placeholder fields.}
 
-\item{n_top_snps}{Number of SNPs with highest PP.H4 to include}
+\item{n_top_snps}{Integer. Number of top SNPs by PP.H4 to include
+(default: 5).}
 }
 \value{
-Formatted results of colocalization analysis
+The coloc_template data.frame with added fields:
+\itemize{
+\item Top_coloc_SNP: Comma-separated list of top SNP identifiers
+\item Top_coloc_SNP.PP.H4: Formatted posterior probabilities
+\item priors: Prior probabilities used (as string)
+\item nsnps: Number of SNPs analyzed
+\item PP.H0-H4.abf: Posterior probabilities for each hypothesis
+}
 }
 \description{
-Format the output of colocalization analysis
+Extracts and formats key results from the coloc.abf output, including
+posterior probabilities and top colocalized SNPs, into a structured format
+for reporting.
+}
+\details{
+The function formats probabilities using scientific notation for very
+small values (< 0.01) and fixed decimal places otherwise. This ensures
+readable output while preserving precision where needed.
+}
+\seealso{
+\code{\link{run_region}} which calls this function
+\code{\link{create_result_template}} for the template structure
 }

@@ -7,15 +7,47 @@
 run_coloc(sumstats_1, sumstats_2, silent = TRUE)
 }
 \arguments{
-\item{sumstats_1}{Primary summary statistics object}
+\item{sumstats_1}{A sumstats object containing the primary dataset with
+required attributes sumstats_type and sumstats_sdY.}
 
-\item{sumstats_2}{Secondary summary statistics object}
+\item{sumstats_2}{A sumstats object containing the secondary dataset with
+required attributes sumstats_type and sumstats_sdY.}
 
-\item{silent}{Whether to suppress coloc.abf output messages}
+\item{silent}{Logical. Whether to suppress coloc.abf output messages
+(default: TRUE).}
 }
 \value{
-Results from coloc.abf function
+A list containing coloc.abf results including:
+\itemize{
+\item summary: Named vector with nsnps and posterior probabilities
+\item results: Data frame with per-SNP results
+\item priors: Prior probabilities used
+}
 }
 \description{
-Run colocalization analysis using coloc.abf
+Executes the Bayesian colocalization analysis using the coloc.abf function
+from the coloc package. This function prepares the input data and handles
+output suppression if requested.
+}
+\details{
+This function:
+\enumerate{
+\item Extracts required attributes from both datasets
+\item Prepares data in the format required by coloc.abf
+\item Runs the colocalization analysis
+\item Optionally suppresses console output for cleaner logs
+}
+
+The coloc.abf function tests five hypotheses:
+\itemize{
+\item H0: No association with either trait
+\item H1: Association with trait 1 only
+\item H2: Association with trait 2 only
+\item H3: Association with both traits, different variants
+\item H4: Association with both traits, same variant
+}
+}
+\seealso{
+\code{\link{prepare_coloc_dataset}} for data preparation
+\code{\link[coloc]{coloc.abf}} for the underlying method
 }

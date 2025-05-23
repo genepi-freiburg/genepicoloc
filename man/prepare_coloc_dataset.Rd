@@ -2,20 +2,46 @@
 % Please edit documentation in R/colocalization.R
 \name{prepare_coloc_dataset}
 \alias{prepare_coloc_dataset}
-\title{Format sumstats data.frame for the coloc.abf input}
+\title{Prepare summary statistics for coloc.abf input}
 \usage{
 prepare_coloc_dataset(sumstats, sumstats_type, sumstats_sdY)
 }
 \arguments{
-\item{sumstats}{Summary statistics object}
+\item{sumstats}{A sumstats object containing standardized summary statistics.}
 
-\item{sumstats_type}{Type of summary statistics ('quant' or 'cc')}
+\item{sumstats_type}{Character string. Type of trait ('quant' or 'cc').}
 
-\item{sumstats_sdY}{Standard deviation for quantitative trait}
+\item{sumstats_sdY}{Numeric. Standard deviation of quantitative trait.
+Required for quant traits if MAF/N not available.}
 }
 \value{
-List formatted for coloc.abf input
+A list formatted for coloc.abf with elements:
+\itemize{
+\item beta: Effect sizes
+\item varbeta: Variance of effect sizes (SE squared)
+\item snp: SNP identifiers
+\item type: Trait type ('quant' or 'cc')
+\item For quant traits: Either sdY or (MAF and N)
+\item For cc traits: Additional parameters may be added
+}
 }
 \description{
-Format sumstats data.frame for the coloc.abf input
+Formats a sumstats object into the specific list structure required by
+the coloc.abf function. Handles both quantitative and case-control traits.
+}
+\details{
+The coloc package requires specific input formats:
+\itemize{
+\item For quantitative traits: Preferred to provide sdY (trait SD)
+\item If sdY unavailable: Falls back to MAF and N
+\item For case-control: Standard errors must account for case/control ratio
+}
+}
+\references{
+Giambartolomei et al. (2014) "Bayesian Test for Colocalisation between
+Pairs of Genetic Association Studies Using Summary Statistics." PLOS Genetics.
+}
+\seealso{
+\code{\link[coloc]{coloc.abf}} for input requirements
+\code{\link{run_coloc}} which calls this function
 }

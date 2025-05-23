@@ -6,9 +6,8 @@
 \usage{
 genepicoloc_wrapper(
   dir_out,
-  sumstats_1,
-  coloc_regions_PASS,
-  args_2_df,
+  sumstats_1_form,
+  args_df,
   mc_cores = 10,
   use_pbmcapply = FALSE,
   test_mode = FALSE,
@@ -17,27 +16,75 @@ genepicoloc_wrapper(
 )
 }
 \arguments{
-\item{dir_out}{Output directory for results}
+\item{dir_out}{Character string. Output directory path where results will be saved.
+Directory will be created if it doesn't exist.}
 
-\item{sumstats_1}{Primary summary statistics object}
+\item{sumstats_1_form}{A formatted sumstats object containing the primary dataset.
+Must have a "coloc_regions_PASS" attribute containing regions to analyze.}
 
-\item{coloc_regions_PASS}{Regions to analyze}
+\item{args_df}{A data.table/data.frame with columns:
+\itemize{
+\item sumstats_2_study: Study identifier for secondary dataset
+\item sumstats_2_file: Path to secondary summary statistics file
+\item sumstats_2_function: Function name to process secondary data
+\item sumstats_2_type: Type of summary statistics ('quant' or 'cc')
+\item sumstats_2_sdY: Standard deviation for quantitative traits
+}}
 
-\item{args_2_df}{Data frame with secondary dataset parameters}
+\item{mc_cores}{Integer. Number of cores for parallel processing (default: 10).
+Ignored when debug_mode = TRUE.}
 
-\item{mc_cores}{Number of cores for parallel processing}
+\item{use_pbmcapply}{Logical. Whether to use pbmcapply for progress tracking
+(default: FALSE). Requires pbmcapply package.}
 
-\item{use_pbmcapply}{Whether to use pbmcapply for progress tracking}
+\item{test_mode}{Logical. Run in test mode with limited execution (default: FALSE).
+Processes only the first region and first entry per study.}
 
-\item{test_mode}{Run in test mode (limited execution)}
+\item{verbose}{Logical. Print detailed progress messages (default: FALSE).}
 
-\item{verbose}{Print detailed messages}
-
-\item{debug_mode}{Run sequentially for debugging}
+\item{debug_mode}{Logical. Run sequentially for debugging (default: FALSE).
+Overrides mc_cores and use_pbmcapply settings.}
 }
 \value{
-Invisible result of parallel execution
+Invisibly returns NULL. Results are written to disk in the specified
+output directory.
 }
 \description{
-Wrapper for parallel colocalization analysis
+Orchestrates parallel colocalization analysis across multiple secondary datasets
+against a primary dataset. Supports different parallelization strategies and
+includes options for debugging and testing.
+}
+\details{
+The function performs the following steps:
+\enumerate{
+\item Creates output directory structure
+\item Saves input arguments to args_df.csv.gz for reproducibility
+\item Runs colocalization analysis in parallel (or sequentially if debugging)
+\item Each secondary dataset is processed by \code{\link{process_sumstats_form}}
+}
+
+In test mode, the output directory name is appended with "_test_mode" and
+only the first region and first dataset per study are processed.
+}
+\examples{
+\dontrun{
+# Prepare arguments data frame
+args_df <- data.frame(
+  sumstats_2_study = c("Study1", "Study2"),
+  sumstats_2_file = c("path/to/study1.gz", "path/to/study2.gz"),
+  sumstats_2_function = "retrieve_sumstats_tabix",
+  sumstats_2_type = "quant",
+  sumstats_2_sdY = NA
+)
+
+# Run colocalization
+genepicoloc_wrapper(
+  dir_out = "results/coloc",
+  sumstats_1_form = my_sumstats,
+  args_df = args_df,
+  mc_cores = 4,
+  verbose = TRUE
+)
+}
+
 }

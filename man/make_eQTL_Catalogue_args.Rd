@@ -2,10 +2,63 @@
 % Please edit documentation in R/ebi_interface.R
 \name{make_eQTL_Catalogue_args}
 \alias{make_eQTL_Catalogue_args}
-\title{make_eQTL_Catalogue_args}
+\title{Create argument list for eQTL Catalogue colocalization analysis}
 \usage{
-make_eQTL_Catalogue_args(QTS = "QTS000015")
+make_eQTL_Catalogue_args(QTS = "QTS000015", quant_method = "ge")
+}
+\arguments{
+\item{QTS}{Character vector. Study IDs to include (default: "QTS000015").
+Use get_datasets_eQTL_Catalogue() to see available studies.}
+
+\item{quant_method}{Character string. Quantification method to use
+(default: "ge" for gene expression). Options include:
+\itemize{
+\item "ge": Gene expression
+\item "tx": Transcript expression
+\item "txrev": Transcript usage
+\item "microarray": Microarray gene expression
+}}
+}
+\value{
+A list with components:
+\itemize{
+\item sumstats_2_files: Dataset identifiers to analyze
+\item sumstats_2_function: Function name for data retrieval
+\item sumstats_2_type: Summary statistics type ("quant")
+\item sumstats_2_sdY: Standard deviation (NA for eQTL data)
+}
 }
 \description{
-make_eQTL_Catalogue_args
+Generates a properly formatted argument list for running colocalization
+analysis with eQTL Catalogue datasets.
+}
+\details{
+This function simplifies the setup for eQTL colocalization by:
+\enumerate{
+\item Fetching current dataset metadata
+\item Filtering by study and quantification method
+\item Formatting arguments for genepicoloc_wrapper
+}
+}
+\examples{
+\dontrun{
+# Get arguments for default study
+eqtl_args <- make_eQTL_Catalogue_args()
+
+# Get arguments for multiple studies
+eqtl_args <- make_eQTL_Catalogue_args(
+  QTS = c("QTS000001", "QTS000002"),
+  quant_method = "ge"
+)
+
+# Use in colocalization analysis
+args_df <- data.frame(
+  sumstats_2_study = eqtl_args$sumstats_2_files,
+  sumstats_2_file = eqtl_args$sumstats_2_files,
+  sumstats_2_function = eqtl_args$sumstats_2_function,
+  sumstats_2_type = eqtl_args$sumstats_2_type,
+  sumstats_2_sdY = eqtl_args$sumstats_2_sdY
+)
+}
+
 }

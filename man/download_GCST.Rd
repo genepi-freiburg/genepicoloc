@@ -2,10 +2,39 @@
 % Please edit documentation in R/ebi_interface.R
 \name{download_GCST}
 \alias{download_GCST}
-\title{download_GCST}
+\title{Download GWAS Catalog study files}
 \usage{
 download_GCST(url_in, dest_folder)
 }
+\arguments{
+\item{url_in}{Character string. URL to the study on GWAS catalog
+(e.g., "http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/GCSTXXXXXX").}
+
+\item{dest_folder}{Character string. Local directory to save files.}
+}
 \description{
-download_GCST
+Downloads all files for a GWAS Catalog study (GCST identifier) from the
+EBI FTP server. Automatically detects and downloads harmonized files if available.
+}
+\details{
+The function:
+\enumerate{
+\item Converts HTTP URLs to FTP protocol
+\item Lists all files in the study directory
+\item Checks for harmonized subdirectory and uses it if available
+\item Downloads files that don't already exist locally
+}
+
+Files are downloaded using wget for reliability. Existing files are
+not re-downloaded.
+}
+\examples{
+\dontrun{
+# Download a GWAS study
+download_GCST(
+  url_in = "http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/GCST123456",
+  dest_folder = "data/gwas/GCST123456"
+)
+}
+
 }

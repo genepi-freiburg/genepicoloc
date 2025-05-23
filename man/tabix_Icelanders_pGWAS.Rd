@@ -2,10 +2,20 @@
 % Please edit documentation in R/query_sumstats_custom.R
 \name{tabix_Icelanders_pGWAS}
 \alias{tabix_Icelanders_pGWAS}
-\title{tabix_Icelanders_pGWAS}
+\title{Query Icelanders pGWAS summary statistics using tabix}
 \usage{
 tabix_Icelanders_pGWAS(sumstats_file, coloc_regions_PASS)
 }
-\description{
-tabix_Icelanders_pGWAS
+\arguments{
+\item{sumstats_file}{Path to the Icelanders pGWAS summary statistics file}
+
+\item{coloc_regions_PASS}{Data frame with columns CHR_var, BP_START_var, BP_STOP_var}
 }
+\value{
+Data frame with formatted summary statistics
+}
+\description{
+Retrieves Icelanders pGWAS summary statistics for specified genomic regions.
+Also fetches allele frequency information from the annotation file.
+}
+\keyword{internal}

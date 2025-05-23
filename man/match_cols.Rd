@@ -4,56 +4,82 @@
 \alias{match_cols}
 \title{Map non-standard column names to standard format}
 \usage{
-match_cols(sumstats, Name, rsID, CHR, POS, A1, A2, BETA, SE, nlog10P, AF, N)
+match_cols(
+  sumstats,
+  Name,
+  rsID,
+  CHR,
+  POS,
+  A1,
+  A2,
+  BETA,
+  SE,
+  nlog10P,
+  AF,
+  N,
+  Phenotype = NULL
+)
 }
 \arguments{
-\item{sumstats}{Data frame or data.table containing GWAS summary statistics}
+\item{sumstats}{A data.table containing GWAS summary statistics.}
 
-\item{Name}{Column name for variant identifier}
+\item{Name}{Character string. Column name for variant identifier.}
 
-\item{rsID}{Column name for rs ID}
+\item{rsID}{Character string. Column name for RS ID.}
 
-\item{CHR}{Column name for chromosome}
+\item{CHR}{Character string. Column name for chromosome.}
 
-\item{POS}{Column name for position}
+\item{POS}{Character string. Column name for position.}
 
-\item{A1}{Column name for effect allele}
+\item{A1}{Character string. Column name for effect allele.}
 
-\item{A2}{Column name for other allele}
+\item{A2}{Character string. Column name for other allele.}
 
-\item{BETA}{Column name for effect size}
+\item{BETA}{Character string. Column name for effect size.}
 
-\item{SE}{Column name for standard error}
+\item{SE}{Character string. Column name for standard error.}
 
-\item{nlog10P}{Column name for -log10(p-value)}
+\item{nlog10P}{Character string. Column name for -log10(p-value).}
 
-\item{AF}{Column name for allele frequency}
+\item{AF}{Character string. Column name for allele frequency.}
 
-\item{N}{Column name for sample size}
+\item{N}{Character string. Column name for sample size.}
+
+\item{Phenotype}{Character string. Optional column name for phenotype
+(used for multi-phenotype datasets).}
 }
 \value{
-Data frame with standardized column names and order
+A data.table with standardized column names in the correct order.
 }
 \description{
-Converts a GWAS summary statistics data frame with non-standard
-column names to the standardized format required for colocalization analysis.
+Converts a GWAS summary statistics data.table with non-standard column
+names to the standardized format required for colocalization analysis.
+}
+\details{
+This function:
+\enumerate{
+\item Validates that all specified columns exist
+\item Renames columns to standard names
+\item Reorders columns to match the standard format
+\item Optionally includes a Phenotype column for multi-trait data
+}
 }
 \examples{
 \dontrun{
-# Convert column names in a GWAS summary statistics data frame
-standardized_gwas <- match_cols(
-  my_gwas,
-  Name = "variant_id",
-  rsID = "rs_id",
-  CHR = "chromosome", 
+# Convert UKBB format to standard
+standardized <- match_cols(
+  ukbb_data,
+  Name = "variant",
+  rsID = "rsid",
+  CHR = "chromosome",
   POS = "position",
-  A1 = "effect_allele",
-  A2 = "other_allele",
-  BETA = "effect_size",
-  SE = "standard_error",
-  nlog10P = "neg_log10_pvalue",
-  AF = "allele_freq",
-  N = "sample_size"
+  A1 = "alt",
+  A2 = "ref",
+  BETA = "beta",
+  SE = "se",
+  nlog10P = "neglog10_pval",
+  AF = "minor_AF",
+  N = "n_complete_samples"
 )
 }
 }

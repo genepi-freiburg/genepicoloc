@@ -2,10 +2,20 @@
 % Please edit documentation in R/query_sumstats_custom.R
 \name{tabix_UKB_PPP_EUR}
 \alias{tabix_UKB_PPP_EUR}
-\title{tabix_UKB_PPP_EUR}
+\title{Query UK Biobank PPP EUR summary statistics using tabix}
 \usage{
 tabix_UKB_PPP_EUR(sumstats_file, coloc_regions_PASS)
 }
-\description{
-tabix_UKB_PPP_EUR
+\arguments{
+\item{sumstats_file}{Path to the UKB PPP EUR summary statistics file}
+
+\item{coloc_regions_PASS}{Data frame with columns CHR_var, BP_START_var, BP_STOP_var}
 }
+\value{
+Data frame with formatted summary statistics
+}
+\description{
+Retrieves UK Biobank PPP EUR summary statistics for specified genomic regions.
+Handles chromosome X conversion (23 to X).
+}
+\keyword{internal}

@@ -2,10 +2,27 @@
 % Please edit documentation in R/genepicoloc_susie.R
 \name{scale_genotypes}
 \alias{scale_genotypes}
-\title{scale_genotypes}
+\title{Scale genotype matrix}
 \usage{
 scale_genotypes(raw_gt_mat)
 }
+\arguments{
+\item{raw_gt_mat}{Numeric matrix or data.frame. Genotype matrix with
+samples in rows and variants in columns.}
+}
+\value{
+Numeric matrix with scaled genotypes. Constant variants (zero variance)
+will have NA values.
+}
 \description{
-scale_genotypes
+Standardizes genotype matrix to have mean 0 and variance 1 for each variant.
+This is often required for statistical methods that assume standardized inputs.
+}
+\details{
+The function uses R's scale() function which:
+\itemize{
+\item Centers by subtracting the column mean
+\item Scales by dividing by the column standard deviation
+\item Returns NA for constant columns (zero variance)
+}
 }

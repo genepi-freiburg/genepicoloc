@@ -2,10 +2,17 @@
 % Please edit documentation in R/query_sumstats_custom.R
 \name{format_UKB_TOPMed}
 \alias{format_UKB_TOPMed}
-\title{format_UKB_TOPMed}
+\title{Format UK Biobank TOPMed summary statistics}
 \usage{
 format_UKB_TOPMed(sumstats)
 }
-\description{
-format_UKB_TOPMed
+\arguments{
+\item{sumstats}{Data frame with UKB TOPMed summary statistics}
 }
+\value{
+Data frame with standardized column names
+}
+\description{
+Formats UK Biobank TOPMed summary statistics to standard column names
+}
+\keyword{internal}

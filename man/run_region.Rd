@@ -2,7 +2,7 @@
 % Please edit documentation in R/colocalization.R
 \name{run_region}
 \alias{run_region}
-\title{Run colocalization for a specific genomic region}
+\title{Run colocalization analysis for a specific genomic region}
 \usage{
 run_region(
   sumstats_1,
@@ -14,21 +14,51 @@ run_region(
 )
 }
 \arguments{
-\item{sumstats_1}{Primary summary statistics object}
+\item{sumstats_1}{A sumstats object containing the primary dataset.}
 
-\item{sumstats_2}{Secondary summary statistics object}
+\item{sumstats_2}{A sumstats object containing the secondary dataset.}
 
-\item{CHR_var}{Chromosome}
+\item{CHR_var}{Character or numeric. Chromosome identifier.}
 
-\item{BP_START_var}{Start position}
+\item{BP_START_var}{Numeric. Start position of the region (base pairs).}
 
-\item{BP_STOP_var}{End position}
+\item{BP_STOP_var}{Numeric. End position of the region (base pairs).}
 
-\item{min_nlog10P}{Minimum -log10(p-value) threshold}
+\item{min_nlog10P}{Numeric. Minimum -log10(p-value) threshold for considering
+a region to have significant signal (default: 5, equivalent to p < 1e-5).}
 }
 \value{
-Data frame with colocalization results
+A data.frame containing one row with colocalization results including:
+\itemize{
+\item Region coordinates and metadata
+\item Maximum significance values for both datasets
+\item Colocalization status (coloc_done, no_signif_sumstats_2, no_SNP_intersect)
+\item Posterior probabilities (PP.H0-H4.abf) if analysis was performed
+\item Directionality analysis results
+\item Top colocalized SNPs and their probabilities
+}
 }
 \description{
-Run colocalization for a specific genomic region
+Performs colocalization analysis between two traits within a specific genomic
+region. This is the core function that executes the coloc.abf algorithm after
+preparing and validating the data.
+}
+\details{
+The function performs the following steps:
+\enumerate{
+\item Creates a result template with metadata
+\item Extracts region-specific data from both datasets
+\item Checks for sufficient signal in both datasets
+\item Verifies SNP overlap between datasets
+\item Analyzes effect directionality at the lead SNP
+\item Runs coloc.abf if all conditions are met
+\item Formats and returns the results
+}
+
+The analysis requires:
+\itemize{
+\item Significant signal (> min_nlog10P) in the primary dataset
+\item At least one overlapping SNP between datasets
+\item Valid summary statistics in the region
+}
 }

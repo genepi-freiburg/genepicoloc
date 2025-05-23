@@ -1,13 +1,17 @@
 Package: genepicoloc
 Title: Scale Up Genetic Colocalization Analysis
-Date: 2024-09-17
-Version: 0.1.1
+Date: 2025-01-23
+Version: 0.9.1
 Authors@R: 
     person("Oleg", "Borisov", , "oleg.borisov@uniklinik-freiburg.de", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-8700-4335"))
-Description: R package to scale up genetic colocalization analysis.
-License: `use_mit_license()`
+Description: Provides tools for efficient genetic colocalization analysis across
+    multiple GWAS and eQTL datasets. Supports various data sources including
+    UK Biobank, FinnGen, eQTLGen, GTEx, and custom summary statistics.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Imports: data.table, parallel, coloc, writexl, httr
+URL: https://github.com/username/genepicoloc
+BugReports: https://github.com/username/genepicoloc/issues

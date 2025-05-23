@@ -2,10 +2,17 @@
 % Please edit documentation in R/query_sumstats_custom.R
 \name{format_FinnGen_r9}
 \alias{format_FinnGen_r9}
-\title{format_FinnGen_r9}
+\title{Format FinnGen r9 summary statistics}
 \usage{
 format_FinnGen_r9(sumstats)
 }
-\description{
-format_FinnGen_r9
+\arguments{
+\item{sumstats}{Data frame with FinnGen r9 summary statistics}
 }
+\value{
+Data frame with standardized column names
+}
+\description{
+Formats FinnGen r9 summary statistics to standard column names
+}
+\keyword{internal}

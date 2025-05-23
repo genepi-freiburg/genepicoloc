@@ -2,10 +2,27 @@
 % Please edit documentation in R/ebi_interface.R
 \name{format_eQTL_Catalogue}
 \alias{format_eQTL_Catalogue}
-\title{format_eQTL_Cat}
+\title{Format eQTL Catalogue results to standard format}
 \usage{
 format_eQTL_Catalogue(sumstats)
 }
+\arguments{
+\item{sumstats}{Data.frame from eQTL Catalogue API query.}
+}
+\value{
+A named list of data.frames, one per molecular trait (gene),
+with standardized column names.
+}
 \description{
-format_eQTL_Cat
+Converts eQTL Catalogue API results to the standardized format required
+for colocalization analysis, splitting by molecular trait.
+}
+\details{
+The function:
+\itemize{
+\item Creates variant names in chr:pos:ref:alt format
+\item Renames columns to standard names
+\item Splits data by molecular trait (gene)
+\item Returns a list suitable for multi-phenotype analysis
+}
 }

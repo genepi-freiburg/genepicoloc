@@ -2,10 +2,19 @@
 % Please edit documentation in R/query_sumstats_custom.R
 \name{tabix_UKB_TOPMed}
 \alias{tabix_UKB_TOPMed}
-\title{tabix_UKB_TOPMed}
+\title{Query UK Biobank TOPMed summary statistics using tabix}
 \usage{
 tabix_UKB_TOPMed(sumstats_file, coloc_regions_PASS)
 }
-\description{
-tabix_UKB_TOPMed
+\arguments{
+\item{sumstats_file}{Path to the UKB TOPMed summary statistics file}
+
+\item{coloc_regions_PASS}{Data frame with columns CHR_var, BP_START_var, BP_STOP_var}
 }
+\value{
+Data frame with formatted summary statistics
+}
+\description{
+Retrieves UK Biobank TOPMed summary statistics for specified genomic regions
+}
+\keyword{internal}

@@ -2,12 +2,23 @@
 % Please edit documentation in R/query_sumstats_custom.R
 \name{tabix_FinnGen_r9}
 \alias{tabix_FinnGen_r9}
-\title{tabix_FinnGen_r9
-https://finngen.gitbook.io/documentation/data-description}
+\title{Query FinnGen r9 summary statistics using tabix}
 \usage{
 tabix_FinnGen_r9(sumstats_file, coloc_regions_PASS)
 }
-\description{
-tabix_FinnGen_r9
-https://finngen.gitbook.io/documentation/data-description
+\arguments{
+\item{sumstats_file}{Path to the FinnGen r9 summary statistics file}
+
+\item{coloc_regions_PASS}{Data frame with columns CHR_var, BP_START_var, BP_STOP_var}
 }
+\value{
+Data frame with formatted summary statistics
+}
+\description{
+Retrieves FinnGen r9 summary statistics for specified genomic regions.
+Handles chromosome X conversion (23 to X).
+}
+\seealso{
+\url{https://finngen.gitbook.io/documentation/data-description}
+}
+\keyword{internal}

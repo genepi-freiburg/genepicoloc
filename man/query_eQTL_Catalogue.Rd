@@ -2,7 +2,7 @@
 % Please edit documentation in R/ebi_interface.R
 \name{query_eQTL_Catalogue}
 \alias{query_eQTL_Catalogue}
-\title{query_eQTL_Catalogue}
+\title{Query eQTL Catalogue for associations in a genomic region}
 \usage{
 query_eQTL_Catalogue(
   sumstats_file,
@@ -13,6 +13,34 @@ query_eQTL_Catalogue(
   size = 1000
 )
 }
+\arguments{
+\item{sumstats_file}{Character string. Dataset identifier from eQTL Catalogue.}
+
+\item{CHR_var}{Character or numeric. Chromosome.}
+
+\item{BP_START_var}{Numeric. Start position of the region.}
+
+\item{BP_STOP_var}{Numeric. End position of the region.}
+
+\item{start}{Integer. Starting index for pagination (default: 0).}
+
+\item{size}{Integer. Number of results per page (default: 1000).}
+}
+\value{
+A list of data.frames, one per molecular trait (gene), with
+standardized column names suitable for colocalization analysis.
+}
 \description{
-query_eQTL_Catalogue
+Retrieves eQTL associations from the eQTL Catalogue API for a specific
+dataset and genomic region. Handles pagination automatically to retrieve
+all results.
+}
+\details{
+The function:
+\enumerate{
+\item Queries the eQTL Catalogue API with pagination
+\item Handles rate limiting with built-in delays
+\item Formats results to standard column names
+\item Splits results by molecular trait (gene)
+}
 }

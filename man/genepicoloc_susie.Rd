@@ -2,16 +2,68 @@
 % Please edit documentation in R/genepicoloc_susie.R
 \name{genepicoloc_susie}
 \alias{genepicoloc_susie}
-\title{genepicoloc_susie_rss}
+\title{Run SuSiE with individual-level data}
 \usage{
 genepicoloc_susie(
   raw_gt,
   pheno,
   pheno_name,
   coverage = 0.95,
-  scale_genotypes = F
+  scale_genotypes = FALSE
 )
 }
+\arguments{
+\item{raw_gt}{Data.frame. PLINK raw format genotypes with columns:
+FID, IID, PAT, MAT, SEX, PHENOTYPE, then genotype columns (0/1/2 coding).}
+
+\item{pheno}{Data.frame. Phenotype data with at least IID column and phenotype column.}
+
+\item{pheno_name}{Character string. Name of the phenotype column to analyze.}
+
+\item{coverage}{Numeric. Coverage for credible sets (default: 0.95).}
+
+\item{scale_genotypes}{Logical. Whether to standardize genotypes (default: FALSE).}
+}
+\value{
+A susie object containing:
+\itemize{
+\item alpha: Posterior inclusion probabilities
+\item mu: Posterior mean effects
+\item sets: Credible sets at specified coverage
+\item pip: Posterior inclusion probability for each variant
+}
+}
 \description{
-genepicoloc_susie_rss
+Performs fine-mapping using SuSiE (Sum of Single Effects) with individual-level
+genotype and phenotype data. Handles data alignment and missing values.
+}
+\details{
+The function:
+\enumerate{
+\item Validates presence of IID columns
+\item Removes samples with missing phenotypes
+\item Removes variants with any missing genotypes
+\item Aligns samples between genotype and phenotype data
+\item Optionally scales genotypes to mean 0, variance 1
+\item Runs SuSiE fine-mapping
+}
+}
+\examples{
+\dontrun{
+# Load genotype and phenotype data
+raw_gt <- read.table("genotypes.raw", header = TRUE)
+pheno <- read.table("phenotypes.txt", header = TRUE)
+
+# Run SuSiE fine-mapping
+susie_results <- genepicoloc_susie(
+  raw_gt = raw_gt,
+  pheno = pheno,
+  pheno_name = "LDL_cholesterol",
+  coverage = 0.95
+)
+
+# Extract credible sets
+print(susie_results$sets)
+}
+
 }

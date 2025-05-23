@@ -7,10 +7,27 @@
 get_cols_to()
 }
 \value{
-Character vector of standard column names
+Character vector of standard column names in the required order:
+\itemize{
+\item Name: Variant identifier (e.g., "chr1:12345:A:G")
+\item rsID: RS identifier (e.g., "rs12345")
+\item CHR: Chromosome (numeric or "X", "Y")
+\item POS: Base pair position
+\item A1: Effect allele
+\item A2: Other allele
+\item BETA: Effect size
+\item SE: Standard error
+\item nlog10P: -log10(p-value)
+\item AF: Allele frequency of A1
+\item N: Sample size
+}
 }
 \description{
-Returns the standard column names used for summary statistics
-in the colocalization analysis. All summary statistics objects must have
-these exact column names in this exact order.
+Returns the standardized column names required for the colocalization
+pipeline. All summary statistics must be converted to this format.
+}
+\details{
+This standardized format ensures compatibility across different
+data sources and analysis functions. The order is important for
+some legacy functions.
 }

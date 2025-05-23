@@ -2,10 +2,19 @@
 % Please edit documentation in R/query_sumstats_custom.R
 \name{tabix_eQTLGen}
 \alias{tabix_eQTLGen}
-\title{tabix_eQTLGen}
+\title{Query eQTLGen summary statistics using tabix}
 \usage{
 tabix_eQTLGen(sumstats_file, coloc_regions_PASS)
 }
-\description{
-tabix_eQTLGen
+\arguments{
+\item{sumstats_file}{Path to the eQTLGen summary statistics file}
+
+\item{coloc_regions_PASS}{Data frame with columns CHR_var, BP_START_var, BP_STOP_var}
 }
+\value{
+Data frame with formatted summary statistics
+}
+\description{
+Retrieves eQTLGen summary statistics for specified genomic regions
+}
+\keyword{internal}

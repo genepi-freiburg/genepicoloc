@@ -2,10 +2,30 @@
 % Please edit documentation in R/ebi_interface.R
 \name{process_GCST}
 \alias{process_GCST}
-\title{process_GCST}
+\title{Process GWAS Catalog summary statistics file}
 \usage{
-process_GCST(file_in, test_mode = F)
+process_GCST(file_in, test_mode = FALSE)
+}
+\arguments{
+\item{file_in}{Character string. Path to the GWAS catalog summary statistics file.}
+
+\item{test_mode}{Logical. If TRUE, only read first 2 lines for testing (default: FALSE).}
+}
+\value{
+A data.table with standardized columns:
+chromosome, base_pair_location, effect_allele, other_allele,
+beta/effect_size, standard_error, p_value, effect_allele_frequency, n
 }
 \description{
-process_GCST
+Reads and standardizes GWAS Catalog summary statistics files, handling
+various column naming conventions and calculating missing values where possible.
+}
+\details{
+The function handles:
+\itemize{
+\item Multiple p-value column names (pval, p_value)
+\item Odds ratios: converts to log scale and calculates SE from CI
+\item Missing sample sizes: attempts to read from metadata YAML
+\item Special cases like GCST files with boolean CI columns
+}
 }

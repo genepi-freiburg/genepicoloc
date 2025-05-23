@@ -2,10 +2,63 @@
 % Please edit documentation in R/genepicoloc_susie.R
 \name{susie_rss_wrapper}
 \alias{susie_rss_wrapper}
-\title{susie_rss_wrapper}
+\title{Wrapper for SuSiE RSS analysis with automatic LD calculation}
 \usage{
-susie_rss_wrapper(sumstats, bfile, N = NULL, coverage = 0.95, rm_indels = F)
+susie_rss_wrapper(
+  sumstats,
+  bfile,
+  N = NULL,
+  coverage = 0.95,
+  rm_indels = FALSE
+)
+}
+\arguments{
+\item{sumstats}{Data.frame. Summary statistics in standardized format.}
+
+\item{bfile}{Character string. Path to PLINK binary fileset.}
+
+\item{N}{Numeric. Sample size (default: median from sumstats).}
+
+\item{coverage}{Numeric. Coverage for credible sets (default: 0.95).}
+
+\item{rm_indels}{Logical. Whether to remove insertions/deletions
+(default: FALSE).}
+}
+\value{
+A susie object containing fine-mapping results.
 }
 \description{
-susie_rss_wrapper
+Convenience function that combines LD matrix calculation and SuSiE RSS
+fine-mapping in a single step. Handles reference allele alignment and
+variant filtering.
+}
+\details{
+This wrapper:
+\enumerate{
+\item Optionally removes indels (non-SNP variants)
+\item Calculates LD matrix with reference allele correction
+\item Ensures variants match between sumstats and LD matrix
+\item Runs SuSiE RSS fine-mapping
+}
+
+Indels are identified as variants where A1 or A2 is not in {A,T,G,C}.
+}
+\examples{
+\dontrun{
+# Basic usage
+susie_results <- susie_rss_wrapper(
+  sumstats = my_sumstats,
+  bfile = "data/genotypes/chr1",
+  coverage = 0.95
+)
+
+# Remove indels and specify sample size
+susie_results <- susie_rss_wrapper(
+  sumstats = my_sumstats,
+  bfile = "data/genotypes/chr1",
+  N = 50000,
+  rm_indels = TRUE
+)
+}
+
 }

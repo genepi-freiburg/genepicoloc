@@ -2,10 +2,17 @@
 % Please edit documentation in R/query_sumstats_custom.R
 \name{format_Icelanders_pGWAS}
 \alias{format_Icelanders_pGWAS}
-\title{format_Icelanders_pGWAS}
+\title{Format Icelanders pGWAS summary statistics}
 \usage{
 format_Icelanders_pGWAS(sumstats)
 }
-\description{
-format_Icelanders_pGWAS
+\arguments{
+\item{sumstats}{Data frame with Icelanders pGWAS summary statistics}
 }
+\value{
+Data frame with standardized column names
+}
+\description{
+Formats Icelanders pGWAS summary statistics to standard column names
+}
+\keyword{internal}

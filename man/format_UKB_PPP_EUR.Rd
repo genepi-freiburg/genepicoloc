@@ -2,10 +2,17 @@
 % Please edit documentation in R/query_sumstats_custom.R
 \name{format_UKB_PPP_EUR}
 \alias{format_UKB_PPP_EUR}
-\title{format_UKB_PPP_EUR}
+\title{Format UK Biobank PPP EUR summary statistics}
 \usage{
 format_UKB_PPP_EUR(sumstats)
 }
-\description{
-format_UKB_PPP_EUR
+\arguments{
+\item{sumstats}{Data frame with UKB PPP EUR summary statistics}
 }
+\value{
+Data frame with standardized column names
+}
+\description{
+Formats UK Biobank PPP EUR summary statistics to standard column names
+}
+\keyword{internal}
