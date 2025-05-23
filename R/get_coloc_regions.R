@@ -5,15 +5,15 @@
 #' below the p-value threshold and creates regions around them.
 #'
 #' @param sumstats Data frame containing GWAS summary statistics
-#' @param CHR_name Column name for chromosome in input data
-#' @param POS_name Column name for position in input data
-#' @param nlog10p_value_name Column name for -log10(p-value) in input data
-#' @param CHR_out Column name for chromosome in output data
-#' @param BP_START_var_out Column name for start position in output data
-#' @param BP_STOP_var_out Column name for end position in output data
+#' @param CHR_name Column name for chromosome in input data (default: "CHR")
+#' @param POS_name Column name for position in input data (default: "POS")
+#' @param nlog10p_value_name Column name for -log10(p-value) in input data (default: "nlog10P")
+#' @param CHR_out Column name for chromosome in output data (default: "CHR_var")
+#' @param BP_START_var_out Column name for start position in output data (default: "BP_START_var")
+#' @param BP_STOP_var_out Column name for end position in output data (default: "BP_STOP_var")
 #' @param nlogP_threshold Significance threshold on -log10(p-value) scale (default: 7.30103, equals p=5e-8)
-#' @param halfwindow Half-size of the window around significant variants in base pairs
-#' @return A list containing:
+#' @param halfwindow Half-size of the window around significant variants in base pairs (default: 500000)
+#' @return A list of class "coloc_regions_list" containing:
 #'   \item{coloc_regions}{Data frame with all identified regions}
 #'   \item{coloc_regions_PASS}{Data frame with regions that passed filters}
 #'   \item{regions_log}{Character vector with log messages}
@@ -72,7 +72,6 @@ get_coloc_regions <- function(sumstats,
     if (length(which_max) > 1) which_max <- which_max[1]
     min_p_row <- sumstats[which_max, ]
     min_p_row[[nlog10p_value_name]] <- as.numeric(min_p_row[[nlog10p_value_name]])
-    print(min_p_row)
     
     # Extract key information
     CHR_var <- min_p_row[[CHR_name]]
@@ -80,7 +79,7 @@ get_coloc_regions <- function(sumstats,
     BP_START_var <- BP_var - halfwindow
     BP_STOP_var <- BP_var + halfwindow
     
-    # Log the current step - KEEPING ORIGINAL LOG FORMAT
+    # Log the current step
     regions_log <- c(regions_log, 
                      paste0("Solving region ", region_var, ": Most significant variant ", CHR_var, ":", BP_var))
     
@@ -229,7 +228,7 @@ get_coloc_regions <- function(sumstats,
 #' separate files: log messages, all regions, passing regions, and filtered summary
 #' statistics. The summary statistics are compressed and indexed with bgzip/tabix.
 #'
-#' @param coloc_regions_list List containing colocalization regions data
+#' @param coloc_regions_list List of class "coloc_regions_list" containing colocalization regions data
 #' @param sumstats_name Base name for output files
 #' @return Path to the compressed summary statistics file if created, otherwise NULL
 #' @export
@@ -303,14 +302,14 @@ write_regions <- function(coloc_regions_list, sumstats_name) {
 #'
 #' @param sumstats Data frame containing summary statistics
 #' @param sumstats_name Base name for output file
-#' @param out_name Suffix to add to the base name
-#' @param CHR Column name for chromosome
-#' @param POS Column name for position
-#' @param SKIP_name Value for tabix's -c parameter (comment character or column to skip)
-#' @param order_sumstats Whether to sort the data by chromosome and position
-#' @param bgzip_bin Path to bgzip executable
-#' @param tabix_bin Path to tabix executable
-#' @return Path to the compressed file
+#' @param out_name Suffix to add to the base name (default: "_subset")
+#' @param CHR Column name for chromosome (default: "CHR")
+#' @param POS Column name for position (default: "POS")
+#' @param SKIP_name Value for tabix's -c parameter (comment character or column to skip) (default: "Name")
+#' @param order_sumstats Whether to sort the data by chromosome and position (default: FALSE)
+#' @param bgzip_bin Path to bgzip executable (default: "bgzip")
+#' @param tabix_bin Path to tabix executable (default: "tabix")
+#' @return Path to the compressed file (.tsv.gz)
 #' @importFrom data.table fwrite
 #' @export
 gc_bgzip_tabix <- function(sumstats, 

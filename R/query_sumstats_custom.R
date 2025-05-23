@@ -1,4 +1,12 @@
-#' tabix_GTEXv8
+#' Query GTEx v8 summary statistics using tabix
+#'
+#' @description Retrieves GTEx v8 summary statistics for specified genomic regions
+#' using tabix. Handles the case where GTEx v8 files have no header.
+#'
+#' @param sumstats_file Path to the GTEx v8 summary statistics file
+#' @param coloc_regions_PASS Data frame with columns CHR_var, BP_START_var, BP_STOP_var
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
 tabix_GTEXv8 <- function(sumstats_file, coloc_regions_PASS) {
   coloc_regions_PASS$CHR_var <- paste0("chr", coloc_regions_PASS$CHR_var)
   sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
@@ -29,7 +37,13 @@ tabix_GTEXv8 <- function(sumstats_file, coloc_regions_PASS) {
   return(sumstats)
 }
 
-#' format_GTEXv8
+#' Format GTEx v8 summary statistics
+#'
+#' @description Formats GTEx v8 summary statistics to standard column names
+#'
+#' @param sumstats Data frame with GTEx v8 summary statistics
+#' @return Data frame with standardized column names
+#' @keywords internal
 format_GTEXv8 <- function(sumstats) {
   # check
   cols_from <- paste0("V", 1:19)
@@ -57,7 +71,14 @@ format_GTEXv8 <- function(sumstats) {
   return(sumstats)
 }
 
-#' tabix_Kidney_eQTL
+#' Query Kidney eQTL summary statistics using tabix
+#'
+#' @description Retrieves Kidney eQTL summary statistics for specified genomic regions
+#'
+#' @param sumstats_file Path to the Kidney eQTL summary statistics file
+#' @param coloc_regions_PASS Data frame with columns CHR_var, BP_START_var, BP_STOP_var
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
 tabix_Kidney_eQTL <- function(sumstats_file, coloc_regions_PASS) {
   sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
                                       coloc_regions_PASS=coloc_regions_PASS,
@@ -68,7 +89,13 @@ tabix_Kidney_eQTL <- function(sumstats_file, coloc_regions_PASS) {
   return(sumstats)
 }
 
-#' format_Kidney_eQTL
+#' Format Kidney eQTL summary statistics
+#'
+#' @description Formats Kidney eQTL summary statistics to standard column names
+#'
+#' @param sumstats Data frame with Kidney eQTL summary statistics
+#' @return Data frame with standardized column names
+#' @keywords internal
 format_Kidney_eQTL <- function(sumstats) {
   # check
   cols_from <- c("CHR","POS_hg38","Name","GeneID","Gene_Symbol","rsID","SNP","Ref","Alt","Beta","Std","Pvalue","SNP_Location","Compartment")
@@ -100,7 +127,14 @@ format_Kidney_eQTL <- function(sumstats) {
   return(sumstats)
 }
 
-#' tabix_eQTLGen
+#' Query eQTLGen summary statistics using tabix
+#'
+#' @description Retrieves eQTLGen summary statistics for specified genomic regions
+#'
+#' @param sumstats_file Path to the eQTLGen summary statistics file
+#' @param coloc_regions_PASS Data frame with columns CHR_var, BP_START_var, BP_STOP_var
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
 tabix_eQTLGen <- function(sumstats_file, coloc_regions_PASS) {
   sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
                                       coloc_regions_PASS=coloc_regions_PASS,
@@ -111,7 +145,13 @@ tabix_eQTLGen <- function(sumstats_file, coloc_regions_PASS) {
   return(sumstats)
 }
 
-#' format_eQTLGen
+#' Format eQTLGen summary statistics
+#'
+#' @description Formats eQTLGen summary statistics to standard column names
+#'
+#' @param sumstats Data frame with eQTLGen summary statistics
+#' @return Data frame with standardized column names
+#' @keywords internal
 format_eQTLGen <- function(sumstats) {
   # check
   cols_from <- c("Name","rsID","CHR","POS","A1","A2","BETA","SE","P","AF","N","Phenotype")
@@ -138,7 +178,15 @@ format_eQTLGen <- function(sumstats) {
 }
 
 
-#' tabix_Icelanders_pGWAS
+#' Query Icelanders pGWAS summary statistics using tabix
+#'
+#' @description Retrieves Icelanders pGWAS summary statistics for specified genomic regions.
+#' Also fetches allele frequency information from the annotation file.
+#'
+#' @param sumstats_file Path to the Icelanders pGWAS summary statistics file
+#' @param coloc_regions_PASS Data frame with columns CHR_var, BP_START_var, BP_STOP_var
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
 tabix_Icelanders_pGWAS <- function(sumstats_file, coloc_regions_PASS) {
   # add "chr" to coloc_regions_PASS
   coloc_regions_PASS$CHR_var <- paste0("chr", coloc_regions_PASS$CHR_var)
@@ -166,7 +214,13 @@ tabix_Icelanders_pGWAS <- function(sumstats_file, coloc_regions_PASS) {
   return(sumstats)
 }
 
-#' format_Icelanders_pGWAS
+#' Format Icelanders pGWAS summary statistics
+#'
+#' @description Formats Icelanders pGWAS summary statistics to standard column names
+#'
+#' @param sumstats Data frame with Icelanders pGWAS summary statistics
+#' @return Data frame with standardized column names
+#' @keywords internal
 format_Icelanders_pGWAS <- function(sumstats) {
   # check
   cols_from <- c("Chrom", "Pos", "Name", "rsids", "effectAllele", "otherAllele", "Beta", "Pval", "minus_log10_pval", "SE", "N", "ImpMAF", "effectAlleleFreq")
@@ -192,7 +246,15 @@ format_Icelanders_pGWAS <- function(sumstats) {
   return(sumstats)
 }
 
-#' tabix_UKB_PPP_EUR
+#' Query UK Biobank PPP EUR summary statistics using tabix
+#'
+#' @description Retrieves UK Biobank PPP EUR summary statistics for specified genomic regions.
+#' Handles chromosome X conversion (23 to X).
+#'
+#' @param sumstats_file Path to the UKB PPP EUR summary statistics file
+#' @param coloc_regions_PASS Data frame with columns CHR_var, BP_START_var, BP_STOP_var
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
 tabix_UKB_PPP_EUR <- function(sumstats_file, coloc_regions_PASS) {
   # change X to 23
   coloc_regions_PASS$CHR_var[coloc_regions_PASS$CHR_var == "X"] <- "23"
@@ -204,7 +266,13 @@ tabix_UKB_PPP_EUR <- function(sumstats_file, coloc_regions_PASS) {
   return(sumstats)
 }
 
-#' format_UKB_PPP_EUR
+#' Format UK Biobank PPP EUR summary statistics
+#'
+#' @description Formats UK Biobank PPP EUR summary statistics to standard column names
+#'
+#' @param sumstats Data frame with UKB PPP EUR summary statistics
+#' @return Data frame with standardized column names
+#' @keywords internal
 format_UKB_PPP_EUR <- function(sumstats) {
   # check
   cols_from <- c("CHROM", "GENPOS", "ID", "ALLELE0", "ALLELE1", "A1FREQ", "INFO", "N", "TEST", "BETA", "SE", "CHISQ", "LOG10P", "EXTRA")
@@ -231,7 +299,14 @@ format_UKB_PPP_EUR <- function(sumstats) {
   return(sumstats)
 }
 
-#' tabix_UKB_TOPMed
+#' Query UK Biobank TOPMed summary statistics using tabix
+#'
+#' @description Retrieves UK Biobank TOPMed summary statistics for specified genomic regions
+#'
+#' @param sumstats_file Path to the UKB TOPMed summary statistics file
+#' @param coloc_regions_PASS Data frame with columns CHR_var, BP_START_var, BP_STOP_var
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
 tabix_UKB_TOPMed <- function(sumstats_file, coloc_regions_PASS) {
   sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
                              coloc_regions_PASS=coloc_regions_PASS)
@@ -241,7 +316,13 @@ tabix_UKB_TOPMed <- function(sumstats_file, coloc_regions_PASS) {
   return(sumstats)
 }
 
-#' format_UKB_TOPMed
+#' Format UK Biobank TOPMed summary statistics
+#'
+#' @description Formats UK Biobank TOPMed summary statistics to standard column names
+#'
+#' @param sumstats Data frame with UKB TOPMed summary statistics
+#' @return Data frame with standardized column names
+#' @keywords internal
 format_UKB_TOPMed <- function(sumstats) {
   # check
   cols_from <- c("chrom", "pos", "ref", "alt", "rsids", "nearest_genes", "consequence", "pval", "beta", "sebeta", "af", "case_af", "control_af", "tstat")
@@ -270,6 +351,14 @@ format_UKB_TOPMed <- function(sumstats) {
 }
 
 
+#' Query GCKD pGWAS summary statistics using tabix
+#'
+#' @description Retrieves GCKD pGWAS summary statistics for specified genomic regions
+#'
+#' @param sumstats_file Path to the GCKD pGWAS summary statistics file
+#' @param coloc_regions_PASS Data frame with columns CHR_var, BP_START_var, BP_STOP_var
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
 tabix_GCKD_pGWAS <- function(sumstats_file, coloc_regions_PASS) {
   sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
                                       coloc_regions_PASS=coloc_regions_PASS)
@@ -282,6 +371,14 @@ tabix_GCKD_pGWAS <- function(sumstats_file, coloc_regions_PASS) {
   return(sumstats)
 }
 
+#' Format GCKD pGWAS summary statistics
+#'
+#' @description Formats GCKD pGWAS summary statistics to standard column names.
+#' Handles p-value underflow for very small p-values.
+#'
+#' @param sumstats Data frame with GCKD pGWAS summary statistics
+#' @return Data frame with standardized column names
+#' @keywords internal
 format_GCKD_pGWAS <- function(sumstats) {
   # check
   cols_from <- c("SNP","chr","position","coded_all","noncoded_all","strand_genome","beta","SE","pval","AF_coded_all","HWE_pval","FreqSE","MinFreq","MaxFreq","Direction","HetISq","HetChiSq","HetDf","HetPVal","callrate","n_total","oevar_imp","imputed")
@@ -325,6 +422,14 @@ format_GCKD_pGWAS <- function(sumstats) {
 
 
 
+#' Query GCKD mGWAS summary statistics using tabix
+#'
+#' @description Retrieves GCKD mGWAS summary statistics for specified genomic regions
+#'
+#' @param sumstats_file Path to the GCKD mGWAS summary statistics file
+#' @param coloc_regions_PASS Data frame with columns CHR_var, BP_START_var, BP_STOP_var
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
 tabix_GCKD_mGWAS <- function(sumstats_file, coloc_regions_PASS) {
   sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
                                       coloc_regions_PASS=coloc_regions_PASS)
@@ -334,6 +439,13 @@ tabix_GCKD_mGWAS <- function(sumstats_file, coloc_regions_PASS) {
   return(sumstats)
 }
 
+#' Format GCKD mGWAS summary statistics
+#'
+#' @description Formats GCKD mGWAS summary statistics to standard column names
+#'
+#' @param sumstats Data frame with GCKD mGWAS summary statistics
+#' @return Data frame with standardized column names
+#' @keywords internal
 format_GCKD_mGWAS <- function(sumstats) {
   # check
   cols_from <- c("CHROM","GENPOS","ID","ALLELE0","ALLELE1","A1FREQ","INFO","N","TEST","BETA","SE","CHISQ","LOG10P","EXTRA")
@@ -359,7 +471,16 @@ format_GCKD_mGWAS <- function(sumstats) {
 
 
 
-#' https://finngen.gitbook.io/documentation/data-description
+#' Query FinnGen r9 summary statistics using tabix
+#'
+#' @description Retrieves FinnGen r9 summary statistics for specified genomic regions.
+#' Handles chromosome X conversion (23 to X).
+#' @seealso \url{https://finngen.gitbook.io/documentation/data-description}
+#'
+#' @param sumstats_file Path to the FinnGen r9 summary statistics file
+#' @param coloc_regions_PASS Data frame with columns CHR_var, BP_START_var, BP_STOP_var
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
 tabix_FinnGen_r9 <- function(sumstats_file, coloc_regions_PASS) {
   coloc_regions_PASS$CHR_var[coloc_regions_PASS$CHR_var == "X"] <- "23"
   sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
@@ -370,7 +491,13 @@ tabix_FinnGen_r9 <- function(sumstats_file, coloc_regions_PASS) {
   return(sumstats)
 }
 
-#' format_FinnGen_r9
+#' Format FinnGen r9 summary statistics
+#'
+#' @description Formats FinnGen r9 summary statistics to standard column names
+#'
+#' @param sumstats Data frame with FinnGen r9 summary statistics
+#' @return Data frame with standardized column names
+#' @keywords internal
 format_FinnGen_r9 <- function(sumstats) {
   # check
   cols_from <- c("#chrom","pos","ref","alt","rsids","nearest_genes","pval","mlogp","beta","sebeta","af_alt","af_alt_cases","af_alt_controls")
@@ -398,6 +525,14 @@ format_FinnGen_r9 <- function(sumstats) {
 }
 
 
+#' Query CKDGen r4 summary statistics using tabix
+#'
+#' @description Retrieves CKDGen r4 summary statistics for specified genomic regions
+#'
+#' @param sumstats_file Path to the CKDGen r4 summary statistics file
+#' @param coloc_regions_PASS Data frame with columns CHR_var, BP_START_var, BP_STOP_var
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
 tabix_CKDGen_r4 <- function(sumstats_file, coloc_regions_PASS) {
   sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
                                       coloc_regions_PASS=coloc_regions_PASS)
@@ -407,39 +542,13 @@ tabix_CKDGen_r4 <- function(sumstats_file, coloc_regions_PASS) {
   return(sumstats)
 }
 
-format_CKDGen_r4 <- function(sumstats) {
-  # check
-  cols_from <- c("CHR_hg38","POS_hg38","A1_hg38","A2_hg38","Name_hg38","RSID","Freq1","Effect","StdErr","P-value","n_total_sum")
-  if (!identical(cols_from, colnames(sumstats))) {
-    stop("Column mismatch when reading ", attr(sumstats, "sumstats_file"))
-  }
-  # format
-  sumstats$nlog10P <- -log10(sumstats$`P-value`)
-  sumstats <- match_cols(sumstats=sumstats,
-                         Name="Name_hg38",
-                         rsID="RSID",
-                         CHR="CHR_hg38",
-                         POS="POS_hg38",
-                         A1="A1_hg38",
-                         A2="A2_hg38",
-                         BETA="Effect",
-                         SE="StdErr",
-                         nlog10P="nlog10P",
-                         AF="Freq1",
-                         N="n_total_sum")
-  return(sumstats)
-}
-
-
-tabix_CKDGen_r4 <- function(sumstats_file, coloc_regions_PASS) {
-  sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
-                                      coloc_regions_PASS=coloc_regions_PASS)
-  if (attr(sumstats, "tabix") != "tabix_failed") {
-    sumstats <- format_CKDGen_r4(sumstats=sumstats)
-  }
-  return(sumstats)
-}
-
+#' Format CKDGen r4 summary statistics
+#'
+#' @description Formats CKDGen r4 summary statistics to standard column names
+#'
+#' @param sumstats Data frame with CKDGen r4 summary statistics
+#' @return Data frame with standardized column names
+#' @keywords internal
 format_CKDGen_r4 <- function(sumstats) {
   # check
   cols_from <- c("CHR_hg38","POS_hg38","A1_hg38","A2_hg38","Name_hg38","RSID","Freq1","Effect","StdErr","P-value","n_total_sum")

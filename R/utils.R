@@ -1,5 +1,15 @@
-#' flip_alleles
-#' flip alleles according to complementary base pairing 
+#' Flip alleles according to complementary base pairing
+#'
+#' @description Converts nucleotide alleles to their complementary bases
+#' (A<->T, C<->G). Useful for strand flipping in genetic data.
+#'
+#' @param vec Character vector of nucleotide alleles (A, T, C, or G)
+#' @return Character vector with complementary alleles
+#' @examples
+#' \dontrun{
+#' flip_alleles(c("A", "T", "C", "G")) # Returns c("T", "A", "G", "C")
+#' }
+#' @keywords internal
 flip_alleles <- function(vec) {
   vec_out <- vec
   vec_out <- toupper(vec_out)
