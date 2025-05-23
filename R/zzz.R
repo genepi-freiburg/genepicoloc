@@ -10,3 +10,22 @@
   # Register S3 methods that might have dispatch issues
   registerS3method("print", "sumstats_2_form", print.sumstats_2_form)
 }
+
+#' Package startup message
+#'
+#' @description Function called when the package is attached. Displays package
+#' version and citation information.
+#'
+#' @param libname Library path where package is installed
+#' @param pkgname Package name
+#' @keywords internal
+.onAttach <- function(libname, pkgname) {
+  # Get package version
+  version <- utils::packageDescription(pkgname, fields = "Version")
+  
+  # Create startup message
+  packageStartupMessage(
+    "genepicoloc v", version, " - Scale Up Genetic Colocalization Analysis\n",
+    "For citation information, use: citation('", pkgname, "')"
+  )
+}
