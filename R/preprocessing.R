@@ -351,19 +351,23 @@ perform_sumstats_qc <- function(sumstats, verbose = FALSE) {
     }
     
     # Check for NA values
-    na_vals <- is.na(sumstats[[col]])
-    if (any(na_vals)) {
-      if (verbose) message("Removing ", sum(na_vals), " NA values in ", col)
-      QC_codes <- c(QC_codes, paste0("NAin", col))
-      sumstats <- sumstats[!na_vals, ]
+    if (col != "AF") {
+      na_vals <- is.na(sumstats[[col]])
+      if (any(na_vals)) {
+        if (verbose) message("Removing ", sum(na_vals), " NA values in ", col)
+        QC_codes <- c(QC_codes, paste0("NAin", col))
+        sumstats <- sumstats[!na_vals, ]
+      }
     }
     
     # Check for zero values (problematic for SE and AF)
-    zero_vals <- sumstats[[col]] == 0
-    if (any(zero_vals)) {
-      if (verbose) message("Removing ", sum(zero_vals), " zero values in ", col)
-      QC_codes <- c(QC_codes, paste0("0in", col))
-      sumstats <- sumstats[!zero_vals, ]
+    if (col != "BETA") {
+      zero_vals <- sumstats[[col]] == 0
+      if (any(zero_vals)) {
+        if (verbose) message("Removing ", sum(zero_vals), " zero values in ", col)
+        QC_codes <- c(QC_codes, paste0("0in", col))
+        sumstats <- sumstats[!zero_vals, ]
+      }
     }
   }
   
