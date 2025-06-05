@@ -362,22 +362,22 @@ perform_sumstats_qc <- function(sumstats, verbose = FALSE) {
     
     # Check for zero values (problematic for SE and AF)
     if (col != "BETA") {
-      zero_vals <- sumstats[[col]] == 0
-      if (any(zero_vals)) {
-        if (verbose) message("Removing ", sum(zero_vals), " zero values in ", col)
+      zero_vals <- which(sumstats[[col]] == 0)
+      if (length(zero_vals) > 0) {
+        if (verbose) message("Removing ", length(zero_vals), " zero values in ", col)
         QC_codes <- c(QC_codes, paste0("0in", col))
-        sumstats <- sumstats[!zero_vals, ]
+        sumstats <- sumstats[-zero_vals, ]
       }
     }
   }
   
   # Special check for AF = 1 (fixed alleles)
   if ("AF" %in% colnames(sumstats)) {
-    one_vals <- sumstats[["AF"]] == 1
-    if (any(one_vals)) {
-      if (verbose) message("Removing ", sum(one_vals), " fixed alleles (AF=1)")
+    one_vals <- which(sumstats[["AF"]] == 1)
+    if (length(one_vals) > 0) {
+      if (verbose) message("Removing ", length(one_vals), " fixed alleles (AF=1)")
       QC_codes <- c(QC_codes, "1inAF")
-      sumstats <- sumstats[!one_vals, ]
+      sumstats <- sumstats[-one_vals, ]
     }
   }
   

@@ -376,12 +376,38 @@ format_sumstats_2 <- function(coloc_regions_PASS,
         sumstats_2_pheno$Phenotype <- NULL
         
         # Format the subset
-        format_sumstats(
+        sumstats_2_formatted <- format_sumstats(
           sumstats = sumstats_2_pheno,
           sumstats_type = sumstats_2_type,
           sumstats_sdY = sumstats_2_sdY
         )
+        
+        # Get the unique chromosomes in the formatted sumstats
+        unique_variant_chrs <- unique(sumstats_2_formatted[["CHR"]])
+        
+        # Get the chromosome and position ranges for variants
+        variant_chr_ranges <- data.frame(
+          CHR_var = unique_variant_chrs,
+          BP_START_var = sapply(unique_variant_chrs, function(chr) min(sumstats_2_formatted[CHR == chr, POS])),
+          BP_STOP_var = sapply(unique_variant_chrs, function(chr) max(sumstats_2_formatted[CHR == chr, POS]))
+        )
+        
+        # Subset the coloc_regions_PASS attribute
+        coloc_regions_subset <- as.data.frame(attr(sumstats_2_formatted, "coloc_regions_PASS"))
+        coloc_regions_subset <- coloc_regions_subset[
+          coloc_regions_subset$CHR_var %in% unique_variant_chrs & 
+            (
+              (coloc_regions_subset$BP_START_var <= variant_chr_ranges$BP_STOP_var[match(coloc_regions_subset$CHR_var, variant_chr_ranges$CHR_var)]) & 
+                (coloc_regions_subset$BP_STOP_var >= variant_chr_ranges$BP_START_var[match(coloc_regions_subset$CHR_var, variant_chr_ranges$CHR_var)])
+            ),
+        ]        
+        
+        # Update the attribute
+        attr(sumstats_2_formatted, "coloc_regions_PASS") <- coloc_regions_subset
+        
+        return(sumstats_2_formatted)
       })
+      
       names(sumstats_2_form) <- Phenotypes
     }
     
@@ -504,7 +530,7 @@ process_sumstats_form <- function(dir_out,
       region_results <- run_single_phenotype(
         sumstats_1 = sumstats_1_form,
         sumstats_2 = sumstats_2,
-        coloc_regions_PASS = coloc_regions_PASS
+        coloc_regions_PASS = attr(sumstats_2, "coloc_regions_PASS")
       )
       # Combine regions for this phenotype
       data.table::rbindlist(region_results, fill = TRUE)
