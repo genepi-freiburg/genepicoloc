@@ -1,7 +1,7 @@
 Package: genepicoloc
 Title: R Package to Facilitate Genetic (Colocalization) Analyses
 Date: 2025-01-23
-Version: 0.9.1
+Version: 0.9.1.01
 Authors@R: 
     person("Oleg", "Borisov", , "oleg.borisov@uniklinik-freiburg.de", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-8700-4335"))
