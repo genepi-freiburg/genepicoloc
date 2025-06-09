@@ -216,9 +216,3 @@ sumstats_1_form <- format_sumstats_1(
 - BETA and SE. Input sumstats should not contain any missing or NA values in BETA and SE column, otherwise coloc will throw an error. Please remove any missing values from the input sumstats when performing QC.
 - MAF should be a numeric, strictly >0 & <1.
 
-
-
-## Large-scale colocalization framework
-
-A number of summary statistics are suppored by the *genepicoloc*. Due to the very large size of the input files, we are not able to upload them on github. However, we have implemented a colocalization framework at our local computing cluster in Freiburg (Germany). We are open for collaborations, feel free to reach out in case you are interested to run colocalization analysis for your GWAS summary statistics.
-
