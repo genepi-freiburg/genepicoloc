@@ -43,7 +43,6 @@
 #' @importFrom utils read.table
 #' @author Generated from workflow by Matthias Wuttke
 #' @export
-
 setup_gene_annotation <- function(gene_file = NULL, verbose = TRUE) {
   
   if (verbose) cat("Setting up gene annotation...\n")
@@ -248,7 +247,6 @@ setup_gene_annotation <- function(gene_file = NULL, verbose = TRUE) {
 #' }
 #'
 #' @export
-
 batch_annotate_positions <- function(data, chr_col = "Chr", pos_col = "Pos", 
                                      annotation_function, verbose = TRUE) {
   
@@ -296,7 +294,9 @@ batch_annotate_positions <- function(data, chr_col = "Chr", pos_col = "Pos",
   }
   
   return(data)
-}#' Download and Process Protein-Coding Genes from Ensembl BioMart
+}
+
+#' Download and Process Protein-Coding Genes from Ensembl BioMart
 #'
 #' This function provides a complete workflow to download and process protein-coding genes
 #' from Ensembl BioMart. Use this function to update the gene annotations with the latest
@@ -360,7 +360,6 @@ batch_annotate_positions <- function(data, chr_col = "Chr", pos_col = "Pos",
 #' @importFrom utils read.table write.table
 #' @author Generated from workflow by Matthias Wuttke
 #' @export
-
 download_gene_data <- function(biomart_file, 
                                output_file = "genes_chr.txt", 
                                compress = TRUE,
@@ -452,7 +451,6 @@ download_gene_data <- function(biomart_file,
 #' }
 #'
 #' @export
-
 get_ensembl_release <- function(verbose = TRUE) {
   
   if (verbose) cat("Checking current Ensembl release...\n")
