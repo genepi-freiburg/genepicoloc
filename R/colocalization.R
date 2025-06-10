@@ -19,13 +19,13 @@
 #'   }
 #' @param mc_cores Integer. Number of cores for parallel processing (default: 10).
 #'   Ignored when debug_mode = TRUE.
-#' @param use_pbmcapply Logical. Whether to use pbmcapply for progress tracking 
-#'   (default: FALSE). Requires pbmcapply package.
 #' @param test_mode Logical. Run in test mode with limited execution (default: FALSE).
 #'   Processes only the first region and first entry per study.
-#' @param verbose Logical. Print detailed progress messages (default: FALSE).
+#' @param verbose Logical. Print detailed progress messages (default: TRUE).
 #' @param debug_mode Logical. Run sequentially for debugging (default: FALSE).
-#'   Overrides mc_cores and use_pbmcapply settings.
+#'   Overrides mc_cores setting.
+#' @param progress_interval Numeric. How often to check progress in seconds (default: 5).
+#'   Only used when verbose = TRUE and for jobs with more than 50 datasets.
 #' 
 #' @return Invisibly returns NULL. Results are written to disk in the specified
 #'   output directory.
@@ -43,7 +43,6 @@
 #' only the first region and first dataset per study are processed.
 #' 
 #' @importFrom parallel mcmapply
-#' @importFrom pbmcapply pbmcmapply
 #' @importFrom data.table fwrite .SD
 #' 
 #' @examples
@@ -72,10 +71,10 @@ genepicoloc_wrapper <- function(dir_out,
                                 sumstats_1_form,
                                 args_df,
                                 mc_cores = 10,
-                                use_pbmcapply = FALSE,
                                 test_mode = FALSE, 
-                                verbose = FALSE,
-                                debug_mode = FALSE) {
+                                verbose = TRUE,
+                                debug_mode = FALSE,
+                                progress_interval = 5) {
   
   # Input validation
   if (!inherits(sumstats_1_form, "sumstats")) {
@@ -132,27 +131,85 @@ genepicoloc_wrapper <- function(dir_out,
   if (debug_mode) {
     # Sequential execution for debugging
     parallel_func <- mapply
-  } else if (use_pbmcapply) {
-    # Parallel with progress bar
-    if (!requireNamespace("pbmcapply", quietly = TRUE)) {
-      stop("Package 'pbmcapply' is required when use_pbmcapply = TRUE")
-    }
-    parallel_func <- pbmcmapply
-    mapply_args$mc.cores <- mc_cores
   } else {
     # Standard parallel execution
     parallel_func <- mcmapply
     mapply_args$mc.cores <- mc_cores
   }
   
+  # Print study summary before starting
+  if (verbose) {
+    total_datasets <- nrow(args_df)
+    study_counts <- table(args_df$sumstats_2_study)
+    message("Study breakdown:")
+    for (study in names(study_counts)) {
+      message(sprintf("  - %s: %d datasets", study, study_counts[study]))
+    }
+    message("Starting analysis...")
+    
+    # Simple progress estimation
+    start_time <- Sys.time()
+    message(sprintf("Processing %d datasets across %d studies...", 
+                    total_datasets, length(study_counts)))
+    
+    # Start progress monitoring by watching output files
+    if (!debug_mode && total_datasets > 50) {  # Only for larger jobs
+      # Function to monitor output files
+      monitor_output <- function() {
+        last_count <- 0
+        while (TRUE) {
+          
+          # Count completed output files (assuming they have a specific pattern)
+          tryCatch({
+            output_files <- list.files(dir_out, pattern = "\\.csv.gz$", 
+                                       recursive = TRUE, full.names = FALSE)
+            current_count <- length(output_files)
+            
+            if (current_count > last_count && current_count > 0) {
+              elapsed <- round(as.numeric(difftime(Sys.time(), start_time, units = "mins")), 1)
+              rate <- current_count / elapsed
+              eta <- if (rate > 0) round((total_datasets - current_count) / rate, 1) else NA
+              
+              progress_msg <- sprintf("Progress: %d/%d files completed (%.1f%%) | %.1f min elapsed", 
+                                      current_count, total_datasets, 
+                                      (current_count/total_datasets)*100, elapsed)
+              if (!is.na(eta) && eta > 0) {
+                progress_msg <- paste0(progress_msg, sprintf(" | ETA: %.1f min", eta))
+              }
+              message(progress_msg)
+              last_count <- current_count
+            }
+            
+            # Stop monitoring if we've reached the expected number
+            if (current_count >= total_datasets) break
+          }, error = function(e) {
+            # Continue monitoring if file listing fails
+          })
+          
+          Sys.sleep(progress_interval)  # Check at specified interval
+          
+        }
+      }
+      
+      # Start monitoring in background (Unix systems only)
+      if (.Platform$OS.type == "unix") {
+        monitor_pid <- parallel::mcparallel(monitor_output())
+      }
+    }
+  }
+  
   # Execute analysis
   results <- do.call(parallel_func, mapply_args)
+  
+  if (verbose) {
+    end_time <- Sys.time()
+    duration <- round(as.numeric(difftime(end_time, start_time, units = "mins")), 1)
+    message(sprintf("Analysis completed successfully in %.1f minutes!", duration))
+  }
   
   # Return invisibly
   invisible(results)
 }
-
-
 
 # Group 1: Format and Process Functions ----
 
@@ -497,22 +554,14 @@ process_sumstats_form <- function(dir_out,
   if (!inherits(sumstats_2_form, "sumstats_2_form")) {
     stop("sumstats_2_form should have 'sumstats_2_form' class")
   }
-  
-  if (verbose) {
-    message("Running colocalization across ", nrow(coloc_regions_PASS), " regions")
-  }
-  
+
   # Set up output path
   file_out <- set_output_path(
     sumstats_2_file = attr(sumstats_2_form, "sumstats_file"),
     dir_out = dir_out,
     sumstats_2_study = sumstats_2_study
   )
-  
-  if (verbose) {
-    message("Output file: ", file_out, "\nStarting coloc.abf")
-  }
-  
+
   # Run colocalization based on phenotype type
   if (attr(sumstats_2_form, "sumstats_pheno") == "single") {
     # Single phenotype analysis
@@ -547,11 +596,7 @@ process_sumstats_form <- function(dir_out,
     PP_H4_threshold = PP_H4_threshold,
     verbose = verbose
   )
-  
-  if (verbose) {
-    message("Colocalization analysis completed for ", sumstats_2_study)
-  }
-  
+
   return(invisible(file_out))
 }
 
@@ -1511,10 +1556,6 @@ save_coloc_results <- function(coloc_results,
   
   tryCatch({
     data.table::fwrite(coloc_results, csv_file, compress = "gzip")
-    if (verbose) {
-      message("Unfiltered results saved to: ", csv_file, 
-              " (", nrow(coloc_results), " regions)")
-    }
   }, error = function(e) {
     stop("Failed to write CSV file: ", e$message)
   })
@@ -1540,19 +1581,10 @@ save_coloc_results <- function(coloc_results,
         
         tryCatch({
           writexl::write_xlsx(coloc_df_filt, xlsx_file)
-          if (verbose) {
-            message("Filtered results saved to: ", xlsx_file, 
-                    " (", nrow(coloc_df_filt), " regions with PP.H4 >= ", 
-                    PP_H4_threshold, ")")
-          }
         }, error = function(e) {
           warning("Failed to write Excel file: ", e$message)
         })
       } else {
-        if (verbose) {
-          message("No results with PP.H4.abf >= ", PP_H4_threshold, 
-                  " found; Excel file not created")
-        }
       }
     } else {
       warning("PP.H4.abf column not found; cannot create filtered Excel file")
