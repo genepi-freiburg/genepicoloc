@@ -614,6 +614,7 @@ get_cols_to <- function() {
 #' }
 #'
 #' @importFrom data.table is.data.table
+#' @importFrom data.table copy
 #' @export
 #'
 #' @examples
@@ -680,7 +681,7 @@ match_cols <- function(sumstats, Name, rsID, CHR, POS, A1, A2,
   }
   
   # Make a copy to avoid modifying the original
-  sumstats_copy <- copy(sumstats)
+  sumstats_copy <- data.table::copy(sumstats)
   
   # Rename columns using setnames for efficiency
   for (std_name in names(col_mapping)) {
