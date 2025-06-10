@@ -9,10 +9,10 @@ genepicoloc_wrapper(
   sumstats_1_form,
   args_df,
   mc_cores = 10,
-  use_pbmcapply = FALSE,
   test_mode = FALSE,
-  verbose = FALSE,
-  debug_mode = FALSE
+  verbose = TRUE,
+  debug_mode = FALSE,
+  progress_interval = 5
 )
 }
 \arguments{
@@ -34,16 +34,16 @@ Must have a "coloc_regions_PASS" attribute containing regions to analyze.}
 \item{mc_cores}{Integer. Number of cores for parallel processing (default: 10).
 Ignored when debug_mode = TRUE.}
 
-\item{use_pbmcapply}{Logical. Whether to use pbmcapply for progress tracking
-(default: FALSE). Requires pbmcapply package.}
-
 \item{test_mode}{Logical. Run in test mode with limited execution (default: FALSE).
 Processes only the first region and first entry per study.}
 
-\item{verbose}{Logical. Print detailed progress messages (default: FALSE).}
+\item{verbose}{Logical. Print detailed progress messages (default: TRUE).}
 
 \item{debug_mode}{Logical. Run sequentially for debugging (default: FALSE).
-Overrides mc_cores and use_pbmcapply settings.}
+Overrides mc_cores setting.}
+
+\item{progress_interval}{Numeric. How often to check progress in seconds (default: 5).
+Only used when verbose = TRUE and for jobs with more than 50 datasets.}
 }
 \value{
 Invisibly returns NULL. Results are written to disk in the specified

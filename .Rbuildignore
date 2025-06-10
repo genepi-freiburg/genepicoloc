@@ -2,3 +2,5 @@
 ^\.Rproj\.user$
 ^\.claude$
 ^README\.html$
+^inst/extdata/genes_chr\.txt\.gz$
+^dev$
