@@ -2,7 +2,7 @@
 % Please edit documentation in R/colocalization.R
 \name{create_result_template}
 \alias{create_result_template}
-\title{Create a template for colocalization results}
+\title{Create a template for colocalization results with gene annotation}
 \usage{
 create_result_template(
   CHR_var,
@@ -59,6 +59,7 @@ results. This ensures consistent output format across all analyses.
 The template includes fields for:
 \itemize{
 \item Region coordinates and metadata
+\item Gene annotation (nearest genes, region center annotation)
 \item File paths and data quality indicators
 \item Colocalization results (PP.H0-H4)
 \item Directionality analysis results

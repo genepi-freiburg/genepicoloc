@@ -13,7 +13,6 @@
 #'
 #' @return A list containing:
 #'   \item{gene_map}{Data frame with processed gene annotations}
-#'   \item{annotate_position}{Function to annotate genomic positions}
 #'   \item{metadata}{Information about the gene data source}
 #'
 #' @examples
@@ -22,9 +21,9 @@
 #' result <- setup_gene_annotation()
 #' 
 #' # Annotate single positions
-#' gene1 <- result$annotate_position(chr = "2", pos = 169000000)  # ABCB11
-#' gene2 <- result$annotate_position(chr = "2", pos = 169127111)  # LRP2
-#' gene3 <- result$annotate_position(chr = "1", pos = 1000000)    # Intergenic
+#' gene1 <- annotate_position(chr = "2", pos = 169000000, gene_map = result$gene_map)  # ABCB11
+#' gene2 <- annotate_position(chr = "2", pos = 169127111, gene_map = result$gene_map)  # LRP2
+#' gene3 <- annotate_position(chr = "1", pos = 1000000, gene_map = result$gene_map)    # Intergenic
 #' 
 #' print(gene1)  # "ABCB11"
 #' print(gene2)  # "LRP2"
@@ -110,81 +109,236 @@ setup_gene_annotation <- function(gene_file = NULL, verbose = TRUE) {
     created = Sys.time()
   )
   
-  # Create the annotation function
-  annotate_position <- function(chr, pos) {
-    # Annotate a genomic position with gene information
-    # 
-    # chr: Character or numeric. Chromosome (1-22, X)
-    # pos: Numeric. Genomic position in base pairs
-    # Returns: Character string with gene annotation
-    
-    chr <- as.character(chr)
-    pos <- as.numeric(pos)
-    
-    # Validate inputs
-    if (is.na(chr) || is.na(pos)) {
-      return("ERROR: Invalid chromosome or position")
-    }
-    
-    # Filter for the specific chromosome
-    map_chr <- e[e$Chromosome == chr, ]
-    
-    if (nrow(map_chr) == 0) {
-      return(paste0("ERROR: Unknown chromosome: ", chr))
-    }
-    
-    # Check if position is within any gene (intronic/exonic)
-    intronic <- map_chr[map_chr$GeneStart <= pos & map_chr$GeneEnd >= pos, "HGNC"]
-    
-    if (length(intronic) > 0) {
+  # Return annotation tools and data
+  return(list(
+    gene_map = e,
+    metadata = metadata
+  ))
+}
+
+#' Annotate a genomic position with gene information
+#'
+#' @param chr Character or numeric. Chromosome (1-22, X)
+#' @param pos Numeric. Genomic position in base pairs
+#' @param gene_map Data frame. Gene map from setup_gene_annotation()
+#' @param n_nearest Integer. Number of nearest genes to return for intergenic positions (default: 2)
+#' @param output_format Character. Output format: "default", "simple", or "detailed" (default: "default")
+#' @return Character string with gene annotation
+#' 
+#' @details
+#' For genic positions (position within a gene), returns the gene name(s).
+#' For intergenic positions, behavior depends on n_nearest:
+#' - n_nearest = 1: Returns closest gene only
+#' - n_nearest = 2: Returns upstream and downstream genes (default behavior)  
+#' - n_nearest > 2: Returns N closest genes with distances
+#' 
+#' Output formats:
+#' - "default": Standard format with distances (e.g., "INTERGENIC: upstream=GENE1(+1000bp), downstream=GENE2(-500bp)")
+#' - "simple": Gene names only, comma-separated (e.g., "GENE1, GENE2, GENE3")
+#' - "detailed": Genes with distances, comma-separated (e.g., "GENE1(+1000bp), GENE2(-500bp), GENE3(+2000bp)")
+#'
+#' @examples
+#' \dontrun{
+#' # Setup gene annotation first
+#' result <- setup_gene_annotation()
+#' 
+#' # Standard usage
+#' annotate_position("1", 1000000, gene_map = result$gene_map)
+#' 
+#' # Or in one line
+#' annotate_position("1", 1000000, gene_map = setup_gene_annotation()$gene_map)
+#' 
+#' # Get 5 nearest genes in simple format
+#' annotate_position("1", 1000000, gene_map = result$gene_map, 
+#'                   n_nearest = 5, output_format = "simple")
+#' 
+#' # Get 3 nearest genes with detailed distances
+#' annotate_position("1", 1000000, gene_map = result$gene_map, 
+#'                   n_nearest = 3, output_format = "detailed")
+#' 
+#' # Get 10 nearest genes (default format)
+#' annotate_position("1", 1000000, gene_map = result$gene_map, n_nearest = 10)
+#' }
+#' 
+#' @export
+annotate_position <- function(chr, pos, gene_map, n_nearest = 2, output_format = "default") {
+  # Validate gene_map parameter
+  if (missing(gene_map) || !is.data.frame(gene_map)) {
+    stop("gene_map must be a data frame from setup_gene_annotation()$gene_map")
+  }
+  
+  # Validate parameters
+  if (!is.numeric(n_nearest) || n_nearest < 1) {
+    stop("n_nearest must be a positive integer")
+  }
+  
+  if (!output_format %in% c("default", "simple", "detailed")) {
+    stop("output_format must be 'default', 'simple', or 'detailed'")
+  }
+  
+  chr <- as.character(chr)
+  pos <- as.numeric(pos)
+  n_nearest <- as.integer(n_nearest)
+  
+  # Validate inputs
+  if (is.na(chr) || is.na(pos)) {
+    return("ERROR: Invalid chromosome or position")
+  }
+  
+  # Filter for the specific chromosome
+  map_chr <- gene_map[gene_map$Chromosome == chr, ]
+  
+  if (nrow(map_chr) == 0) {
+    return(paste0("ERROR: Unknown chromosome: ", chr))
+  }
+  
+  # Check if position is within any gene (intronic/exonic)
+  intronic <- map_chr[map_chr$GeneStart <= pos & map_chr$GeneEnd >= pos, "HGNC"]
+  
+  if (length(intronic) > 0) {
+    # Position is within gene(s)
+    if (output_format == "default" && n_nearest == 2) {
+      # Default behavior for backward compatibility
       if (length(intronic) > 1) {
-        # Multiple overlapping genes
         return(paste(intronic, collapse = ", "))
       } else {
         return(as.character(intronic[1]))
       }
     } else {
-      # Position is intergenic - find closest upstream and downstream genes
-      upstream_diff <- map_chr$GeneStart - pos
-      upstream_diff[upstream_diff < 0] <- Inf  # Genes that start before position
-      
-      downstream_diff <- pos - map_chr$GeneEnd  
-      downstream_diff[downstream_diff < 0] <- Inf  # Genes that end after position
-      
-      # Find closest genes
-      closest_upstream_idx <- which.min(upstream_diff)
-      closest_downstream_idx <- which.min(downstream_diff)
-      
-      upstream_gene <- map_chr[closest_upstream_idx, "HGNC"]
-      downstream_gene <- map_chr[closest_downstream_idx, "HGNC"]
-      upstream_dist <- upstream_diff[closest_upstream_idx]
-      downstream_dist <- downstream_diff[closest_downstream_idx]
-      
-      # Handle edge cases
-      if (is.infinite(upstream_dist)) upstream_dist <- "NA"
-      if (is.infinite(downstream_dist)) downstream_dist <- "NA"
-      
-      return(paste0("INTERGENIC: upstream=", upstream_gene, "(+", upstream_dist, "bp), ",
-                    "downstream=", downstream_gene, "(-", downstream_dist, "bp)"))
+      # For other cases, still find nearest genes but mark the genic ones
+      return(find_nearest_genes(map_chr, pos, n_nearest, output_format, genic_genes = intronic))
     }
+  } else {
+    # Position is intergenic - find nearest genes
+    return(find_nearest_genes(map_chr, pos, n_nearest, output_format))
   }
-  
-  if (verbose) {
-    cat("Gene annotation setup complete!\n")
-    cat("Testing with example positions...\n")
-    cat("Chr 2, pos 169000000:", annotate_position("2", 169000000), "\n")
-    cat("Chr 2, pos 169127111:", annotate_position("2", 169127111), "\n")
-    cat("Chr 1, pos 1000000:", annotate_position("1", 1000000), "\n")
-  }
-  
-  # Return annotation tools and data
-  return(list(
-    gene_map = e,
-    annotate_position = annotate_position,
-    metadata = metadata
-  ))
 }
 
+#' Helper function to find nearest genes for intergenic positions
+#'
+#' @param map_chr Data frame. Gene map filtered for specific chromosome
+#' @param pos Numeric. Genomic position
+#' @param n_nearest Integer. Number of nearest genes to find
+#' @param output_format Character. Output format
+#' @param genic_genes Character vector. Genes that contain the position (optional)
+#' @return Character string with nearest genes
+find_nearest_genes <- function(map_chr, pos, n_nearest, output_format, genic_genes = NULL) {
+  
+  # Calculate distances to all genes
+  gene_distances <- data.frame(
+    gene = map_chr$HGNC,
+    start = map_chr$GeneStart,
+    end = map_chr$GeneEnd,
+    stringsAsFactors = FALSE
+  )
+  
+  # Calculate minimum distance to each gene
+  gene_distances$distance <- apply(gene_distances, 1, function(row) {
+    start <- as.numeric(row["start"])
+    end <- as.numeric(row["end"])
+    
+    if (pos < start) {
+      # Position is upstream of gene
+      return(start - pos)
+    } else if (pos > end) {
+      # Position is downstream of gene  
+      return(pos - end)
+    } else {
+      # Position is within gene - distance is 0
+      return(0)
+    }
+  })
+  
+  # Add direction indicator
+  gene_distances$direction <- ifelse(
+    pos < gene_distances$start, "upstream",
+    ifelse(pos > gene_distances$end, "downstream", "within")
+  )
+  
+  # Sort by distance and get top N
+  gene_distances <- gene_distances[order(gene_distances$distance), ]
+  nearest_genes <- head(gene_distances, n_nearest)
+  
+  # Handle special case for default format with n_nearest = 2 and intergenic position
+  if (output_format == "default" && n_nearest == 2 && is.null(genic_genes)) {
+    return(format_default_output(nearest_genes, pos))
+  }
+  
+  # Format output based on requested format
+  if (output_format == "simple") {
+    return(paste(nearest_genes$gene, collapse = ", "))
+  } else if (output_format == "detailed") {
+    gene_strings <- mapply(function(gene, dist, direction) {
+      if (direction == "within") {
+        paste0(gene, "(within)")
+      } else {
+        sign <- if (direction == "upstream") "+" else "-"
+        paste0(gene, "(", sign, dist, "bp)")
+      }
+    }, nearest_genes$gene, nearest_genes$distance, nearest_genes$direction)
+    return(paste(gene_strings, collapse = ", "))
+  } else {
+    # Default format for n_nearest != 2 or genic positions
+    gene_strings <- mapply(function(gene, dist, direction) {
+      if (direction == "within") {
+        paste0(gene, "(within)")
+      } else {
+        sign <- if (direction == "upstream") "+" else "-"
+        paste0(gene, "(", sign, dist, "bp)")
+      }
+    }, nearest_genes$gene, nearest_genes$distance, nearest_genes$direction)
+    
+    if (is.null(genic_genes)) {
+      return(paste0("INTERGENIC: ", paste(gene_strings, collapse = ", ")))
+    } else {
+      return(paste(gene_strings, collapse = ", "))
+    }
+  }
+}
+
+#' Helper function to format default output (backward compatibility)
+#'
+#' @param nearest_genes Data frame with nearest genes
+#' @param pos Numeric. Position
+#' @return Character string in default format
+format_default_output <- function(nearest_genes, pos) {
+  if (nrow(nearest_genes) == 0) {
+    return("INTERGENIC: no nearby genes")
+  }
+  
+  # Try to find one upstream and one downstream gene for classic format
+  upstream_genes <- nearest_genes[nearest_genes$direction == "upstream", ]
+  downstream_genes <- nearest_genes[nearest_genes$direction == "downstream", ]
+  
+  if (nrow(upstream_genes) > 0 && nrow(downstream_genes) > 0) {
+    # Classic format: one upstream, one downstream
+    upstream_gene <- upstream_genes[1, ]
+    downstream_gene <- downstream_genes[1, ]
+    
+    upstream_dist <- upstream_gene$distance
+    downstream_dist <- downstream_gene$distance
+    
+    return(paste0("INTERGENIC: upstream=", upstream_gene$gene, "(+", upstream_dist, "bp), ",
+                  "downstream=", downstream_gene$gene, "(-", downstream_dist, "bp)"))
+  } else {
+    # Fallback: use two closest genes regardless of direction
+    if (nrow(nearest_genes) >= 2) {
+      gene1 <- nearest_genes[1, ]
+      gene2 <- nearest_genes[2, ]
+      
+      sign1 <- if (gene1$direction == "upstream") "+" else "-"
+      sign2 <- if (gene2$direction == "upstream") "+" else "-"
+      
+      return(paste0("INTERGENIC: ", gene1$gene, "(", sign1, gene1$distance, "bp), ",
+                    gene2$gene, "(", sign2, gene2$distance, "bp)"))
+    } else {
+      # Only one gene found
+      gene1 <- nearest_genes[1, ]
+      sign1 <- if (gene1$direction == "upstream") "+" else "-"
+      return(paste0("INTERGENIC: ", gene1$gene, "(", sign1, gene1$distance, "bp)"))
+    }
+  }
+}
 #' Batch Annotate Multiple Genomic Positions
 #'
 #' Efficiently annotate multiple genomic positions using gene annotation data.
@@ -193,7 +347,8 @@ setup_gene_annotation <- function(gene_file = NULL, verbose = TRUE) {
 #' @param data Data frame with columns for chromosome and position
 #' @param chr_col Character. Name of chromosome column (default: "Chr")  
 #' @param pos_col Character. Name of position column (default: "Pos")
-#' @param annotation_function Function returned by setup_gene_annotation()$annotate_position
+#' @param annotation_function Function to annotate positions. Create with:
+#'   annotation_function <- function(chr, pos) { annotate_position(chr, pos, gene_map) }
 #' @param verbose Logical. Print progress messages (default: TRUE)
 #'
 #' @return Original data frame with added "Gene_Annotation" column
@@ -202,6 +357,11 @@ setup_gene_annotation <- function(gene_file = NULL, verbose = TRUE) {
 #' \dontrun{
 #' # First set up gene annotation
 #' result <- setup_gene_annotation()
+#' 
+#' # Create annotation function
+#' annotation_func <- function(chr, pos) {
+#'   annotate_position(chr, pos, result$gene_map)
+#' }
 #' 
 #' # Example 1: Simple batch annotation
 #' my_variants <- data.frame(
@@ -212,7 +372,7 @@ setup_gene_annotation <- function(gene_file = NULL, verbose = TRUE) {
 #' 
 #' annotated <- batch_annotate_positions(
 #'   data = my_variants,
-#'   annotation_function = result$annotate_position
+#'   annotation_function = annotation_func
 #' )
 #' print(annotated)
 #' 
@@ -228,22 +388,9 @@ setup_gene_annotation <- function(gene_file = NULL, verbose = TRUE) {
 #'   data = gwas_data,
 #'   chr_col = "chromosome",
 #'   pos_col = "bp_position", 
-#'   annotation_function = result$annotate_position
+#'   annotation_function = annotation_func
 #' )
 #' print(gwas_annotated$Gene_Annotation)
-#' 
-#' # Example 3: Large dataset processing
-#' # For datasets with >10,000 variants, consider data.table for speed
-#' if (require(data.table)) {
-#'   large_data <- data.table(
-#'     Chr = sample(c(1:22, "X"), 1000, replace = TRUE),
-#'     Pos = sample(1:250000000, 1000),
-#'     ID = paste0("variant_", 1:1000)
-#'   )
-#'   
-#'   # This will be faster for large datasets
-#'   large_data[, Gene := result$annotate_position(Chr, Pos), by = 1:nrow(large_data)]
-#' }
 #' }
 #'
 #' @export
@@ -382,7 +529,7 @@ download_gene_data <- function(biomart_file,
   
   # Validate expected columns
   expected_cols <- c("HGNC.symbol", "Gene.start..bp.", "Gene.end..bp.", "Chromosome.scaffold.name")
-  if (!all(expected_cols %in% colnames(d))) {
+  if (!all(expected_cols == colnames(d))) {
     stop(paste("Expected columns not found in BioMart file:",
                "\nExpected:", paste(expected_cols, collapse = ", "),
                "\nFound:", paste(colnames(d), collapse = ", "),
@@ -433,68 +580,4 @@ download_gene_data <- function(biomart_file,
   }
   
   return(output_file)
-}
-
-#' Get Current Ensembl Release Information
-#'
-#' Fetch information about the current Ensembl release to help users
-#' determine if they need to update their gene annotations.
-#'
-#' @param verbose Logical. Print release information (default: TRUE)
-#' @return List with release information, or NULL if unable to fetch
-#'
-#' @examples
-#' \dontrun{
-#' # Check current Ensembl release
-#' release_info <- get_ensembl_release()
-#' print(release_info$release)
-#' }
-#'
-#' @export
-get_ensembl_release <- function(verbose = TRUE) {
-  
-  if (verbose) cat("Checking current Ensembl release...\n")
-  
-  tryCatch({
-    # Try to get release info from Ensembl REST API
-    if (requireNamespace("httr", quietly = TRUE) && requireNamespace("jsonlite", quietly = TRUE)) {
-      
-      response <- httr::GET("https://rest.ensembl.org/info/data/?content-type=application/json")
-      
-      if (httr::status_code(response) == 200) {
-        content <- httr::content(response, as = "text", encoding = "UTF-8")
-        release_data <- jsonlite::fromJSON(content)
-        
-        if (verbose) {
-          cat("Current Ensembl release:", release_data$releases[[1]], "\n")
-          cat("Assembly:", release_data$species$homo_sapiens$assembly, "\n")
-        }
-        
-        return(list(
-          release = release_data$releases[[1]],
-          assembly = release_data$species$homo_sapiens$assembly,
-          url = "http://www.ensembl.org/biomart/martview/"
-        ))
-      }
-    }
-    
-    # Fallback message
-    if (verbose) {
-      cat("Unable to fetch current release info automatically.\n")
-      cat("Please check manually at: http://www.ensembl.org/biomart/martview/\n")
-    }
-    
-    return(list(
-      release = "Unknown",
-      assembly = "GRCh38",
-      url = "http://www.ensembl.org/biomart/martview/"
-    ))
-    
-  }, error = function(e) {
-    if (verbose) {
-      cat("Error checking Ensembl release:", e$message, "\n")
-      cat("Please check manually at: http://www.ensembl.org/biomart/martview/\n")
-    }
-    return(NULL)
-  })
 }

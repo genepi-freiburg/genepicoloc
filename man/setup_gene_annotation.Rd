@@ -14,7 +14,6 @@ setup_gene_annotation(gene_file = NULL, verbose = TRUE)
 \value{
 A list containing:
 \item{gene_map}{Data frame with processed gene annotations}
-\item{annotate_position}{Function to annotate genomic positions}
 \item{metadata}{Information about the gene data source}
 }
 \description{
@@ -32,9 +31,9 @@ This function uses either the packaged gene data or a user-provided file.
 result <- setup_gene_annotation()
 
 # Annotate single positions
-gene1 <- result$annotate_position(chr = "2", pos = 169000000)  # ABCB11
-gene2 <- result$annotate_position(chr = "2", pos = 169127111)  # LRP2
-gene3 <- result$annotate_position(chr = "1", pos = 1000000)    # Intergenic
+gene1 <- annotate_position(chr = "2", pos = 169000000, gene_map = result$gene_map)  # ABCB11
+gene2 <- annotate_position(chr = "2", pos = 169127111, gene_map = result$gene_map)  # LRP2
+gene3 <- annotate_position(chr = "1", pos = 1000000, gene_map = result$gene_map)    # Intergenic
 
 print(gene1)  # "ABCB11"
 print(gene2)  # "LRP2"

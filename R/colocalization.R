@@ -772,6 +772,12 @@ run_region <- function(sumstats_1, sumstats_2,
     sumstats_2_QC = attr(sumstats_2, "QC")
   )
   
+  # Add gene annotations to the result
+  # Note: Gene map can be provided as parameter or will use packaged data
+  tryCatch({
+    result <- add_gene_annotations(result, gene_map = NULL)
+  }, error = function(e) { e$message })
+  
   # Early return if secondary data retrieval failed
   if (attr(sumstats_2, "tabix") %in% c("tabix_failed", "tabix_ok_no_data")) {
     result$coloc <- paste0("skipped_", attr(sumstats_2, "tabix"))
@@ -1365,7 +1371,7 @@ format_coloc_output <- function(coloc_output, coloc_template, n_top_snps = 5) {
 }
 
 
-#' Create a template for colocalization results
+#' Create a template for colocalization results with gene annotation
 #'
 #' @description
 #' Creates a standardized data.frame template for storing colocalization
@@ -1392,6 +1398,7 @@ format_coloc_output <- function(coloc_output, coloc_template, n_top_snps = 5) {
 #' The template includes fields for:
 #' \itemize{
 #'   \item Region coordinates and metadata
+#'   \item Gene annotation (nearest genes, region center annotation)
 #'   \item File paths and data quality indicators
 #'   \item Colocalization results (PP.H0-H4)
 #'   \item Directionality analysis results
@@ -1425,6 +1432,13 @@ create_result_template <- function(CHR_var,
     CHR_var = CHR_var,
     BP_START_var = BP_START_var,
     BP_STOP_var = BP_STOP_var,
+    
+    # Gene annotation fields (to be filled by gene annotation step)
+    region_center_pos = NA_real_,
+    region_center_gene = NA_character_,
+    nearest_genes_3 = NA_character_,
+    nearest_genes_5 = NA_character_,
+    nearest_genes_10 = NA_character_,
     
     # Summary statistics file information
     sumstats_1_file = sumstats_1_file,
@@ -1477,6 +1491,157 @@ create_result_template <- function(CHR_var,
   return(result_df)
 }
 
+#' Add gene annotations to colocalization results
+#'
+#' @description
+#' Annotates genomic regions with nearest genes using the gene annotation
+#' system. Adds multiple gene annotation fields to provide context for
+#' colocalization results.
+#'
+#' @param result A data.frame with region information (CHR_var, BP_START_var, BP_STOP_var).
+#' @param gene_map Data.frame with gene annotations from setup_gene_annotation()$gene_map.
+#'   If NULL, attempts to use packaged gene data.
+#' @param verbose Logical. Print gene annotation details (default: FALSE).
+#'
+#' @return The input data.frame with added gene annotation columns:
+#'   \itemize{
+#'     \item region_center_pos: Center position of the region
+#'     \item region_center_gene: Gene annotation at region center
+#'     \item nearest_genes_3: 3 nearest genes (simple format)
+#'     \item nearest_genes_5: 5 nearest genes (simple format)
+#'     \item nearest_genes_10: 10 nearest genes (simple format)
+#'   }
+#'
+#' @details
+#' This function:
+#' \enumerate{
+#'   \item Calculates the center position of the genomic region
+#'   \item Annotates the center position with the nearest gene
+#'   \item Finds multiple nearest genes for broader context
+#'   \item Uses simple gene name format for easy interpretation
+#' }
+#'
+#' @seealso 
+#' \code{\link{annotate_position}} for the underlying annotation function
+#' \code{\link{setup_gene_annotation}} for gene map preparation
+#'
+#' @examples
+#' \dontrun{
+#' # Prepare gene annotation
+#' gene_setup <- setup_gene_annotation()
+#' 
+#' # Create a result template
+#' result <- create_result_template(
+#'   CHR_var = "1", BP_START_var = 1000000, BP_STOP_var = 2000000,
+#'   sumstats_1_file = "file1", sumstats_2_file = "file2",
+#'   sumstats_1_tabix = "ok", sumstats_2_tabix = "ok"
+#' )
+#' 
+#' # Add gene annotations
+#' result_annotated <- add_gene_annotations(result, gene_setup$gene_map)
+#' }
+#'
+#' @export
+add_gene_annotations <- function(result, gene_map = NULL, verbose = FALSE) {
+  
+  # Input validation
+  if (!is.data.frame(result)) {
+    stop("result must be a data.frame")
+  }
+  
+  required_cols <- c("CHR_var", "BP_START_var", "BP_STOP_var")
+  missing_cols <- setdiff(required_cols, colnames(result))
+  if (length(missing_cols) > 0) {
+    stop("result must contain columns: ", paste(missing_cols, collapse = ", "))
+  }
+  
+  # Set up gene annotation if not provided
+  if (is.null(gene_map)) {
+    if (verbose) message("Loading packaged gene annotation data...")
+    tryCatch({
+      gene_setup <- setup_gene_annotation(verbose = FALSE)
+      gene_map <- gene_setup$gene_map
+    }, error = function(e) {
+      warning("Failed to load gene annotation data: ", e$message)
+      return(result)  # Return unchanged if gene annotation fails
+    })
+  }
+  
+  # Validate gene_map
+  if (!is.data.frame(gene_map)) {
+    warning("Invalid gene_map provided; skipping gene annotation")
+    return(result)
+  }
+  
+  # Process each row (though typically there's only one)
+  for (i in seq_len(nrow(result))) {
+    chr <- as.character(result$CHR_var[i])
+    start_pos <- as.numeric(result$BP_START_var[i])
+    stop_pos <- as.numeric(result$BP_STOP_var[i])
+    
+    # Calculate region center
+    center_pos <- round((start_pos + stop_pos) / 2)
+    result$region_center_pos[i] <- center_pos
+    
+    if (verbose) {
+      message("Annotating region ", chr, ":", start_pos, "-", stop_pos, 
+              " (center: ", center_pos, ")")
+    }
+    
+    # Annotate center position
+    tryCatch({
+      # Get detailed annotation for center
+      center_annotation <- annotate_position(
+        chr = chr, 
+        pos = center_pos, 
+        gene_map = gene_map,
+        n_nearest = 1,
+        output_format = "default"
+      )
+      result$region_center_gene[i] <- center_annotation
+      
+      # Get multiple nearest genes in simple format
+      nearest_3 <- annotate_position(
+        chr = chr, 
+        pos = center_pos, 
+        gene_map = gene_map,
+        n_nearest = 3,
+        output_format = "simple"
+      )
+      result$nearest_genes_3[i] <- nearest_3
+      
+      nearest_5 <- annotate_position(
+        chr = chr, 
+        pos = center_pos, 
+        gene_map = gene_map,
+        n_nearest = 5,
+        output_format = "simple"
+      )
+      result$nearest_genes_5[i] <- nearest_5
+      
+      nearest_10 <- annotate_position(
+        chr = chr, 
+        pos = center_pos, 
+        gene_map = gene_map,
+        n_nearest = 10,
+        output_format = "simple"
+      )
+      result$nearest_genes_10[i] <- nearest_10
+      
+      if (verbose) {
+        message("  Center gene: ", center_annotation)
+        message("  5 nearest: ", nearest_5)
+      }
+      
+    }, error = function(e) {
+      warning("Gene annotation failed for region ", chr, ":", start_pos, "-", stop_pos, 
+              ": ", e$message)
+      # Leave as NA if annotation fails
+    })
+  }
+  
+  return(result)
+}
 
 #' Save colocalization results to files
 #'

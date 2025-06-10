@@ -19,7 +19,8 @@ batch_annotate_positions(
 
 \item{pos_col}{Character. Name of position column (default: "Pos")}
 
-\item{annotation_function}{Function returned by setup_gene_annotation()$annotate_position}
+\item{annotation_function}{Function to annotate positions. Create with:
+annotation_function <- function(chr, pos) { annotate_position(chr, pos, gene_map) }}
 
 \item{verbose}{Logical. Print progress messages (default: TRUE)}
 }
@@ -35,6 +36,11 @@ This function adds gene annotations to a data frame containing genomic coordinat
 # First set up gene annotation
 result <- setup_gene_annotation()
 
+# Create annotation function
+annotation_func <- function(chr, pos) {
+  annotate_position(chr, pos, result$gene_map)
+}
+
 # Example 1: Simple batch annotation
 my_variants <- data.frame(
   Chr = c("1", "2", "7", "17"),
@@ -44,7 +50,7 @@ my_variants <- data.frame(
 
 annotated <- batch_annotate_positions(
   data = my_variants,
-  annotation_function = result$annotate_position
+  annotation_function = annotation_func
 )
 print(annotated)
 
@@ -60,22 +66,9 @@ gwas_annotated <- batch_annotate_positions(
   data = gwas_data,
   chr_col = "chromosome",
   pos_col = "bp_position", 
-  annotation_function = result$annotate_position
+  annotation_function = annotation_func
 )
 print(gwas_annotated$Gene_Annotation)
-
-# Example 3: Large dataset processing
-# For datasets with >10,000 variants, consider data.table for speed
-if (require(data.table)) {
-  large_data <- data.table(
-    Chr = sample(c(1:22, "X"), 1000, replace = TRUE),
-    Pos = sample(1:250000000, 1000),
-    ID = paste0("variant_", 1:1000)
-  )
-  
-  # This will be faster for large datasets
-  large_data[, Gene := result$annotate_position(Chr, Pos), by = 1:nrow(large_data)]
-}
 }
 
 }
