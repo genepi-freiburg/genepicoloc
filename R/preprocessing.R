@@ -117,9 +117,9 @@ retrieve_sumstats_tabix <- function(sumstats_file,
                                     test_mode = FALSE,
                                     file_remove = TRUE,
                                     return_tabix_cmd = FALSE) {
-  # some sumstats like GTEXv8 need UCSC chromosome notation
-  # , e.g., "chr19" instead of "19"
-  # in these cases, coloc_regions_PASS object will be passed with "chr19"
+  # some sumstats (GTEXv8_eQTL, Icelanders_pGWAS) need UCSC chromosome notation,
+  # e.g., "chr19" instead of "19".
+  # In these cases, coloc_regions_PASS object will be passed with "chr19"
   # however, for the downstream analyses, CHR_var in coloc_regions_PASS
   # should have numeric notation: "19"
   # therefore, we will save numeric chromosome in the coloc_regions_PASS attribute
