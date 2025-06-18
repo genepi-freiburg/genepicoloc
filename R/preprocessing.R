@@ -117,6 +117,14 @@ retrieve_sumstats_tabix <- function(sumstats_file,
                                     test_mode = FALSE,
                                     file_remove = TRUE,
                                     return_tabix_cmd = FALSE) {
+  # some sumstats like GTEXv8 need UCSC chromosome notation
+  # , e.g., "chr19" instead of "19"
+  # in these cases, coloc_regions_PASS object will be passed with "chr19"
+  # however, for the downstream analyses, CHR_var in coloc_regions_PASS
+  # should have numeric notation: "19"
+  # therefore, we will save numeric chromosome in the coloc_regions_PASS attribute
+  coloc_regions_PASS_attr <- coloc_regions_PASS
+  coloc_regions_PASS_attr$CHR_var <- gsub("chr", "", coloc_regions_PASS_attr$CHR_var)
   
   # Input validation
   if (!file.exists(sumstats_file)) {
@@ -125,7 +133,7 @@ retrieve_sumstats_tabix <- function(sumstats_file,
     sumstats <- data.table::data.table()
     attr(sumstats, "tabix") <- "tabix_failed"
     attr(sumstats, "sumstats_file") <- sumstats_file
-    attr(sumstats, "coloc_regions_PASS") <- coloc_regions_PASS
+    attr(sumstats, "coloc_regions_PASS") <- coloc_regions_PASS_attr
     attr(sumstats, "sumstats_pheno") <- sumstats_pheno
     class(sumstats) <- unique(c("sumstats", class(sumstats)))
     return(sumstats)
@@ -203,7 +211,7 @@ retrieve_sumstats_tabix <- function(sumstats_file,
   # Set attributes
   attr(sumstats, "tabix") <- tabix_attr
   attr(sumstats, "sumstats_file") <- sumstats_file
-  attr(sumstats, "coloc_regions_PASS") <- coloc_regions_PASS
+  attr(sumstats, "coloc_regions_PASS") <- coloc_regions_PASS_attr
   attr(sumstats, "sumstats_pheno") <- sumstats_pheno
   
   # Set class
