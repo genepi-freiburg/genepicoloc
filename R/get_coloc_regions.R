@@ -343,7 +343,8 @@ gc_bgzip_tabix <- function(sumstats,
   # Order data if requested
   if (order_sumstats) {
     message("Ordering sumstats by CHR and POS")
-    sumstats <- sumstats[order(sumstats[[CHR]], sumstats[[POS]]), ]
+    new_order <- order(sumstats[[CHR]], sumstats[[POS]])
+    sumstats <- sumstats[new_order, ]
   }
   
   # Create file paths
