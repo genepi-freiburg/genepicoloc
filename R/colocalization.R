@@ -87,7 +87,7 @@ genepicoloc_wrapper <- function(dir_out,
   # Configure test mode
   if (test_mode) {
     # Process only first dataset per study
-    args_df <- args_df[, .SD[1], by = sumstats_2_study]
+    args_df <- data.table::data.table(args_df[, .SD[1], by = sumstats_2_study])
     # Process only first region
     coloc_regions_PASS <- attr(sumstats_1_form, "coloc_regions_PASS")[1,]
     attr(sumstats_1_form, "coloc_regions_PASS") <- coloc_regions_PASS
