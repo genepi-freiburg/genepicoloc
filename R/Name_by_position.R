@@ -682,69 +682,36 @@ genepi_liftover <- function(sumstats,
   return(sumstats_lifted)
 }
 
-
-#' Flip DNA Alleles to Complementary Strand
-#'
-#' Converts DNA alleles to their complementary base pairs for strand flipping.
-#' Used internally by liftOver functions when variants are on the negative strand.
-#'
-#' @param alleles Character vector of DNA alleles (A, T, G, C, or combinations)
-#'
-#' @return Character vector of complementary alleles
-#'
-#' @details
-#' This function handles the standard DNA base pair complementarity:
-#' \itemize{
-#'   \item A <-> T
-#'   \item G <-> C
-#'   \item Handles multi-character alleles and indels
-#'   \item Preserves non-standard characters (e.g., "D", "I" for deletions/insertions)
-#' }
-#'
-#' @examples
-#' flip_alleles(c("A", "T", "G", "C"))
-#' # Returns: c("T", "A", "C", "G")
+#' @title Genomic Coordinate Lift Over with Variant Harmonization (Deprecated)
+#' @description 
+#' \strong{DEPRECATED:} This function has been renamed to \code{\link{genepi_liftover}}.
+#' Please use \code{genepi_liftover()} instead.
 #' 
-#' flip_alleles(c("AT", "GC", "D"))
-#' # Returns: c("TA", "CG", "D")
-#'
+#' @param ... Arguments passed to \code{\link{genepi_liftover}}
+#' @return Same as \code{\link{genepi_liftover}}
+#' 
+#' @details
+#' This function is deprecated and will be removed in a future version.
+#' Please update your code to use \code{genepi_liftover()} instead.
+#' 
+#' @examples
+#' \dontrun{
+#' # Old way (deprecated)
+#' # result <- genepi_liftOver(sumstats, ...)
+#' 
+#' # New way (recommended)
+#' result <- genepi_liftover(sumstats, ...)
+#' }
+#' 
 #' @export
-flip_alleles <- function(alleles) {
-  # Define complement mapping
-  complement_map <- c(
-    "A" = "T", "T" = "A", 
-    "G" = "C", "C" = "G",
-    "a" = "t", "t" = "a",
-    "g" = "c", "c" = "g"
-  )
+genepi_liftOver <- function(...) {
+  .Deprecated("genepi_liftover", 
+              msg = paste("genepi_liftOver() is deprecated.",
+                          "Please use genepi_liftover() instead.",
+                          "The function has been renamed to follow R naming conventions."))
   
-  # Function to flip a single allele
-  flip_single <- function(allele) {
-    if (nchar(allele) == 1) {
-      # Single nucleotide
-      return(ifelse(allele %in% names(complement_map), 
-                    complement_map[allele], allele))
-    } else {
-      # Multi-nucleotide or indel
-      if (allele %in% c("D", "I", ".", "-")) {
-        # Deletion/insertion markers
-        return(allele)
-      } else {
-        # Multi-nucleotide - flip each base
-        bases <- strsplit(allele, "")[[1]]
-        flipped_bases <- sapply(bases, function(base) {
-          ifelse(base %in% names(complement_map), 
-                 complement_map[base], base)
-        })
-        return(paste(flipped_bases, collapse = ""))
-      }
-    }
-  }
-  
-  # Apply to all alleles
-  sapply(alleles, flip_single, USE.NAMES = FALSE)
+  genepi_liftover(...)
 }
-
 
 #' Create dbSNP Reference File for Position-Based Matching
 #'
