@@ -25,7 +25,9 @@
 #' @param debug_mode Logical. Run sequentially for debugging (default: FALSE).
 #'   Overrides mc_cores setting.
 #' @param progress_interval Numeric. How often to check progress in seconds (default: 5).
-#'   Only used when verbose = TRUE and for jobs with more than 50 datasets.
+#'   Only used when verbose = TRUE.
+#' @param max_regions_per_job Integer. Maximum number of regions per job (default: 100).
+#'   Jobs will be split if coloc_regions_PASS exceeds this number.
 #' 
 #' @return Invisibly returns NULL. Results are written to disk in the specified
 #'   output directory.
@@ -41,6 +43,9 @@
 #' 
 #' In test mode, the output directory name is appended with "_test_mode" and
 #' only the first region and first dataset per study are processed.
+#' 
+#' When coloc_regions_PASS has more than max_regions_per_job rows, the analysis
+#' is automatically split into multiple jobs to manage computational load.
 #' 
 #' @importFrom parallel mcmapply
 #' @importFrom data.table fwrite .SD
@@ -74,7 +79,8 @@ genepicoloc_wrapper <- function(dir_out,
                                 test_mode = FALSE, 
                                 verbose = TRUE,
                                 debug_mode = FALSE,
-                                progress_interval = 5) {
+                                progress_interval = 5,
+                                max_regions_per_job = 100) {
   
   # Input validation
   if (!inherits(sumstats_1_form, "sumstats")) {
@@ -84,16 +90,112 @@ genepicoloc_wrapper <- function(dir_out,
     stop("sumstats_1_form must have a 'coloc_regions_PASS' attribute")
   }
   
+  # Get coloc_regions_PASS
+  coloc_regions_PASS <- attr(sumstats_1_form, "coloc_regions_PASS")
+  n_regions <- nrow(coloc_regions_PASS)
+  
   # Configure test mode
   if (test_mode) {
     # Process only first dataset per study
     args_df <- data.table::data.table(args_df[, .SD[1], by = sumstats_2_study])
     # Process only first region
-    coloc_regions_PASS <- attr(sumstats_1_form, "coloc_regions_PASS")[1,]
+    coloc_regions_PASS <- coloc_regions_PASS[1,, drop = FALSE]
     attr(sumstats_1_form, "coloc_regions_PASS") <- coloc_regions_PASS
     # Modify output directory name
     dir_out <- paste0(dir_out, "_test_mode")
+    n_regions <- 1  # Update region count for test mode
   }
+  
+  # Check if we need to split jobs
+  if (n_regions > max_regions_per_job && !test_mode) {
+    # Calculate number of jobs needed
+    n_jobs <- ceiling(n_regions / max_regions_per_job)
+    
+    if (verbose) {
+      message(sprintf("coloc_regions_PASS has %d rows. Splitting into %d jobs (max %d regions per job).",
+                      n_regions, n_jobs, max_regions_per_job))
+    }
+    
+    # Run jobs sequentially
+    all_results <- list()
+    
+    for (job_idx in 1:n_jobs) {
+      # Calculate region indices for this job
+      start_idx <- (job_idx - 1) * max_regions_per_job + 1
+      end_idx <- min(job_idx * max_regions_per_job, n_regions)
+      
+      if (verbose) {
+        message(sprintf("\n=== Running job %d/%d (regions %d-%d) ===", 
+                        job_idx, n_jobs, start_idx, end_idx))
+      }
+      
+      # Create a copy of sumstats_1_form with subset of regions
+      sumstats_1_form_subset <- sumstats_1_form
+      attr(sumstats_1_form_subset, "coloc_regions_PASS") <- 
+        coloc_regions_PASS[start_idx:end_idx,, drop = FALSE]
+      
+      # Create job-specific output directory
+      dir_out_job <- file.path(dir_out, sprintf("job_%03d", job_idx))
+      
+      # Run the analysis for this subset
+      job_results <- genepicoloc_wrapper_single_job(
+        dir_out = dir_out_job,
+        sumstats_1_form = sumstats_1_form_subset,
+        args_df = args_df,
+        mc_cores = mc_cores,
+        verbose = verbose,
+        debug_mode = debug_mode,
+        progress_interval = progress_interval,
+        is_subjob = TRUE,
+        job_info = list(job_idx = job_idx, n_jobs = n_jobs, 
+                        start_idx = start_idx, end_idx = end_idx)
+      )
+      
+      all_results[[job_idx]] <- job_results
+    }
+    
+    if (verbose) {
+      message(sprintf("\nAll %d jobs completed successfully!", n_jobs))
+      message(sprintf("Results are organized in subdirectories under: %s", dir_out))
+    }
+    
+    # Save job splitting information
+    job_info_file <- file.path(dir_out, "job_splitting_info.txt")
+    writeLines(c(
+      sprintf("Total regions: %d", n_regions),
+      sprintf("Regions per job: %d", max_regions_per_job),
+      sprintf("Number of jobs: %d", n_jobs),
+      sprintf("Job directories: job_001 to job_%03d", n_jobs)
+    ), job_info_file)
+    
+    return(invisible(all_results))
+    
+  } else {
+    # Original behavior: run as single job
+    return(genepicoloc_wrapper_single_job(
+      dir_out = dir_out,
+      sumstats_1_form = sumstats_1_form,
+      args_df = args_df,
+      mc_cores = mc_cores,
+      verbose = verbose,
+      debug_mode = debug_mode,
+      progress_interval = progress_interval,
+      is_subjob = FALSE,
+      job_info = NULL
+    ))
+  }
+}
+
+# Internal function for running a single job (original logic)
+genepicoloc_wrapper_single_job <- function(dir_out,
+                                           sumstats_1_form,
+                                           args_df,
+                                           mc_cores = 10,
+                                           verbose = TRUE,
+                                           debug_mode = FALSE,
+                                           progress_interval = 5,
+                                           is_subjob = FALSE,
+                                           job_info = NULL) {
   
   message("Starting genepicoloc: ", nrow(args_df), " sumstats to be processed.")
   
@@ -107,6 +209,15 @@ genepicoloc_wrapper <- function(dir_out,
   args_df_file <- file.path(dir_out, "args_df.csv.gz")
   if (verbose) message("Saving args_df to ", args_df_file)
   data.table::fwrite(args_df, args_df_file)
+  
+  # Save job info if this is a subjob
+  if (is_subjob && !is.null(job_info)) {
+    job_info_file <- file.path(dir_out, "job_info.txt")
+    writeLines(c(
+      sprintf("Job %d of %d", job_info$job_idx, job_info$n_jobs),
+      sprintf("Regions %d to %d", job_info$start_idx, job_info$end_idx)
+    ), job_info_file)
+  }
   
   # Setup common arguments for all iterations
   shared_args <- list(
@@ -153,48 +264,48 @@ genepicoloc_wrapper <- function(dir_out,
                     total_datasets, length(study_counts)))
     
     # Start progress monitoring by watching output files
-    if (!debug_mode && total_datasets > 50) {  # Only for larger jobs
-      # Function to monitor output files
-      monitor_output <- function() {
-        last_count <- 0
-        while (TRUE) {
+    # Function to monitor output files
+    monitor_output <- function() {
+      last_count <- 0
+      while (TRUE) {
+        
+        # Count completed output files (assuming they have a specific pattern)
+        tryCatch({
+          output_files <- list.files(dir_out, pattern = "\\.csv.gz$", 
+                                     recursive = TRUE, full.names = FALSE)
+          # Exclude args_df.csv.gz from count
+          output_files <- output_files[!grepl("^args_df\\.csv\\.gz$", basename(output_files))]
+          current_count <- length(output_files)
           
-          # Count completed output files (assuming they have a specific pattern)
-          tryCatch({
-            output_files <- list.files(dir_out, pattern = "\\.csv.gz$", 
-                                       recursive = TRUE, full.names = FALSE)
-            current_count <- length(output_files)
+          if (current_count > last_count && current_count > 0) {
+            elapsed <- round(as.numeric(difftime(Sys.time(), start_time, units = "mins")), 1)
+            rate <- current_count / elapsed
+            eta <- if (rate > 0) round((total_datasets - current_count) / rate, 1) else NA
             
-            if (current_count > last_count && current_count > 0) {
-              elapsed <- round(as.numeric(difftime(Sys.time(), start_time, units = "mins")), 1)
-              rate <- current_count / elapsed
-              eta <- if (rate > 0) round((total_datasets - current_count) / rate, 1) else NA
-              
-              progress_msg <- sprintf("Progress: %d/%d files completed (%.1f%%) | %.1f min elapsed", 
-                                      current_count, total_datasets, 
-                                      (current_count/total_datasets)*100, elapsed)
-              if (!is.na(eta) && eta > 0) {
-                progress_msg <- paste0(progress_msg, sprintf(" | ETA: %.1f min", eta))
-              }
-              message(progress_msg)
-              last_count <- current_count
+            progress_msg <- sprintf("Progress: %d/%d files completed (%.1f%%) | %.1f min elapsed", 
+                                    current_count, total_datasets, 
+                                    (current_count/total_datasets)*100, elapsed)
+            if (!is.na(eta) && eta > 0) {
+              progress_msg <- paste0(progress_msg, sprintf(" | ETA: %.1f min", eta))
             }
-            
-            # Stop monitoring if we've reached the expected number
-            if (current_count >= total_datasets) break
-          }, error = function(e) {
-            # Continue monitoring if file listing fails
-          })
+            message(progress_msg)
+            last_count <- current_count
+          }
           
-          Sys.sleep(progress_interval)  # Check at specified interval
-          
-        }
+          # Stop monitoring if we've reached the expected number
+          if (current_count >= total_datasets) break
+        }, error = function(e) {
+          # Continue monitoring if file listing fails
+        })
+        
+        Sys.sleep(progress_interval)  # Check at specified interval
+        
       }
-      
-      # Start monitoring in background (Unix systems only)
-      if (.Platform$OS.type == "unix") {
-        monitor_pid <- parallel::mcparallel(monitor_output())
-      }
+    }
+    
+    # Start monitoring in background (Unix systems only)
+    if (.Platform$OS.type == "unix") {
+      monitor_pid <- parallel::mcparallel(monitor_output())
     }
   }
   
@@ -202,9 +313,19 @@ genepicoloc_wrapper <- function(dir_out,
   results <- do.call(parallel_func, mapply_args)
   
   if (verbose) {
+    Sys.sleep(progress_interval)  # Check at specified interval
     end_time <- Sys.time()
     duration <- round(as.numeric(difftime(end_time, start_time, units = "mins")), 1)
     message(sprintf("Analysis completed successfully in %.1f minutes!", duration))
+  }
+  
+  # After the Sys.sleep and before the end
+  if (exists("monitor_pid") && !is.null(monitor_pid) && .Platform$OS.type == "unix") {
+    tryCatch({
+      parallel::mccollect(monitor_pid, wait = FALSE)
+    }, error = function(e) {
+      # Ignore if already collected
+    })
   }
   
   # Return invisibly
