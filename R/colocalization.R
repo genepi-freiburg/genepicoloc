@@ -28,6 +28,8 @@
 #'   Only used when verbose = TRUE.
 #' @param max_regions_per_job Integer. Maximum number of regions per job (default: 100).
 #'   Jobs will be split if coloc_regions_PASS exceeds this number.
+#' @param collect_output Logical. Collect and consolidate output from job subfolders (default: TRUE).
+#'   Creates consolidated files in main directory and archives job folders.
 #' 
 #' @return Invisibly returns NULL. Results are written to disk in the specified
 #'   output directory.
@@ -39,6 +41,7 @@
 #'   \item Saves input arguments to args_df.csv.gz for reproducibility
 #'   \item Runs colocalization analysis in parallel (or sequentially if debugging)
 #'   \item Each secondary dataset is processed by \code{\link{process_sumstats_form}}
+#'   \item If collect_output = TRUE, consolidates results from job subdirectories
 #' }
 #' 
 #' In test mode, the output directory name is appended with "_test_mode" and
@@ -48,7 +51,7 @@
 #' is automatically split into multiple jobs to manage computational load.
 #' 
 #' @importFrom parallel mcmapply
-#' @importFrom data.table fwrite .SD
+#' @importFrom data.table fwrite fread rbindlist .SD
 #' 
 #' @examples
 #' \dontrun{
@@ -80,7 +83,8 @@ genepicoloc_wrapper <- function(dir_out,
                                 verbose = TRUE,
                                 debug_mode = FALSE,
                                 progress_interval = 5,
-                                max_regions_per_job = 100) {
+                                max_regions_per_job = 100,
+                                collect_output = TRUE) {
   
   # Input validation
   if (!inherits(sumstats_1_form, "sumstats")) {
@@ -106,83 +110,198 @@ genepicoloc_wrapper <- function(dir_out,
     n_regions <- 1  # Update region count for test mode
   }
   
-  # Check if we need to split jobs
-  if (n_regions > max_regions_per_job && !test_mode) {
-    # Calculate number of jobs needed
-    n_jobs <- ceiling(n_regions / max_regions_per_job)
+  # Calculate number of jobs needed
+  n_jobs <- ceiling(n_regions / max_regions_per_job)
+  
+  if (verbose) {
+    message(sprintf("coloc_regions_PASS has %d rows. Splitting into %d jobs (max %d regions per job).",
+                    n_regions, n_jobs, max_regions_per_job))
+  }
+  
+  # Run jobs sequentially
+  all_results <- list()
+  
+  for (job_idx in 1:n_jobs) {
+    # Calculate region indices for this job
+    start_idx <- (job_idx - 1) * max_regions_per_job + 1
+    end_idx <- min(job_idx * max_regions_per_job, n_regions)
     
     if (verbose) {
-      message(sprintf("coloc_regions_PASS has %d rows. Splitting into %d jobs (max %d regions per job).",
-                      n_regions, n_jobs, max_regions_per_job))
+      message(sprintf("\n=== Running job %d/%d (regions %d-%d) ===", 
+                      job_idx, n_jobs, start_idx, end_idx))
     }
     
-    # Run jobs sequentially
-    all_results <- list()
+    # Create a copy of sumstats_1_form with subset of regions
+    sumstats_1_form_subset <- sumstats_1_form
+    attr(sumstats_1_form_subset, "coloc_regions_PASS") <- 
+      coloc_regions_PASS[start_idx:end_idx,, drop = FALSE]
     
-    for (job_idx in 1:n_jobs) {
-      # Calculate region indices for this job
-      start_idx <- (job_idx - 1) * max_regions_per_job + 1
-      end_idx <- min(job_idx * max_regions_per_job, n_regions)
-      
-      if (verbose) {
-        message(sprintf("\n=== Running job %d/%d (regions %d-%d) ===", 
-                        job_idx, n_jobs, start_idx, end_idx))
-      }
-      
-      # Create a copy of sumstats_1_form with subset of regions
-      sumstats_1_form_subset <- sumstats_1_form
-      attr(sumstats_1_form_subset, "coloc_regions_PASS") <- 
-        coloc_regions_PASS[start_idx:end_idx,, drop = FALSE]
-      
-      # Create job-specific output directory
-      dir_out_job <- file.path(dir_out, sprintf("job_%03d", job_idx))
-      
-      # Run the analysis for this subset
-      job_results <- genepicoloc_wrapper_single_job(
-        dir_out = dir_out_job,
-        sumstats_1_form = sumstats_1_form_subset,
-        args_df = args_df,
-        mc_cores = mc_cores,
-        verbose = verbose,
-        debug_mode = debug_mode,
-        progress_interval = progress_interval,
-        is_subjob = TRUE,
-        job_info = list(job_idx = job_idx, n_jobs = n_jobs, 
-                        start_idx = start_idx, end_idx = end_idx)
-      )
-      
-      all_results[[job_idx]] <- job_results
-    }
+    # Create job-specific output directory
+    dir_out_job <- file.path(dir_out, sprintf("job_%03d", job_idx))
     
-    if (verbose) {
-      message(sprintf("\nAll %d jobs completed successfully!", n_jobs))
-      message(sprintf("Results are organized in subdirectories under: %s", dir_out))
-    }
-    
-    # Save job splitting information
-    job_info_file <- file.path(dir_out, "job_splitting_info.txt")
-    writeLines(c(
-      sprintf("Total regions: %d", n_regions),
-      sprintf("Regions per job: %d", max_regions_per_job),
-      sprintf("Number of jobs: %d", n_jobs),
-      sprintf("Job directories: job_001 to job_%03d", n_jobs)
-    ), job_info_file)
-    
-    return(invisible(all_results))
-    
-  } else {
-    # Original behavior: run as single job
-    return(genepicoloc_wrapper_single_job(
-      dir_out = dir_out,
-      sumstats_1_form = sumstats_1_form,
+    # Run the analysis for this subset
+    job_results <- genepicoloc_wrapper_single_job(
+      dir_out = dir_out_job,
+      sumstats_1_form = sumstats_1_form_subset,
       args_df = args_df,
       mc_cores = mc_cores,
       verbose = verbose,
       debug_mode = debug_mode,
       progress_interval = progress_interval,
-      is_subjob = FALSE,
-      job_info = NULL
-    ))
+      is_subjob = TRUE,
+      job_info = list(job_idx = job_idx, n_jobs = n_jobs, 
+                      start_idx = start_idx, end_idx = end_idx)
+    )
+    
+    all_results[[job_idx]] <- job_results
+  }
+  
+  if (verbose) {
+    message(sprintf("\nAll %d jobs completed successfully!", n_jobs))
+    message(sprintf("Results are organized in subdirectories under: %s", dir_out))
+  }
+  
+  # Save job splitting information
+  job_info_file <- file.path(dir_out, "job_splitting_info.txt")
+  writeLines(c(
+    sprintf("Total regions: %d", n_regions),
+    sprintf("Regions per job: %d", max_regions_per_job),
+    sprintf("Number of jobs: %d", n_jobs),
+    sprintf("Job directories: job_001 to job_%03d", n_jobs)
+  ), job_info_file)
+  
+  # Collect and consolidate output if requested
+  if (collect_output) {
+    if (verbose) message("\n=== Collecting and consolidating output files ===")
+    collect_job_outputs(dir_out, n_jobs, verbose)
+  }
+  
+  return(invisible(all_results))
+}
+
+#' Collect and consolidate output files from job subdirectories
+#' 
+#' @param dir_out Main output directory containing job subdirectories
+#' @param n_jobs Number of job subdirectories to process
+#' @param verbose Logical. Print progress messages
+#' 
+#' @importFrom data.table fread fwrite rbindlist
+collect_job_outputs <- function(dir_out, n_jobs, verbose = TRUE) {
+  
+  # Get all job directories
+  job_dirs <- file.path(dir_out, sprintf("job_%03d", 1:n_jobs))
+  
+  # Check that all job directories exist
+  if (!all(dir.exists(job_dirs))) {
+    stop("Not all job directories exist. Please check the output.")
+  }
+  
+  # 1. Find all unique output files (excluding args_df.csv.gz and job_info.txt)
+  all_files <- list()
+  for (job_dir in job_dirs) {
+    files <- list.files(job_dir, pattern = "\\.csv\\.gz$", 
+                        recursive = TRUE, full.names = FALSE)
+    # Exclude args_df.csv.gz from the main level
+    files <- files[!files %in% c("args_df.csv.gz")]
+    all_files[[job_dir]] <- files
+  }
+  
+  # Get unique file paths (relative to job directory)
+  unique_files <- unique(unlist(all_files))
+  
+  if (verbose) {
+    message(sprintf("Found %d unique output files to consolidate", length(unique_files)))
+  }
+  
+  # 2. Consolidate each unique file
+  for (file_rel_path in unique_files) {
+    if (verbose) message(sprintf("Consolidating: %s", file_rel_path))
+    
+    # Read data from all job directories
+    data_list <- list()
+    for (job_idx in 1:n_jobs) {
+      job_file <- file.path(dir_out, sprintf("job_%03d", job_idx), file_rel_path)
+      if (file.exists(job_file)) {
+        tryCatch({
+          data_list[[job_idx]] <- data.table::fread(job_file)
+        }, error = function(e) {
+          warning(sprintf("Failed to read %s: %s", job_file, e$message))
+        })
+      }
+    }
+    
+    # Combine data if any was read successfully
+    if (length(data_list) > 0) {
+      combined_data <- data.table::rbindlist(data_list, use.names = TRUE, fill = TRUE)
+      
+      # Create output directory if needed
+      output_file <- file.path(dir_out, file_rel_path)
+      output_dir <- dirname(output_file)
+      if (!dir.exists(output_dir)) {
+        dir.create(output_dir, recursive = TRUE)
+      }
+      
+      # Write combined data
+      data.table::fwrite(combined_data, output_file)
+      
+      if (verbose) {
+        message(sprintf("  Combined %d files -> %d rows", 
+                        length(data_list), nrow(combined_data)))
+      }
+    }
+  }
+  
+  # 3. Consolidate args_df.csv.gz files with job column
+  if (verbose) message("Consolidating args_df.csv.gz files...")
+  
+  args_list <- list()
+  for (job_idx in 1:n_jobs) {
+    args_file <- file.path(dir_out, sprintf("job_%03d", job_idx), "args_df.csv.gz")
+    if (file.exists(args_file)) {
+      args_data <- data.table::fread(args_file)
+      args_data$job <- job_idx
+      args_list[[job_idx]] <- args_data
+    }
+  }
+  
+  if (length(args_list) > 0) {
+    combined_args <- data.table::rbindlist(args_list, use.names = TRUE)
+    # Write to main directory
+    data.table::fwrite(combined_args, file.path(dir_out, "args_df_combined.csv.gz"))
+    if (verbose) {
+      message(sprintf("  Combined %d args_df files", length(args_list)))
+    }
+  }
+  
+  # 4. Archive job directories
+  if (verbose) message("Archiving job directories...")
+  
+  for (job_idx in 1:n_jobs) {
+    job_dir <- sprintf("job_%03d", job_idx)
+    job_path <- file.path(dir_out, job_dir)
+    archive_name <- file.path(dir_out, paste0(job_dir, ".tar.gz"))
+    
+    # Create tar.gz archive
+    # Using system command for better compression
+    tar_cmd <- sprintf("tar -czf '%s' -C '%s' '%s'", 
+                       archive_name, dir_out, job_dir)
+    
+    tryCatch({
+      system(tar_cmd, intern = FALSE)
+      # Remove directory after successful archiving
+      if (file.exists(archive_name)) {
+        unlink(job_path, recursive = TRUE)
+        if (verbose) message(sprintf("  Archived and removed: %s", job_dir))
+      }
+    }, error = function(e) {
+      warning(sprintf("Failed to archive %s: %s", job_dir, e$message))
+    })
+  }
+  
+  if (verbose) {
+    message("\nOutput collection completed!")
+    message(sprintf("Consolidated files are in: %s", dir_out))
+    message("Job directories have been archived as .tar.gz files")
   }
 }
 
@@ -271,7 +390,7 @@ genepicoloc_wrapper_single_job <- function(dir_out,
         
         # Count completed output files (assuming they have a specific pattern)
         tryCatch({
-          output_files <- list.files(dir_out, pattern = "\\.csv.gz$", 
+          output_files <- list.files(dir_out, pattern = "\\.csv\\.gz$", 
                                      recursive = TRUE, full.names = FALSE)
           # Exclude args_df.csv.gz from count
           output_files <- output_files[!grepl("^args_df\\.csv\\.gz$", basename(output_files))]
