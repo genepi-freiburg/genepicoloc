@@ -324,38 +324,6 @@ name_by_position <- function(sumstats,
   return(out_dt)
 }
 
-#' @title Find SNP Names by Genomic Position (Deprecated)
-#' @description 
-#' \strong{DEPRECATED:} This function has been renamed to \code{\link{name_by_position}}.
-#' Please use \code{name_by_position()} instead.
-#' 
-#' @param ... Arguments passed to \code{\link{name_by_position}}
-#' @return Same as \code{\link{name_by_position}}
-#' 
-#' @details
-#' This function is deprecated and will be removed in a future version.
-#' Please update your code to use \code{name_by_position()} instead.
-#' 
-#' @examples
-#' \dontrun{
-#' # Old way (deprecated)
-#' # result <- Name_by_position(sumstats, ...)
-#' 
-#' # New way (recommended)
-#' result <- name_by_position(sumstats, ...)
-#' }
-#' 
-#' @export
-Name_by_position <- function(...) {
-  .Deprecated("name_by_position", 
-              msg = paste("Name_by_position() is deprecated.",
-                          "Please use name_by_position() instead.",
-                          "The function has been renamed to follow R naming conventions."))
-  
-  name_by_position(...)
-}
-
-
 #' Genomic Coordinate Lift Over with Variant Harmonization
 #'
 #' Performs genomic coordinate conversion between genome builds (e.g., hg19 to hg38)
@@ -680,37 +648,6 @@ genepi_liftover <- function(sumstats,
   message("New coordinates added as: CHR_hg38, POS_hg38, A1_hg38, A2_hg38")
   
   return(sumstats_lifted)
-}
-
-#' @title Genomic Coordinate Lift Over with Variant Harmonization (Deprecated)
-#' @description 
-#' \strong{DEPRECATED:} This function has been renamed to \code{\link{genepi_liftover}}.
-#' Please use \code{genepi_liftover()} instead.
-#' 
-#' @param ... Arguments passed to \code{\link{genepi_liftover}}
-#' @return Same as \code{\link{genepi_liftover}}
-#' 
-#' @details
-#' This function is deprecated and will be removed in a future version.
-#' Please update your code to use \code{genepi_liftover()} instead.
-#' 
-#' @examples
-#' \dontrun{
-#' # Old way (deprecated)
-#' # result <- genepi_liftOver(sumstats, ...)
-#' 
-#' # New way (recommended)
-#' result <- genepi_liftover(sumstats, ...)
-#' }
-#' 
-#' @export
-genepi_liftOver <- function(...) {
-  .Deprecated("genepi_liftover", 
-              msg = paste("genepi_liftOver() is deprecated.",
-                          "Please use genepi_liftover() instead.",
-                          "The function has been renamed to follow R naming conventions."))
-  
-  genepi_liftover(...)
 }
 
 #' Create dbSNP Reference File for Position-Based Matching

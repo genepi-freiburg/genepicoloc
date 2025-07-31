@@ -1,7 +1,9 @@
 # genepicoloc 0.9.2
 
 ## Documentation improvements
-* Added progress report by default
+* Removed progress bar with processx
+* Added progress report using base R
+* Added name_by_position function
 
 ## Bug fixes
 * Added proper call of data.table::copy
@@ -26,3 +28,4 @@
 # genepicoloc 0.9.0
 
 * Initial release
+

@@ -12,7 +12,9 @@ genepicoloc_wrapper(
   test_mode = FALSE,
   verbose = TRUE,
   debug_mode = FALSE,
-  progress_interval = 5
+  progress_interval = 5,
+  max_regions_per_job = 100,
+  collect_output = TRUE
 )
 }
 \arguments{
@@ -43,7 +45,13 @@ Processes only the first region and first entry per study.}
 Overrides mc_cores setting.}
 
 \item{progress_interval}{Numeric. How often to check progress in seconds (default: 5).
-Only used when verbose = TRUE and for jobs with more than 50 datasets.}
+Only used when verbose = TRUE.}
+
+\item{max_regions_per_job}{Integer. Maximum number of regions per job (default: 100).
+Jobs will be split if coloc_regions_PASS exceeds this number.}
+
+\item{collect_output}{Logical. Collect and consolidate output from job subfolders (default: TRUE).
+Creates consolidated files in main directory and archives job folders.}
 }
 \value{
 Invisibly returns NULL. Results are written to disk in the specified
@@ -61,10 +69,14 @@ The function performs the following steps:
 \item Saves input arguments to args_df.csv.gz for reproducibility
 \item Runs colocalization analysis in parallel (or sequentially if debugging)
 \item Each secondary dataset is processed by \code{\link{process_sumstats_form}}
+\item If collect_output = TRUE, consolidates results from job subdirectories
 }
 
 In test mode, the output directory name is appended with "_test_mode" and
 only the first region and first dataset per study are processed.
+
+When coloc_regions_PASS has more than max_regions_per_job rows, the analysis
+is automatically split into multiple jobs to manage computational load.
 }
 \examples{
 \dontrun{
