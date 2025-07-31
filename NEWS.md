@@ -1,4 +1,12 @@
-# genepicoloc 0.1.2
+# genepicoloc 0.9.2
+
+## Documentation improvements
+* Added progress report by default
+
+## Bug fixes
+* Added proper call of data.table::copy
+
+# genepicoloc 0.9.1
 
 ## Documentation improvements
 * Enhanced documentation for all exported functions
@@ -15,6 +23,6 @@
 * Improved function descriptions
 * Added proper S3 method documentation
 
-# genepicoloc 0.1.1
+# genepicoloc 0.9.0
 
 * Initial release
