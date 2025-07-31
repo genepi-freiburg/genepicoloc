@@ -812,6 +812,7 @@ process_sumstats_form <- function(dir_out,
     )
     # Combine results from all regions
     coloc_results <- data.table::rbindlist(coloc_results, fill = TRUE)
+    # saveRDS(sumstats_2_form, paste0(file_out, "_test.RDS"))
     
   } else {
     # Multiple phenotype analysis
@@ -821,8 +822,17 @@ process_sumstats_form <- function(dir_out,
         sumstats_2 = sumstats_2,
         coloc_regions_PASS = attr(sumstats_2, "coloc_regions_PASS")
       )
+      file_out <- set_output_path(
+        sumstats_2_file = attr(sumstats_2, "sumstats_file"),
+        dir_out = dir_out,
+        sumstats_2_study = sumstats_2_study
+      )
+      file_out <- paste0(file_out, "_test.RDS")
+      # saveRDS(sumstats_2, file_out)
+      
       # Combine regions for this phenotype
-      data.table::rbindlist(region_results, fill = TRUE)
+      return(data.table::rbindlist(region_results, fill = TRUE))
+      
     })
     # Combine all phenotypes
     coloc_results <- data.table::rbindlist(coloc_results, fill = TRUE)
