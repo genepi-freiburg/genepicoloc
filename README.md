@@ -10,9 +10,9 @@ Inga Steinbrenner, Pascal Schlosser, et al.
 
 Source code: https://github.com/genepi-freiburg/genepicoloc
 
-# Maintenance in progress (June 2025)
+# Maintenance in progress (August 2025)
 # The package is temporarily unavailable
-# Please check for an updated version in July 2025
+# Please check for an updated version in September 2025
 
 # ----
 
