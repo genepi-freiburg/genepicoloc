@@ -76,7 +76,7 @@
 #' 
 #' @export
 genepicoloc_wrapper <- function(dir_out,
-                                sumstats_1_form,
+                                sumstats_1_args,  # New list argument
                                 args_df,
                                 mc_cores = 10,
                                 test_mode = FALSE, 
@@ -86,28 +86,26 @@ genepicoloc_wrapper <- function(dir_out,
                                 max_regions_per_job = 100,
                                 collect_output = TRUE) {
   
-  # Input validation
-  if (!inherits(sumstats_1_form, "sumstats")) {
-    stop("sumstats_1_form must be a sumstats object")
-  }
-  if (is.null(attr(sumstats_1_form, "coloc_regions_PASS"))) {
-    stop("sumstats_1_form must have a 'coloc_regions_PASS' attribute")
+  # Input validation for sumstats_1_args
+  required_args <- c("coloc_regions_PASS", "sumstats_1_function", 
+                     "sumstats_1_file", "sumstats_1_type", "sumstats_1_sdY")
+  missing_args <- setdiff(required_args, names(sumstats_1_args))
+  if (length(missing_args) > 0) {
+    stop("sumstats_1_args missing required elements: ", 
+         paste(missing_args, collapse = ", "))
   }
   
-  # Get coloc_regions_PASS
-  coloc_regions_PASS <- attr(sumstats_1_form, "coloc_regions_PASS")
+  # Extract coloc_regions_PASS from the args
+  coloc_regions_PASS <- sumstats_1_args$coloc_regions_PASS
   n_regions <- nrow(coloc_regions_PASS)
   
   # Configure test mode
   if (test_mode) {
-    # Process only first dataset per study
     args_df <- data.table::data.table(args_df[, .SD[1], by = sumstats_2_study])
-    # Process only first region
     coloc_regions_PASS <- coloc_regions_PASS[1,, drop = FALSE]
-    attr(sumstats_1_form, "coloc_regions_PASS") <- coloc_regions_PASS
-    # Modify output directory name
+    sumstats_1_args$coloc_regions_PASS <- coloc_regions_PASS  # Update in args
     dir_out <- paste0(dir_out, "_test_mode")
-    n_regions <- 1  # Update region count for test mode
+    n_regions <- 1
   }
   
   # Calculate number of jobs needed
@@ -131,10 +129,19 @@ genepicoloc_wrapper <- function(dir_out,
                       job_idx, n_jobs, start_idx, end_idx))
     }
     
-    # Create a copy of sumstats_1_form with subset of regions
-    sumstats_1_form_subset <- sumstats_1_form
-    attr(sumstats_1_form_subset, "coloc_regions_PASS") <- 
+    # Create a copy of sumstats_1_args with subset of regions
+    sumstats_1_args_subset <- sumstats_1_args
+    sumstats_1_args_subset$coloc_regions_PASS <- 
       coloc_regions_PASS[start_idx:end_idx,, drop = FALSE]
+    
+    # Format sumstats_1 for this job's regions only
+    sumstats_1_form_subset <- format_sumstats_1(
+      coloc_regions_PASS = sumstats_1_args_subset$coloc_regions_PASS,
+      sumstats_1_function = sumstats_1_args_subset$sumstats_1_function,
+      sumstats_1_file = sumstats_1_args_subset$sumstats_1_file,
+      sumstats_1_type = sumstats_1_args_subset$sumstats_1_type,
+      sumstats_1_sdY = sumstats_1_args_subset$sumstats_1_sdY
+    )
     
     # Create job-specific output directory
     dir_out_job <- file.path(dir_out, sprintf("job_%03d", job_idx))
@@ -142,7 +149,7 @@ genepicoloc_wrapper <- function(dir_out,
     # Run the analysis for this subset
     job_results <- genepicoloc_wrapper_single_job(
       dir_out = dir_out_job,
-      sumstats_1_form = sumstats_1_form_subset,
+      sumstats_1_form = sumstats_1_form_subset,  # Pass the formatted subset
       args_df = args_df,
       mc_cores = mc_cores,
       verbose = verbose,
