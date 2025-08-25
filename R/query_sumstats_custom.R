@@ -572,4 +572,71 @@ format_CKDGen_r4 <- function(sumstats) {
   return(sumstats)
 }
 
+#' Query VA Million Veteran Program Release 4 summary statistics using tabix
+#'
+#' @description Retrieves VA Million Veteran Program (MVP) Genomics Release 4 
+#' summary statistics for specified genomic regions. MVP R4 contains GWAS results
+#' from 635,969 US Veterans across 2,068 traits, with 29% of participants from 
+#' non-European populations (African, Admixed American, and East Asian ancestry).
+#'
+#' @param sumstats_file Path to the MVP R4 summary statistics file
+#' @param coloc_regions_PASS Data frame with columns CHR_var, BP_START_var, BP_STOP_var
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
+tabix_MVP_R4 <- function(sumstats_file, coloc_regions_PASS) {
+  sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
+                                      coloc_regions_PASS=coloc_regions_PASS)
+  if (attr(sumstats, "tabix") != "tabix_failed") {
+    sumstats <- format_MVP_R4(sumstats=sumstats)
+  }
+  return(sumstats)
+}
 
+#' Format VA Million Veteran Program Release 4 summary statistics
+#'
+#' @description Formats MVP R4 summary statistics to standard column names.
+#' Handles the multi-population meta-analysis results from the VA's largest 
+#' biobank study, which identified 26,049 variant-trait associations across
+#' diverse population groups.
+#'
+#' @param sumstats Data frame with MVP R4 summary statistics containing columns:
+#' SNP_ID, chrom, pos, ref, alt, ea (effect allele), af (allele frequency), 
+#' num_samples, beta, sebeta, pval, r2, q_pval, i2, direction
+#' @return Data frame with standardized column names for downstream analysis
+#' @keywords internal
+format_MVP_R4 <- function(sumstats) {
+  # check
+  cols_from <- c("SNP_ID", "chrom", "pos", "ref", "alt", "ea", "af", "num_samples", "beta", "sebeta", "pval", "q_pval", "i2", "direction")
+  # some sumstats have or and ci
+  if (all(c("or", "ci") %in% colnames(sumstats))) {
+    # Split the CI column and convert to numeric
+    ci_split <- strsplit(sumstats$ci, ",")
+    ci_lower <- as.numeric(sapply(ci_split, function(x) x[1]))
+    ci_upper <- as.numeric(sapply(ci_split, function(x) x[2]))
+    # Calculate beta and sebeta
+    sumstats$beta <- log(as.numeric(sumstats$or))
+    sumstats$sebeta <- (log(ci_upper) - log(ci_lower)) / 3.92  # 3.92 = 2 * 1.96 for 95% CI
+    if (!all(cols_from %in% colnames(sumstats))) {
+      stop("Column mismatch when reading ", attr(sumstats, "sumstats_file"))
+    }
+  } else if (!all(c("beta", "sebeta") %in% colnames(sumstats))) {
+    stop("Neither or+ci no beta+sebeta are available")
+  }
+  # format
+  sumstats$Name <- paste0("chr", sumstats$chrom, ":", sumstats$pos, ":", sumstats$ref, ":", sumstats$alt)
+  sumstats$nlog10P <- -log10(sumstats$pval)
+  # colnames
+  sumstats <- match_cols(sumstats=sumstats,
+                         Name="Name",
+                         rsID="SNP_ID",
+                         CHR="chrom",
+                         POS="pos",
+                         A1="alt",
+                         A2="ref",
+                         BETA="beta",
+                         SE="sebeta",
+                         nlog10P="nlog10P",
+                         AF="af",
+                         N="num_samples")
+  return(sumstats)
+}
