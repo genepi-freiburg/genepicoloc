@@ -1,90 +1,100 @@
+# Group 0: Pipeline orchestration ----
+#' @description
+#' Three-level pipeline hierarchy:
+#' 1. genepicoloc_wrapper() - Splits regions into jobs, manages parallelization
+#' 2. genepicoloc_job() - Processes one job (region subset, all datasets) 
+#' 3. genepicoloc_run() - Analyzes one secondary dataset against primary
+
 #' Wrapper for parallel colocalization analysis
 #' 
 #' @description
 #' Orchestrates parallel colocalization analysis across multiple secondary datasets
-#' against a primary dataset. Supports different parallelization strategies and 
-#' includes options for debugging and testing.
+#' against a primary dataset. Automatically splits large region sets into manageable
+#' jobs and handles parallelization.
 #' 
-#' @param dir_out Character string. Output directory path where results will be saved.
-#'   Directory will be created if it doesn't exist.
-#' @param sumstats_1_form A formatted sumstats object containing the primary dataset.
-#'   Must have a "coloc_regions_PASS" attribute containing regions to analyze.
-#' @param args_df A data.table/data.frame with columns:
+#' @param dir_out Character. Output directory path for results.
+#' @param sumstats_1_args Named list containing primary dataset parameters:
 #'   \itemize{
-#'     \item sumstats_2_study: Study identifier for secondary dataset
-#'     \item sumstats_2_file: Path to secondary summary statistics file
-#'     \item sumstats_2_function: Function name to process secondary data
-#'     \item sumstats_2_type: Type of summary statistics ('quant' or 'cc')
-#'     \item sumstats_2_sdY: Standard deviation for quantitative traits
+#'     \item coloc_regions_PASS: Data frame with CHR_var, BP_START_var, BP_STOP_var
+#'     \item sumstats_1_function: Function name for data retrieval
+#'     \item sumstats_1_file: Path to primary summary statistics
+#'     \item sumstats_1_type: 'quant' or 'cc'
+#'     \item sumstats_1_sdY: Standard deviation (NA for cc)
 #'   }
-#' @param mc_cores Integer. Number of cores for parallel processing (default: 10).
-#'   Ignored when debug_mode = TRUE.
-#' @param test_mode Logical. Run in test mode with limited execution (default: FALSE).
-#'   Processes only the first region and first entry per study.
-#' @param verbose Logical. Print detailed progress messages (default: TRUE).
+#' @param args_df Data frame with secondary dataset specifications:
+#'   \itemize{
+#'     \item sumstats_2_study: Study identifier
+#'     \item sumstats_2_file: Path to summary statistics
+#'     \item sumstats_2_function: Retrieval function name
+#'     \item sumstats_2_type: 'quant' or 'cc'
+#'     \item sumstats_2_sdY: Standard deviation (NA for cc)
+#'   }
+#' @param mc_cores Integer. Cores for parallel processing (default: 10).
+#' @param verbose Logical. Print progress messages (default: TRUE).
 #' @param debug_mode Logical. Run sequentially for debugging (default: FALSE).
-#'   Overrides mc_cores setting.
-#' @param progress_interval Numeric. How often to check progress in seconds (default: 5).
-#'   Only used when verbose = TRUE.
-#' @param max_regions_per_job Integer. Maximum number of regions per job (default: 100).
-#'   Jobs will be split if coloc_regions_PASS exceeds this number.
-#' @param collect_output Logical. Collect and consolidate output from job subfolders (default: TRUE).
-#'   Creates consolidated files in main directory and archives job folders.
-#' 
-#' @return Invisibly returns NULL. Results are written to disk in the specified
-#'   output directory.
+#' @param max_regions_per_job Integer. Maximum regions per job (default: 10).
+#'   For eQTL studies with multiple phenotypes, recommended value is not more
+#'   than 10. For other studies with a single phenotype it can be increased to 100.
+#' @param save_sumstats Logical. Whether to save filtered summary statistics 
+#'   (default: TRUE). Set to FALSE to save disk space when only colocalization 
+#'   results are needed.
+#'
+#' @return Invisibly returns vector of job processing times. Results are saved to
+#'   disk in job-specific subdirectories.
 #' 
 #' @details
-#' The function performs the following steps:
+#' The function implements a two-level parallelization strategy:
 #' \enumerate{
-#'   \item Creates output directory structure
-#'   \item Saves input arguments to args_df.csv.gz for reproducibility
-#'   \item Runs colocalization analysis in parallel (or sequentially if debugging)
-#'   \item Each secondary dataset is processed by \code{\link{process_sumstats_form}}
-#'   \item If collect_output = TRUE, consolidates results from job subdirectories
+#'   \item Level 1: Splits regions into jobs (max_regions_per_job each)
+#'   \item Level 2: Processes secondary datasets in parallel within each job
 #' }
 #' 
-#' In test mode, the output directory name is appended with "_test_mode" and
-#' only the first region and first dataset per study are processed.
-#' 
-#' When coloc_regions_PASS has more than max_regions_per_job rows, the analysis
-#' is automatically split into multiple jobs to manage computational load.
-#' 
-#' @importFrom parallel mcmapply
-#' @importFrom data.table fwrite fread rbindlist .SD
+#' Output structure:
+#' \itemize{
+#'   \item job_XXXX/: Subdirectories for each region job
+#'   \item sumstats_1.RDS: Primary dataset for job's regions
+#'   \item sumstats.tar: Archive of secondary datasets
+#'   \item coloc.tar: Archive of colocalization results
+#'   \item Metadata files in parent directory
+#' }
 #' 
 #' @examples
 #' \dontrun{
-#' # Prepare arguments data frame
+#' sumstats_1_args <- list(
+#'   coloc_regions_PASS = regions_df,
+#'   sumstats_1_function = "retrieve_sumstats_tabix",
+#'   sumstats_1_file = "primary.gz",
+#'   sumstats_1_type = "quant",
+#'   sumstats_1_sdY = 1.5
+#' )
+#' 
 #' args_df <- data.frame(
 #'   sumstats_2_study = c("Study1", "Study2"),
-#'   sumstats_2_file = c("path/to/study1.gz", "path/to/study2.gz"),
+#'   sumstats_2_file = c("study1.gz", "study2.gz"),
 #'   sumstats_2_function = "retrieve_sumstats_tabix",
 #'   sumstats_2_type = "quant",
 #'   sumstats_2_sdY = NA
 #' )
 #' 
-#' # Run colocalization
 #' genepicoloc_wrapper(
-#'   dir_out = "results/coloc",
-#'   sumstats_1_form = my_sumstats,
+#'   dir_out = "results",
+#'   sumstats_1_args = sumstats_1_args,
 #'   args_df = args_df,
-#'   mc_cores = 4,
-#'   verbose = TRUE
+#'   mc_cores = 4
 #' )
 #' }
 #' 
 #' @export
 genepicoloc_wrapper <- function(dir_out,
-                                sumstats_1_args,  # New list argument
+                                sumstats_1_args,
                                 args_df,
                                 mc_cores = 10,
-                                test_mode = FALSE, 
                                 verbose = TRUE,
                                 debug_mode = FALSE,
-                                progress_interval = 5,
-                                max_regions_per_job = 100,
-                                collect_output = TRUE) {
+                                max_regions_per_job = 10,
+                                save_sumstats = TRUE,
+                                p_min_save = 1e-6,
+                                batch_size = NULL) {
   
   # Input validation for sumstats_1_args
   required_args <- c("coloc_regions_PASS", "sumstats_1_function", 
@@ -97,368 +107,489 @@ genepicoloc_wrapper <- function(dir_out,
   
   # Extract coloc_regions_PASS from the args
   coloc_regions_PASS <- sumstats_1_args$coloc_regions_PASS
-  n_regions <- nrow(coloc_regions_PASS)
   
-  # Configure test mode
-  if (test_mode) {
-    args_df <- data.table::data.table(args_df[, .SD[1], by = sumstats_2_study])
-    coloc_regions_PASS <- coloc_regions_PASS[1,, drop = FALSE]
-    sumstats_1_args$coloc_regions_PASS <- coloc_regions_PASS  # Update in args
-    dir_out <- paste0(dir_out, "_test_mode")
-    n_regions <- 1
-  }
-  
-  # Calculate number of jobs needed
-  n_jobs <- ceiling(n_regions / max_regions_per_job)
-  
+  # Jobs metadata
+  study_counts <- table(args_df$sumstats_2_study)
   if (verbose) {
-    message(sprintf("coloc_regions_PASS has %d rows. Splitting into %d jobs (max %d regions per job).",
-                    n_regions, n_jobs, max_regions_per_job))
+    message("Total number of regions: ", nrow(coloc_regions_PASS))
+    message("Total number of argument: ", nrow(args_df))
+    message("Study breakdown:")
+    for (study in names(study_counts)) {
+      message(sprintf("  - %s: %d datasets", study, study_counts[study]))
+    }
   }
   
-  # Run jobs sequentially
-  all_results <- list()
+  ### STEP 1: Process region-based jobs ###
+  # Determine parallelization for level 1 - regions
+  n_regions <- nrow(coloc_regions_PASS)
+  n_jobs_1 <- ceiling(n_regions / max_regions_per_job)
+  if (verbose) {
+    message(sprintf("Splitting %d regions into %d jobs (max %d regions per job).",
+                    n_regions, n_jobs_1, max_regions_per_job))
+  }
   
-  for (job_idx in 1:n_jobs) {
+  job_times <- sapply(1:n_jobs_1, function(job_idx) {
+    
+    job_start_time <- Sys.time()
+    
     # Calculate region indices for this job
     start_idx <- (job_idx - 1) * max_regions_per_job + 1
     end_idx <- min(job_idx * max_regions_per_job, n_regions)
     
     if (verbose) {
       message(sprintf("\n=== Running job %d/%d (regions %d-%d) ===", 
-                      job_idx, n_jobs, start_idx, end_idx))
+                      job_idx, n_jobs_1, start_idx, end_idx))
     }
-    
-    # Create a copy of sumstats_1_args with subset of regions
-    sumstats_1_args_subset <- sumstats_1_args
-    sumstats_1_args_subset$coloc_regions_PASS <- 
-      coloc_regions_PASS[start_idx:end_idx,, drop = FALSE]
-    
-    # Format sumstats_1 for this job's regions only
-    sumstats_1_form_subset <- format_sumstats_1(
-      coloc_regions_PASS = sumstats_1_args_subset$coloc_regions_PASS,
-      sumstats_1_function = sumstats_1_args_subset$sumstats_1_function,
-      sumstats_1_file = sumstats_1_args_subset$sumstats_1_file,
-      sumstats_1_type = sumstats_1_args_subset$sumstats_1_type,
-      sumstats_1_sdY = sumstats_1_args_subset$sumstats_1_sdY
-    )
     
     # Create job-specific output directory
-    dir_out_job <- file.path(dir_out, sprintf("job_%03d", job_idx))
+    dir_out <- file.path(dir_out, "jobs", sprintf("job_%04d", job_idx))
+    if (!dir.exists(dir_out)) dir.create(dir_out, recursive = TRUE)
     
-    # Run the analysis for this subset
-    job_results <- genepicoloc_wrapper_single_job(
-      dir_out = dir_out_job,
-      sumstats_1_form = sumstats_1_form_subset,  # Pass the formatted subset
-      args_df = args_df,
-      mc_cores = mc_cores,
-      verbose = verbose,
-      debug_mode = debug_mode,
-      progress_interval = progress_interval,
-      is_subjob = TRUE,
-      job_info = list(job_idx = job_idx, n_jobs = n_jobs, 
-                      start_idx = start_idx, end_idx = end_idx)
+    # Format sumstats_1 for this job's regions only
+    sumstats_1_form <- format_sumstats_1(
+      coloc_regions_PASS = coloc_regions_PASS[start_idx:end_idx,],
+      sumstats_1_function = sumstats_1_args$sumstats_1_function,
+      sumstats_1_file = sumstats_1_args$sumstats_1_file,
+      sumstats_1_type = sumstats_1_args$sumstats_1_type,
+      sumstats_1_sdY = sumstats_1_args$sumstats_1_sdY
     )
     
-    all_results[[job_idx]] <- job_results
-  }
-  
-  if (verbose) {
-    message(sprintf("\nAll %d jobs completed successfully!", n_jobs))
-    message(sprintf("Results are organized in subdirectories under: %s", dir_out))
-  }
-  
-  # Save job splitting information
-  job_info_file <- file.path(dir_out, "job_splitting_info.txt")
-  writeLines(c(
-    sprintf("Total regions: %d", n_regions),
-    sprintf("Regions per job: %d", max_regions_per_job),
-    sprintf("Number of jobs: %d", n_jobs),
-    sprintf("Job directories: job_001 to job_%03d", n_jobs)
-  ), job_info_file)
-  
-  # Collect and consolidate output if requested
-  if (collect_output) {
-    if (verbose) message("\n=== Collecting and consolidating output files ===")
-    collect_job_outputs(dir_out, n_jobs, verbose)
-  }
-  
-  return(invisible(all_results))
-}
-
-#' Collect and consolidate output files from job subdirectories
-#' 
-#' @param dir_out Main output directory containing job subdirectories
-#' @param n_jobs Number of job subdirectories to process
-#' @param verbose Logical. Print progress messages
-#' 
-#' @importFrom data.table fread fwrite rbindlist
-collect_job_outputs <- function(dir_out, n_jobs, verbose = TRUE) {
-  
-  # Get all job directories
-  job_dirs <- file.path(dir_out, sprintf("job_%03d", 1:n_jobs))
-  
-  # Check that all job directories exist
-  if (!all(dir.exists(job_dirs))) {
-    stop("Not all job directories exist. Please check the output.")
-  }
-  
-  # 1. Find all unique output files (excluding args_df.csv.gz and job_info.txt)
-  all_files <- list()
-  for (job_dir in job_dirs) {
-    files <- list.files(job_dir, pattern = "\\.csv\\.gz$", 
-                        recursive = TRUE, full.names = FALSE)
-    # Exclude args_df.csv.gz from the main level
-    files <- files[!files %in% c("args_df.csv.gz")]
-    all_files[[job_dir]] <- files
-  }
-  
-  # Get unique file paths (relative to job directory)
-  unique_files <- unique(unlist(all_files))
-  
-  if (verbose) {
-    message(sprintf("Found %d unique output files to consolidate", length(unique_files)))
-  }
-  
-  # 2. Consolidate each unique file
-  for (file_rel_path in unique_files) {
-    if (verbose) message(sprintf("Consolidating: %s", file_rel_path))
-    
-    # Read data from all job directories
-    data_list <- list()
-    for (job_idx in 1:n_jobs) {
-      job_file <- file.path(dir_out, sprintf("job_%03d", job_idx), file_rel_path)
-      if (file.exists(job_file)) {
-        tryCatch({
-          data_list[[job_idx]] <- data.table::fread(job_file)
-        }, error = function(e) {
-          warning(sprintf("Failed to read %s: %s", job_file, e$message))
-        })
-      }
-    }
-    
-    # Combine data if any was read successfully
-    if (length(data_list) > 0) {
-      combined_data <- data.table::rbindlist(data_list, use.names = TRUE, fill = TRUE)
-      
-      # Create output directory if needed
-      output_file <- file.path(dir_out, file_rel_path)
-      output_dir <- dirname(output_file)
-      if (!dir.exists(output_dir)) {
-        dir.create(output_dir, recursive = TRUE)
-      }
-      
-      # Write combined data
-      data.table::fwrite(combined_data, output_file)
-      
-      if (verbose) {
-        message(sprintf("  Combined %d files -> %d rows", 
-                        length(data_list), nrow(combined_data)))
-      }
-    }
-  }
-  
-  # 3. Consolidate args_df.csv.gz files with job column
-  if (verbose) message("Consolidating args_df.csv.gz files...")
-  
-  args_list <- list()
-  for (job_idx in 1:n_jobs) {
-    args_file <- file.path(dir_out, sprintf("job_%03d", job_idx), "args_df.csv.gz")
-    if (file.exists(args_file)) {
-      args_data <- data.table::fread(args_file)
-      args_data$job <- job_idx
-      args_list[[job_idx]] <- args_data
-    }
-  }
-  
-  if (length(args_list) > 0) {
-    combined_args <- data.table::rbindlist(args_list, use.names = TRUE)
-    # Write to main directory
-    data.table::fwrite(combined_args, file.path(dir_out, "args_df_combined.csv.gz"))
     if (verbose) {
-      message(sprintf("  Combined %d args_df files", length(args_list)))
+      message("Output will be written to ", dir_out)
+      message("Queried ", format(nrow(sumstats_1_form), big.mark = ","), " rows")
+      mb_size <- format(object.size(sumstats_1_form), units = "MB")
+      if (mb_size == "0 Mb") mb_size <- format(object.size(sumstats_1_form), units = "KB")
+      message("sumstats_1 object size = ", mb_size)
     }
-  }
-  
-  # 4. Archive job directories
-  if (verbose) message("Archiving job directories...")
-  
-  for (job_idx in 1:n_jobs) {
-    job_dir <- sprintf("job_%03d", job_idx)
-    job_path <- file.path(dir_out, job_dir)
-    archive_name <- file.path(dir_out, paste0(job_dir, ".tar.gz"))
     
-    # Create tar.gz archive
-    # Using system command for better compression
-    tar_cmd <- sprintf("tar -czf '%s' -C '%s' '%s'", 
-                       archive_name, dir_out, job_dir)
-    
-    tryCatch({
-      system(tar_cmd, intern = FALSE)
-      # Remove directory after successful archiving
-      if (file.exists(archive_name)) {
-        unlink(job_path, recursive = TRUE)
-        if (verbose) message(sprintf("  Archived and removed: %s", job_dir))
+    ### Saving sumstats_1 and creating tar archive for sumstats_2
+    if (save_sumstats) {
+      saveRDS(sumstats_1_form, file.path(dir_out, "sumstats_1.RDS"))
+      tar_sumstats_file <- file.path(dir_out, "sumstats.tar")
+      exit_code_sumstats <- system(sprintf("tar -cf '%s' -T /dev/null", tar_sumstats_file), ignore.stderr = T)
+      if (exit_code_sumstats != 0) {
+        stop(sprintf("Failed to create empty sumstats tar archive: %s (exit code: %d)", 
+                     tar_sumstats_file, exit_code_sumstats))
       }
-    }, error = function(e) {
-      warning(sprintf("Failed to archive %s: %s", job_dir, e$message))
+    } else {
+      tar_sumstats_file <- NULL
+    }
+    
+    # Create empty tar archive
+    tar_coloc_file <- file.path(dir_out, "coloc.tar") # save all in one, not by study
+    exit_code_coloc <- system(sprintf("tar -cf '%s' -T /dev/null", tar_coloc_file))
+    # Check if creation succeeded
+    if (exit_code_coloc != 0) {
+      stop(sprintf("Failed to create empty coloc tar archive: %s (exit code: %d)", 
+                   tar_coloc_file, exit_code_coloc))
+    }
+    
+    ### STEP 2: Process arguments-based subjobs ###
+    n_args <- nrow(args_df)
+    # Set batch size if not specified
+    if (is.null(batch_size)) batch_size <- mc_cores * 5
+    
+    n_jobs_2 <- ceiling(n_args / batch_size) # max jobs based on mc_cores
+    if (verbose) {
+      message(sprintf("Splitting %d arguments into %d subjobs (batch size: %d, using %d cores).",
+                      n_args, n_jobs_2, batch_size, mc_cores))
+    }
+    
+    sapply(1:n_jobs_2, function(job_idx) {
+      # Calculate indices for this subjob
+      start_idx <- (job_idx - 1) * batch_size + 1
+      end_idx <- min(job_idx * batch_size, n_args)
+      n_expected <- end_idx - start_idx + 1
+      
+      # Run the analysis for this subset
+      result <- genepicoloc_job(
+        sumstats_1_form = sumstats_1_form,
+        args_df = args_df[start_idx:end_idx,],
+        tar_sumstats_file = tar_sumstats_file,
+        tar_coloc_file = tar_coloc_file,
+        mc_cores = mc_cores,
+        verbose = verbose,
+        debug_mode = debug_mode,
+        save_sumstats = save_sumstats,
+        p_min_save = p_min_save
+      )
+      
+      # Validate output
+      if (result$n_coloc != n_expected) {
+        warning(sprintf("Subjob %d: File count mismatch. Expected %d files, got %d coloc files", 
+                        job_idx, n_expected, result$n_coloc))
+      }
+      
+      # Progress reporting
+      if (verbose) {
+        completed_args <- min(job_idx * batch_size, n_args)
+        pct_complete <- (completed_args / n_args) * 100
+        elapsed <- round(as.numeric(difftime(Sys.time(), job_start_time, units = "mins")), 1)
+        
+        # Estimate remaining time
+        if (completed_args > 0) {
+          rate <- completed_args / elapsed
+          remaining <- n_args - completed_args
+          eta <- if (rate > 0) round(remaining / rate, 1) else NA
+          
+          progress_msg <- sprintf("Running subjob %d/%d (args %d-%d): %d/%d datasets completed (%.1f%%) | %.1f min elapsed", 
+                                  job_idx, n_jobs_2, start_idx, end_idx,
+                                  completed_args, n_args, pct_complete, elapsed)
+          
+          if (!is.na(eta) && eta > 0) {
+            progress_msg <- paste0(progress_msg, sprintf(" | ETA: %.1f min", eta))
+          }
+          
+          message(progress_msg)
+        }
+        
+      }
+      
     })
-  }
+    
+    # Final summary
+    total_time <- round(as.numeric(difftime(Sys.time(), job_start_time, units = "mins")), 1)
+    
+    # Return the job directory path
+    return(invisible(total_time))
+  })
   
-  if (verbose) {
-    message("\nOutput collection completed!")
-    message(sprintf("Consolidated files are in: %s", dir_out))
-    message("Job directories have been archived as .tar.gz files")
-  }
-}
-
-# Internal function for running a single job (original logic)
-genepicoloc_wrapper_single_job <- function(dir_out,
-                                           sumstats_1_form,
-                                           args_df,
-                                           mc_cores = 10,
-                                           verbose = TRUE,
-                                           debug_mode = FALSE,
-                                           progress_interval = 5,
-                                           is_subjob = FALSE,
-                                           job_info = NULL) {
-  
-  message("Starting genepicoloc: ", nrow(args_df), " sumstats to be processed.")
-  
-  # Create output directory
-  if (!dir.exists(dir_out)) {
-    dir.create(dir_out, recursive = TRUE)
-  }
-  if (verbose) message("Output will be written to ", dir_out)
-  
-  # Save arguments for reproducibility
-  args_df_file <- file.path(dir_out, "args_df.csv.gz")
-  if (verbose) message("Saving args_df to ", args_df_file)
-  data.table::fwrite(args_df, args_df_file)
-  
-  # Save job info if this is a subjob
-  if (is_subjob && !is.null(job_info)) {
-    job_info_file <- file.path(dir_out, "job_info.txt")
-    writeLines(c(
-      sprintf("Job %d of %d", job_info$job_idx, job_info$n_jobs),
-      sprintf("Regions %d to %d", job_info$start_idx, job_info$end_idx)
-    ), job_info_file)
-  }
-  
-  # Setup common arguments for all iterations
-  shared_args <- list(
+  # Save arguments and job splitting information
+  save_job_metadata(
     dir_out = dir_out,
-    sumstats_1_form = sumstats_1_form,
+    args_df = args_df,
+    n_regions = n_regions,
+    max_regions_per_job = max_regions_per_job,
+    n_jobs_1 = n_jobs_1,
+    mc_cores = mc_cores,
+    study_counts = study_counts,
+    job_times = unlist(job_times),
     verbose = verbose
   )
   
+  if (verbose) {
+    message("\n=== Consolidating results by study ===")
+  }
+  consolidate_coloc_results(dir_out = dir_out, verbose = verbose)
+
+  return(invisible(job_times))
+}
+
+#' Process a single job of colocalization analyses
+#' 
+#' @description
+#' Processes a subset of secondary datasets against a primary dataset for a 
+#' specific set of regions. Manages temporary file creation, parallel processing
+#' of datasets, and archiving of results.
+#' 
+#' @param sumstats_1_form Formatted primary dataset for this job's regions.
+#' @param args_df Data frame subset with secondary datasets to process.
+#' @param tar_sumstats_file Path to tar archive for storing sumstats.
+#' @param tar_coloc_file Path to tar archive for storing coloc results.
+#' @param mc_cores Integer. Cores for parallel processing (default: 10).
+#' @param verbose Logical. Print progress messages (default: TRUE).
+#' @param debug_mode Logical. Run sequentially (default: FALSE).
+#' @param save_sumstats Logical. Whether to save filtered summary statistics 
+#'   (default: TRUE). Set to FALSE to save disk space when only colocalization 
+#'   results are needed.
+#'
+#' @return List with two elements:
+#'   \itemize{
+#'     \item n_sumstats: Number of sumstats files processed
+#'     \item n_coloc: Number of coloc result files created
+#'   }
+#' 
+#' @details
+#' This function:
+#' \enumerate{
+#'   \item Creates temporary directories for intermediate files
+#'   \item Processes each secondary dataset via genepicoloc_run
+#'   \item Archives results into tar files
+#'   \item Cleans up temporary directories
+#' }
+#' 
+#' The function uses mapply/mcmapply for parallel processing based on
+#' debug_mode setting. Results are appended to existing tar archives,
+#' allowing incremental processing across multiple calls.
+#' 
+#' @examples
+#' \dontrun{
+#' result <- genepicoloc_job(
+#'   sumstats_1_form = formatted_primary_data,
+#'   args_df = args_subset,
+#'   tar_sumstats_file = "output/sumstats.tar",
+#'   tar_coloc_file = "output/coloc.tar",
+#'   mc_cores = 4
+#' )
+#' 
+#' # Check processing status
+#' if (result$n_sumstats != nrow(args_subset)) {
+#'   warning("Some datasets failed to process")
+#' }
+#' }
+#' 
+#' @export
+genepicoloc_job <- function(sumstats_1_form,
+                            args_df,
+                            tar_sumstats_file,
+                            tar_coloc_file,
+                            mc_cores = 10,
+                            verbose = TRUE,
+                            debug_mode = FALSE,
+                            save_sumstats = TRUE,
+                            p_min_save = 1-6) {
+  
+  # Create temp directories
+  temp_coloc_dir <- tempfile(pattern = "coloc_", tmpdir = tempdir())
+  dir.create(temp_coloc_dir, recursive = TRUE, showWarnings = FALSE)
+  
+  if (save_sumstats) {
+    temp_sumstats_dir <- tempfile(pattern = "sumstats_", tmpdir = tempdir())
+    dir.create(temp_sumstats_dir, recursive = TRUE, showWarnings = FALSE)
+  } else {
+    temp_sumstats_dir <- NULL  # Pass NULL when not saving
+  }
+  
+  # Register cleanup immediately after creation
+  on.exit({
+    if (save_sumstats && dir.exists(temp_sumstats_dir)) {
+      unlink(temp_sumstats_dir, recursive = TRUE)
+    }
+    if (dir.exists(temp_coloc_dir)) unlink(temp_coloc_dir, recursive = TRUE)
+  }, add = TRUE)
+  
   # Prepare arguments for mapply
   mapply_args <- list(
-    FUN = process_sumstats_form,
+    FUN = genepicoloc_run,
     sumstats_2_study = args_df$sumstats_2_study,
     sumstats_2_file = args_df$sumstats_2_file,
     sumstats_2_function = args_df$sumstats_2_function,
     sumstats_2_type = args_df$sumstats_2_type,
     sumstats_2_sdY = args_df$sumstats_2_sdY,
-    MoreArgs = shared_args,
+    MoreArgs = list(
+      temp_sumstats_dir = temp_sumstats_dir,
+      temp_coloc_dir = temp_coloc_dir,
+      sumstats_1_form = sumstats_1_form,
+      verbose = verbose,
+      save_sumstats = save_sumstats,
+      p_min_save = p_min_save
+    ),
     SIMPLIFY = FALSE
   )
   
-  # Choose execution strategy
-  if (debug_mode) {
-    # Sequential execution for debugging
-    parallel_func <- mapply
-  } else {
-    # Standard parallel execution
-    parallel_func <- mcmapply
-    mapply_args$mc.cores <- mc_cores
-  }
-  
-  # Print study summary before starting
-  if (verbose) {
-    total_datasets <- nrow(args_df)
-    study_counts <- table(args_df$sumstats_2_study)
-    message("Study breakdown:")
-    for (study in names(study_counts)) {
-      message(sprintf("  - %s: %d datasets", study, study_counts[study]))
-    }
-    message("Starting analysis...")
-    
-    # Simple progress estimation
-    start_time <- Sys.time()
-    message(sprintf("Processing %d datasets across %d studies...", 
-                    total_datasets, length(study_counts)))
-    
-    # Start progress monitoring by watching output files
-    # Function to monitor output files
-    monitor_output <- function() {
-      last_count <- 0
-      while (TRUE) {
-        
-        # Count completed output files (assuming they have a specific pattern)
-        tryCatch({
-          output_files <- list.files(dir_out, pattern = "\\.csv\\.gz$", 
-                                     recursive = TRUE, full.names = FALSE)
-          # Exclude args_df.csv.gz from count
-          output_files <- output_files[!grepl("^args_df\\.csv\\.gz$", basename(output_files))]
-          current_count <- length(output_files)
-          
-          if (current_count > last_count && current_count > 0) {
-            elapsed <- round(as.numeric(difftime(Sys.time(), start_time, units = "mins")), 1)
-            rate <- current_count / elapsed
-            eta <- if (rate > 0) round((total_datasets - current_count) / rate, 1) else NA
-            
-            progress_msg <- sprintf("Progress: %d/%d files completed (%.1f%%) | %.1f min elapsed", 
-                                    current_count, total_datasets, 
-                                    (current_count/total_datasets)*100, elapsed)
-            if (!is.na(eta) && eta > 0) {
-              progress_msg <- paste0(progress_msg, sprintf(" | ETA: %.1f min", eta))
-            }
-            message(progress_msg)
-            last_count <- current_count
-          }
-          
-          # Stop monitoring if we've reached the expected number
-          if (current_count >= total_datasets) break
-        }, error = function(e) {
-          # Continue monitoring if file listing fails
-        })
-        
-        Sys.sleep(progress_interval)  # Check at specified interval
-        
-      }
-    }
-    
-    # Start monitoring in background (Unix systems only)
-    if (.Platform$OS.type == "unix") {
-      monitor_pid <- parallel::mcparallel(monitor_output())
-    }
-  }
-  
   # Execute analysis
-  results <- do.call(parallel_func, mapply_args)
-  
-  if (verbose) {
-    Sys.sleep(progress_interval)  # Check at specified interval
-    end_time <- Sys.time()
-    duration <- round(as.numeric(difftime(end_time, start_time, units = "mins")), 1)
-    message(sprintf("Analysis completed successfully in %.1f minutes!", duration))
+  if (debug_mode) {
+    results <- do.call(mapply, mapply_args)
+  } else {
+    results <- do.call(mcmapply, c(mapply_args, list(mc.cores = mc_cores)))
   }
   
-  # After the Sys.sleep and before the end
-  if (exists("monitor_pid") && !is.null(monitor_pid) && .Platform$OS.type == "unix") {
-    tryCatch({
-      parallel::mccollect(monitor_pid, wait = FALSE)
-    }, error = function(e) {
-      # Ignore if already collected
-    })
+  # Archive the results - only handle sumstats if saving
+  if (save_sumstats) {
+    tar_cmd_sumstats <- sprintf(
+      "find '%s' -maxdepth 2 -type f -printf '%%P\\0' | tar -rf '%s' --null -C '%s' -T -",
+      temp_sumstats_dir, tar_sumstats_file, temp_sumstats_dir
+    )
+    exit_code_sumstats <- system(tar_cmd_sumstats)
+    if (exit_code_sumstats != 0) {
+      stop(sprintf("Failed to add sumstats to tar archive (exit code: %d)", exit_code_sumstats))
+    }
   }
   
-  # Return invisibly
-  invisible(results)
+  # Always archive coloc results
+  tar_cmd_coloc <- sprintf(
+    "find '%s' -maxdepth 2 -type f -printf '%%P\\0' | tar -rf '%s' --null -C '%s' -T -",
+    temp_coloc_dir, tar_coloc_file, temp_coloc_dir
+  )
+  exit_code_coloc <- system(tar_cmd_coloc)
+  if (exit_code_coloc != 0) {
+    stop(sprintf("Failed to add coloc results to tar archive (exit code: %d)", exit_code_coloc))
+  }
+  
+  # Return number of processed files for validation
+  return(list(
+    n_sumstats = if (save_sumstats) length(list.files(temp_sumstats_dir)) else 0,
+    n_coloc = length(list.files(temp_coloc_dir, recursive = T))
+  ))
+  
 }
 
-# Group 1: Format and Process Functions ----
+
+#' Process secondary summary statistics and run colocalization
+#'
+#' @description
+#' Formats secondary summary statistics and runs colocalization analysis against
+#' a primary dataset across all specified regions. Handles both single and 
+#' multi-phenotype datasets.
+#'
+#' @param temp_sumstats_dir Path to temporary directory for sumstats output.
+#' @param temp_coloc_dir Path to temporary directory for coloc results.
+#' @param sumstats_1_form Formatted primary dataset with coloc_regions_PASS attribute.
+#' @param sumstats_2_function Function name for retrieving secondary data.
+#' @param sumstats_2_file Path to secondary summary statistics file.
+#' @param sumstats_2_type Type of secondary trait ('quant' or 'cc').
+#' @param sumstats_2_sdY Standard deviation for quantitative traits (NA for cc).
+#' @param sumstats_2_study Study identifier for tracking.
+#' @param p_filt P-value threshold for filtering (default: 1, keep all SNPs).
+#' @param p_min_save P-value threshold to save regions (default: 1e-6).
+#' @param verbose Logical. Print progress messages (default: TRUE).
+#' @param save_sumstats Logical. Whether to save filtered summary statistics 
+#'   (default: TRUE). Set to FALSE to save disk space when only colocalization 
+#'   results are needed.
+#' @return Invisibly returns the sumstats_2_file path.
+#'
+#' @details
+#' Processing steps:
+#' \enumerate{
+#'   \item Formats secondary summary statistics via format_sumstats_2
+#'   \item For single phenotype: runs colocalization directly
+#'   \item For multiple phenotypes: processes each phenotype separately
+#'   \item Saves filtered sumstats (significant regions only)
+#'   \item Saves colocalization results as RDS files
+#' }
+#'
+#' The function automatically detects multi-phenotype datasets (e.g., eQTL)
+#' and processes each phenotype independently, combining results afterward.
+#'
+#' @examples
+#' \dontrun{
+#' genepicoloc_run(
+#'   temp_sumstats_dir = "/tmp/sumstats",
+#'   temp_coloc_dir = "/tmp/coloc",
+#'   sumstats_1_form = primary_data,
+#'   sumstats_2_function = "retrieve_sumstats_tabix",
+#'   sumstats_2_file = "secondary.gz",
+#'   sumstats_2_type = "quant",
+#'   sumstats_2_sdY = 1.2,
+#'   sumstats_2_study = "StudyA"
+#' )
+#' }
+#'
+#' @export
+genepicoloc_run <- function(temp_sumstats_dir,
+                            temp_coloc_dir,
+                            sumstats_1_form,
+                            sumstats_2_function,
+                            sumstats_2_file,
+                            sumstats_2_type,
+                            sumstats_2_sdY,
+                            sumstats_2_study,
+                            p_filt=1,
+                            p_min_save=1e-6,
+                            verbose = TRUE,
+                            save_sumstats = TRUE) {
+  
+  # Extract regions from primary dataset
+  # NOTE: This will be a subset of the original regions when processing jobs
+  if (is.null(attr(sumstats_1_form, "coloc_regions_PASS"))) {
+    stop("'coloc_regions_PASS' attribute not found in sumstats_1_form object")
+  }
+  coloc_regions_PASS <- attr(sumstats_1_form, "coloc_regions_PASS")
+  
+  # Format secondary summary statistics
+  sumstats_2_form <- format_sumstats_2(
+    coloc_regions_PASS = coloc_regions_PASS,
+    sumstats_2_function = sumstats_2_function,
+    sumstats_2_file = sumstats_2_file,
+    sumstats_2_type = sumstats_2_type,
+    sumstats_2_sdY = sumstats_2_sdY,
+    sumstats_2_study = sumstats_2_study
+  )
+  
+  # Validate formatted object
+  if (!inherits(sumstats_2_form, "sumstats_2_form")) {
+    stop("sumstats_2_form should have 'sumstats_2_form' class")
+  }
+  
+  # Calculate filtering and min_save p-value thresholds
+  nlog10P_filt <- -log10(p_filt)
+  nlog10P_min_save <- -log10(p_min_save)
+  
+  # Run colocalization based on phenotype type
+  if (attr(sumstats_2_form, "sumstats_pheno") == "single") {
+    ### Single phenotype analysis
+    # Save sumstats (only significant regions)
+    if (save_sumstats) {
+      if (p_filt < 1) sumstats_2_form <- subset(sumstats_2_form, nlog10P > nlog10P_filt)
+      sumstats_2_filt <- filter_significant_regions(sumstats_2_form, nlog10P_min_save)
+      if (nrow(sumstats_2_filt) > 0) {
+        if (!dir.exists(file.path(temp_sumstats_dir, sumstats_2_study))) {
+          dir.create(file.path(temp_sumstats_dir, sumstats_2_study))
+        }
+        saveRDS(sumstats_2_filt,
+                file.path(temp_sumstats_dir, sumstats_2_study,
+                          paste0(basename(attr(sumstats_2_form, "sumstats_file")), ".RDS")))
+      }
+    }
+    # Run colocalization
+    coloc_results <- run_single_phenotype(
+      sumstats_1 = sumstats_1_form,
+      sumstats_2 = sumstats_2_form,
+      coloc_regions_PASS = coloc_regions_PASS
+    )
+    # Combine results from all regions
+    coloc_results <- data.table::rbindlist(coloc_results, fill = TRUE)
+    
+  } else if (attr(sumstats_2_form, "sumstats_pheno") == "multiple") {
+    ### Multiple phenotype analysis
+    # Check if the list is empty or all elements are empty
+    if (length(sumstats_2_form) == 0 || 
+        all(sapply(sumstats_2_form, function(x) nrow(x) == 0))) {
+      # Handle empty multi-phenotype case
+      coloc_results <- data.table::data.table()
+    } else {
+      coloc_results <- lapply(sumstats_2_form, function(sumstats_2) {
+        if (nrow(sumstats_2) == 0) return(NULL) # Skip empty phenotypes
+        # Save sumstats (only significant regions)
+        if (save_sumstats) {
+          if (p_filt < 1) sumstats_2 <- subset(sumstats_2, nlog10P > nlog10P_filt)
+          sumstats_2_filt <- filter_significant_regions(sumstats_2, nlog10P_min_save)
+          if (nrow(sumstats_2_filt) > 0) {
+            if (!dir.exists(file.path(temp_sumstats_dir, sumstats_2_study))) {
+              dir.create(file.path(temp_sumstats_dir, sumstats_2_study))
+            }
+            saveRDS(sumstats_2_filt, 
+                    file.path(temp_sumstats_dir, sumstats_2_study,
+                              paste0(basename(attr(sumstats_2, "sumstats_file")), ".RDS")))
+          }
+        }
+        # Run colocalization
+        region_results <- run_single_phenotype(
+          sumstats_1 = sumstats_1_form,
+          sumstats_2 = sumstats_2,
+          coloc_regions_PASS = attr(sumstats_2, "coloc_regions_PASS")
+        )
+        # Combine regions for this phenotype
+        return(data.table::rbindlist(region_results, fill = TRUE))
+      })
+      
+      # Remove NULL results (from empty phenotypes)
+      coloc_results <- coloc_results[!sapply(coloc_results, is.null)]
+      
+      # Combine results from all phenotypes, from all regions
+      if (length(coloc_results) > 0) {
+        coloc_results <- data.table::rbindlist(coloc_results, fill = TRUE)
+      } else {
+        coloc_results <- data.table::data.table()
+      }
+    }
+  } else {
+    stop("Attribute 'sumstats_pheno' of sumstats_2_form can only be 'single' or 'multiple'")
+  }
+  
+  # Save colocalization results (even if empty, for completeness)
+  if (!dir.exists(file.path(temp_coloc_dir, sumstats_2_study))) {
+    dir.create(file.path(temp_coloc_dir, sumstats_2_study))
+  }
+  saveRDS(coloc_results, file.path(temp_coloc_dir, sumstats_2_study,
+                                   paste0(basename(attr(sumstats_2_form, "sumstats_file")), ".RDS")))
+  
+  invisible(sumstats_2_file)
+  
+}
+
+  
+# Group 1: Format and process functions ----
 
 #' Format primary summary statistics for colocalization analysis
 #' 
@@ -598,7 +729,9 @@ format_sumstats_1 <- function(coloc_regions_PASS,
 #' @return An object of class "sumstats_2_form" which is either:
 #'   \itemize{
 #'     \item A single sumstats object (if sumstats_pheno = "single")
-#'     \item A list of sumstats objects (if sumstats_pheno = "multiple")
+#'     \item A list of sumstats objects (if sumstats_pheno = "multiple"), where
+#'           each element has its coloc_regions_PASS attribute filtered to regions
+#'           containing data for that specific phenotype
 #'   }
 #'   With attributes: sumstats_pheno, sumstats_file
 #' 
@@ -609,7 +742,7 @@ format_sumstats_1 <- function(coloc_regions_PASS,
 #' 
 #' @seealso 
 #' \code{\link{format_sumstats_1}} for formatting primary datasets
-#' \code{\link{process_sumstats_form}} which calls this function
+#' \code{\link{genepicoloc_run}} which calls this function
 #' 
 #' @export
 format_sumstats_2 <- function(coloc_regions_PASS,
@@ -736,162 +869,6 @@ format_sumstats_2 <- function(coloc_regions_PASS,
 }
 
 
-#' Process secondary summary statistics and run colocalization
-#'
-#' @description
-#' Main processing function that formats secondary summary statistics and runs
-#' colocalization analysis against a primary dataset across all specified regions.
-#' This is typically called by \code{genepicoloc_wrapper} for each secondary dataset.
-#'
-#' @param dir_out Character string. Base output directory for results.
-#' @param sumstats_1_form A formatted sumstats object containing the primary dataset.
-#'   Must have a "coloc_regions_PASS" attribute.
-#' @param sumstats_2_function Character string. Function name for retrieving secondary data.
-#' @param sumstats_2_file Character string. Path to secondary summary statistics file.
-#' @param sumstats_2_type Character string. Type of secondary trait ('quant' or 'cc').
-#' @param sumstats_2_sdY Numeric. Standard deviation for quantitative traits (NA for cc).
-#' @param sumstats_2_study Character string. Study identifier for output organization.
-#' @param write_excel Logical. Whether to create Excel files with filtered results 
-#'   (default: FALSE).
-#' @param PP_H4_threshold Numeric. Minimum PP.H4.abf value for filtered results 
-#'   (default: 0.5).
-#' @param verbose Logical. Print detailed progress messages (default: TRUE).
-#'
-#' @return Invisibly returns the path to the output file.
-#'
-#' @details
-#' This function:
-#' \enumerate{
-#'   \item Formats the secondary summary statistics
-#'   \item Runs colocalization for each region
-#'   \item Handles both single and multi-phenotype datasets
-#'   \item Saves results to compressed CSV and optionally Excel files
-#' }
-#'
-#' @importFrom data.table rbindlist
-#' @export
-process_sumstats_form <- function(dir_out,
-                                  sumstats_1_form,
-                                  sumstats_2_function,
-                                  sumstats_2_file,
-                                  sumstats_2_type,
-                                  sumstats_2_sdY,
-                                  sumstats_2_study,
-                                  write_excel = FALSE,
-                                  PP_H4_threshold = 0.5,
-                                  verbose = TRUE) {
-  
-  # Extract regions from primary dataset
-  if (is.null(attr(sumstats_1_form, "coloc_regions_PASS"))) {
-    stop("'coloc_regions_PASS' attribute not found in sumstats_1_form object")
-  }
-  coloc_regions_PASS <- attr(sumstats_1_form, "coloc_regions_PASS")
-  
-  # Format secondary summary statistics
-  sumstats_2_form <- format_sumstats_2(
-    coloc_regions_PASS = coloc_regions_PASS,
-    sumstats_2_function = sumstats_2_function,
-    sumstats_2_file = sumstats_2_file,
-    sumstats_2_type = sumstats_2_type,
-    sumstats_2_sdY = sumstats_2_sdY,
-    sumstats_2_study = sumstats_2_study
-  )
-  
-  # Validate formatted object
-  if (!inherits(sumstats_2_form, "sumstats_2_form")) {
-    stop("sumstats_2_form should have 'sumstats_2_form' class")
-  }
-
-  # Set up output path
-  file_out <- set_output_path(
-    sumstats_2_file = attr(sumstats_2_form, "sumstats_file"),
-    dir_out = dir_out,
-    sumstats_2_study = sumstats_2_study
-  )
-
-  # Run colocalization based on phenotype type
-  if (attr(sumstats_2_form, "sumstats_pheno") == "single") {
-    # Single phenotype analysis
-    coloc_results <- run_single_phenotype(
-      sumstats_1 = sumstats_1_form,
-      sumstats_2 = sumstats_2_form,
-      coloc_regions_PASS = coloc_regions_PASS
-    )
-    # Combine results from all regions
-    coloc_results <- data.table::rbindlist(coloc_results, fill = TRUE)
-    # saveRDS(sumstats_2_form, paste0(file_out, "_test.RDS"))
-    
-  } else {
-    # Multiple phenotype analysis
-    coloc_results <- lapply(sumstats_2_form, function(sumstats_2) {
-      region_results <- run_single_phenotype(
-        sumstats_1 = sumstats_1_form,
-        sumstats_2 = sumstats_2,
-        coloc_regions_PASS = attr(sumstats_2, "coloc_regions_PASS")
-      )
-      file_out <- set_output_path(
-        sumstats_2_file = attr(sumstats_2, "sumstats_file"),
-        dir_out = dir_out,
-        sumstats_2_study = sumstats_2_study
-      )
-      file_out <- paste0(file_out, "_test.RDS")
-      # saveRDS(sumstats_2, file_out)
-      
-      # Combine regions for this phenotype
-      return(data.table::rbindlist(region_results, fill = TRUE))
-      
-    })
-    # Combine all phenotypes
-    coloc_results <- data.table::rbindlist(coloc_results, fill = TRUE)
-  }
-  
-  # Save results
-  save_coloc_results(
-    coloc_results = coloc_results, 
-    file_out = file_out,
-    write_excel = write_excel,
-    PP_H4_threshold = PP_H4_threshold,
-    verbose = verbose
-  )
-
-  return(invisible(file_out))
-}
-
-
-#' Set up output paths for colocalization results
-#'
-#' @description
-#' Creates a hierarchical directory structure for organizing colocalization
-#' results by study and generates the output file path.
-#'
-#' @param dir_out Character string. Base output directory.
-#' @param sumstats_2_file Character string. Path to secondary summary statistics file.
-#' @param sumstats_2_study Character string. Study identifier for directory organization.
-#'
-#' @return Character string. Full path for the output file.
-#'
-#' @details
-#' Creates directory structure: dir_out/sumstats_2_study/basename(sumstats_2_file)
-#'
-#' @export
-set_output_path <- function(dir_out,
-                            sumstats_2_file,
-                            sumstats_2_study) {
-  
-  # Create study-specific subdirectory
-  study_dir <- file.path(dir_out, sumstats_2_study)
-  if (!dir.exists(study_dir)) {
-    dir.create(study_dir, recursive = TRUE)
-  }
-  
-  # Generate output filename based on input filename
-  file_base <- basename(sumstats_2_file)
-  file_out <- file.path(study_dir, file_base)
-  
-  return(file_out)
-}
-
-
 # Group 2: Core colocalization functions ----
 #' Run colocalization analysis for a single phenotype across all regions
 #' 
@@ -915,7 +892,7 @@ set_output_path <- function(dir_out,
 #' 
 #' @seealso 
 #' \code{\link{run_region}} for single region analysis
-#' \code{\link{process_sumstats_form}} which calls this function
+#' \code{\link{genepicoloc_run}} which calls this function
 #' 
 #' @export
 run_single_phenotype <- function(sumstats_1, sumstats_2, coloc_regions_PASS) {
@@ -935,24 +912,15 @@ run_single_phenotype <- function(sumstats_1, sumstats_2, coloc_regions_PASS) {
          paste(required_cols, collapse = ", "))
   }
   
-  # Prepare arguments for mapply
-  MoreArgs <- list(
-    sumstats_1 = sumstats_1,
-    sumstats_2 = sumstats_2
-  )
-  
   # Run analysis for each region
-  coloc_results <- with(coloc_regions_PASS, 
-                        mapply(
-                          FUN = run_region,
-                          CHR_var = CHR_var,
-                          BP_START_var = BP_START_var,
-                          BP_STOP_var = BP_STOP_var,
-                          MoreArgs = MoreArgs,
-                          SIMPLIFY = FALSE
-                        )
-  )
-  
+  coloc_results <- mapply(
+    FUN = run_region,
+    CHR_var = coloc_regions_PASS$CHR_var,
+    BP_START_var = coloc_regions_PASS$BP_START_var,
+    BP_STOP_var = coloc_regions_PASS$BP_STOP_var,
+    MoreArgs = list(sumstats_1 = sumstats_1, sumstats_2 = sumstats_2),
+    SIMPLIFY = FALSE
+  )  
   return(coloc_results)
 }
 
@@ -1041,13 +1009,9 @@ run_region <- function(sumstats_1, sumstats_2,
     return(result)
   }
   
-  # Define region filter function
-  region_filter <- function(data) {
-    subset(data, CHR == CHR_var & POS > BP_START_var & POS < BP_STOP_var)
-  }
-  
   # Extract region-specific data
-  sumstats_1_sub <- region_filter(sumstats_1)
+  sumstats_1_sub <- subset(sumstats_1, 
+                           CHR == CHR_var & POS > BP_START_var & POS < BP_STOP_var)
   
   # Check primary dataset has data
   if (nrow(sumstats_1_sub) == 0) {
@@ -1055,7 +1019,8 @@ run_region <- function(sumstats_1, sumstats_2,
          CHR_var, ":", BP_START_var, "-", BP_STOP_var)
   }
   
-  sumstats_2_sub <- region_filter(sumstats_2)
+  sumstats_2_sub <- subset(sumstats_2, 
+                           CHR == CHR_var & POS > BP_START_var & POS < BP_STOP_var)
   
   # Calculate maximum significance values
   sumstats_1_sub <- set_max_nlog10P(sumstats_1_sub)
@@ -1096,8 +1061,8 @@ run_region <- function(sumstats_1, sumstats_2,
     sumstats_2 = sumstats_2_sub
   )
   
-  # Add directionality results to output
-  for (col in colnames(directionality_df)) {
+  # Add directionality results to output except for "sumstats_2_ind_A2"
+  for (col in setdiff(colnames(directionality_df), "sumstats_2_ind_A2")) {
     result[[col]] <- directionality_df[[col]]
   }
   
@@ -1232,11 +1197,9 @@ run_coloc <- function(sumstats_1, sumstats_2, silent = TRUE) {
 #'     \item sumstats_1_ind_A1/A2: Alleles in primary dataset
 #'     \item sumstats_1_ind_nlog10P: Significance of lead variant
 #'     \item sumstats_1_ind_BETA: Effect size in primary dataset
-#'     \item sumstats_1_ind_BETA_sign: Sign of effect (+1 or -1)
 #'     \item sumstats_2_ind_A1/A2: Alleles in secondary dataset
 #'     \item sumstats_2_ind_nlog10P: Significance in secondary dataset
 #'     \item sumstats_2_ind_BETA: Effect size in secondary dataset
-#'     \item sumstats_2_ind_BETA_sign: Sign of effect (+1 or -1)
 #'     \item directionality: 1 if same direction, -1 if opposite, NA if undetermined
 #'   }
 #' 
@@ -1295,15 +1258,12 @@ get_directionality <- function(sumstats_1, sumstats_2) {
   directionality_df <- data.frame(
     sumstats_1_ind_Name = lead_snp_1$Name,
     sumstats_1_ind_A1 = lead_snp_1$A1,
-    sumstats_1_ind_A2 = lead_snp_1$A2,
     sumstats_1_ind_nlog10P = lead_snp_1$nlog10P,
     sumstats_1_ind_BETA = lead_snp_1$BETA,
-    sumstats_1_ind_BETA_sign = sign(lead_snp_1$BETA),
     sumstats_2_ind_A1 = lead_snp_2$A1,
     sumstats_2_ind_A2 = lead_snp_2$A2,
     sumstats_2_ind_nlog10P = lead_snp_2$nlog10P,
     sumstats_2_ind_BETA = lead_snp_2$BETA,
-    sumstats_2_ind_BETA_sign = sign(lead_snp_2$BETA),
     stringsAsFactors = FALSE
   )
   
@@ -1323,8 +1283,7 @@ get_directionality <- function(sumstats_1, sumstats_2) {
 #' 
 #' @param ind_df A data.frame with one row containing allele and effect
 #'   information for both datasets. Must include columns:
-#'   sumstats_1_ind_A1, sumstats_2_ind_A1, sumstats_2_ind_A2,
-#'   sumstats_1_ind_BETA_sign, sumstats_2_ind_BETA_sign
+#'   sumstats_1_ind_A1, sumstats_2_ind_A1, sumstats_2_ind_A2
 #' 
 #' @return The input data.frame with an additional 'directionality' column:
 #'   \itemize{
@@ -1350,9 +1309,7 @@ get_directionality <- function(sumstats_1, sumstats_2) {
 #' df <- data.frame(
 #'   sumstats_1_ind_A1 = "A",
 #'   sumstats_2_ind_A1 = "A", 
-#'   sumstats_2_ind_A2 = "G",
-#'   sumstats_1_ind_BETA_sign = 1,
-#'   sumstats_2_ind_BETA_sign = -1
+#'   sumstats_2_ind_A2 = "G"
 #' )
 #' detect_directionality(df)  # Returns df with directionality = -1
 #' }
@@ -1362,8 +1319,7 @@ detect_directionality <- function(ind_df) {
   
   # Input validation
   required_cols <- c("sumstats_1_ind_A1", "sumstats_2_ind_A1", 
-                     "sumstats_2_ind_A2", "sumstats_1_ind_BETA_sign", 
-                     "sumstats_2_ind_BETA_sign")
+                     "sumstats_2_ind_A2")
   
   missing_cols <- setdiff(required_cols, colnames(ind_df))
   if (length(missing_cols) > 0) {
@@ -1378,8 +1334,8 @@ detect_directionality <- function(ind_df) {
   a1_dataset1 <- ind_df$sumstats_1_ind_A1
   a1_dataset2 <- ind_df$sumstats_2_ind_A1
   a2_dataset2 <- ind_df$sumstats_2_ind_A2
-  sign1 <- ind_df$sumstats_1_ind_BETA_sign
-  sign2 <- ind_df$sumstats_2_ind_BETA_sign
+  sign1 <- sign(ind_df$sumstats_1_ind_BETA)
+  sign2 <- sign(ind_df$sumstats_2_ind_BETA)
   
   # Determine directionality based on allele matching
   if (a1_dataset1 == a1_dataset2) {
@@ -1512,6 +1468,105 @@ prepare_coloc_dataset <- function(sumstats, sumstats_type, sumstats_sdY) {
   
   return(dataset)
 }
+
+#' Filter summary statistics to regions with significant variants
+#' 
+#' @description 
+#' Filters a formatted summary statistics object to retain only genomic regions 
+#' that contain at least one variant exceeding a significance threshold. This is 
+#' useful for reducing computational burden by excluding regions unlikely to show 
+#' colocalization signals. The function handles overlapping regions correctly by 
+#' retaining all variants within any significant region.
+#' 
+#' @param sumstats_form A formatted summary statistics object of class 'sumstats_form' 
+#'   containing columns CHR, POS, and nlog10P. Must have a 'coloc_regions_PASS' 
+#'   attribute defining the genomic regions to test.
+#' @param nlog10P_min_save Numeric. Minimum -log10(p-value) threshold for considering 
+#'   a variant as significant. Default is 6 (corresponding to p < 1e-6). Regions 
+#'   containing at least one variant exceeding this threshold are retained.
+#' 
+#' @return A filtered summary statistics object containing only variants within 
+#'   significant regions. Returns an empty data frame with preserved structure if 
+#'   no regions meet the significance threshold. The 'coloc_regions_PASS' attribute 
+#'   is updated to reflect only the retained regions.
+#' 
+#' @details
+#' The function performs the following steps:
+#' \enumerate{
+#'   \item Identifies regions containing at least one variant with nlog10P > threshold
+#'   \item Collects all variants within these significant regions (handles overlaps)
+#'   \item Updates the coloc_regions_PASS attribute to match filtered regions
+#' }
+#' 
+#' Regions may overlap, so the function ensures that all variants belonging to any 
+#' significant region are retained, even if they also belong to non-significant regions.
+#' 
+#' @examples
+#' \dontrun{
+#' # Filter to keep only regions with suggestive GWAS signals (p < 1e-6)
+#' sumstats_filtered <- filter_significant_regions(sumstats_form, nlog10P_min_save = 6)
+#' 
+#' # Filter to keep only regions with genome-wide significant signals (p < 5e-8)
+#' sumstats_filtered <- filter_significant_regions(sumstats_form, nlog10P_min_save = 7.3)
+#' }
+filter_significant_regions <- function(sumstats_form, nlog10P_min_save = 6) {
+  
+  # Get regions
+  coloc_regions_PASS <- attr(sumstats_form, "coloc_regions_PASS")
+  
+  # Convert CHR to character if needed for consistency
+  if (is.numeric(sumstats_form$CHR)) {
+    sumstats_form$CHR <- as.character(sumstats_form$CHR)
+  }
+  
+  # Determine regions with at least one significant SNP
+  signif_regions <- sapply(1:nrow(coloc_regions_PASS), function(x) {
+    CHR_var <- coloc_regions_PASS[x,]$CHR_var
+    BP_START_var <- coloc_regions_PASS[x,]$BP_START_var
+    BP_STOP_var <- coloc_regions_PASS[x,]$BP_STOP_var
+    any(sumstats_form$CHR == CHR_var & 
+          sumstats_form$POS >= BP_START_var & 
+          sumstats_form$POS <= BP_STOP_var & 
+          sumstats_form$nlog10P > nlog10P_min_save)
+  })
+  
+  # Keep only significant regions
+  coloc_regions_PASS_sign <- coloc_regions_PASS[signif_regions,]
+  
+  # Handle case with no significant regions
+  if (nrow(coloc_regions_PASS_sign) == 0) {
+    sumstats_filtered <- sumstats_form[0,]  # Fixed: was referencing undefined variable
+    attr(sumstats_filtered, "coloc_regions_PASS") <- coloc_regions_PASS_sign
+    return(sumstats_filtered)
+  }
+  
+  # Regions might intersect
+  # Keep all SNPs that belong to regions with at least one significant SNP
+  # Use lapply to ensure we always get a list, then unlist to vector
+  idx_list <- lapply(1:nrow(coloc_regions_PASS_sign), function(x) {
+    CHR_var <- coloc_regions_PASS_sign[x,]$CHR_var
+    BP_START_var <- coloc_regions_PASS_sign[x,]$BP_START_var
+    BP_STOP_var <- coloc_regions_PASS_sign[x,]$BP_STOP_var
+    which(
+      sumstats_form$CHR == CHR_var & 
+        sumstats_form$POS >= BP_START_var & 
+        sumstats_form$POS <= BP_STOP_var)
+  })
+  idx_to_keep <- as.numeric(unique(unlist(idx_list)))
+  
+  # Handle empty index case
+  if (length(idx_to_keep) == 0) {
+    sumstats_filtered <- sumstats_form[0,]
+  } else {
+    sumstats_filtered <- sumstats_form[idx_to_keep,]
+  }
+
+  # Update the regions attribute
+  attr(sumstats_filtered, "coloc_regions_PASS") <- coloc_regions_PASS_sign
+  
+  return(sumstats_filtered)
+}
+
 # Group 4: Output Functions ----
 #' Format colocalization analysis output
 #'
@@ -1692,9 +1747,7 @@ create_result_template <- function(CHR_var,
     
     # Gene annotation fields (to be filled by gene annotation step)
     region_center_pos = NA_real_,
-    region_center_gene = NA_character_,
-    nearest_genes_3 = NA_character_,
-    nearest_genes_5 = NA_character_,
+    nearest_gene_1 = NA_character_,
     nearest_genes_10 = NA_character_,
     
     # Summary statistics file information
@@ -1725,15 +1778,11 @@ create_result_template <- function(CHR_var,
     # Directionality analysis results
     sumstats_1_ind_Name = NA_character_,
     sumstats_1_ind_A1 = NA_character_,
-    sumstats_1_ind_A2 = NA_character_,
     sumstats_1_ind_nlog10P = NA_real_,
     sumstats_1_ind_BETA = NA_real_,
-    sumstats_1_ind_BETA_sign = NA_integer_,
     sumstats_2_ind_A1 = NA_character_,
-    sumstats_2_ind_A2 = NA_character_,
     sumstats_2_ind_nlog10P = NA_real_,
     sumstats_2_ind_BETA = NA_real_,
-    sumstats_2_ind_BETA_sign = NA_integer_,
     directionality = NA_integer_,
     
     # Ensure proper data types
@@ -1759,23 +1808,22 @@ create_result_template <- function(CHR_var,
 #' @param gene_map Data.frame with gene annotations from setup_gene_annotation()$gene_map.
 #'   If NULL, attempts to use packaged gene data.
 #' @param verbose Logical. Print gene annotation details (default: FALSE).
+#' @param nearest Numeric vector. Number of nearest genes to annotate for each region
+#'   (default: c(1, 10)). Creates one column per value.
 #'
 #' @return The input data.frame with added gene annotation columns:
 #'   \itemize{
 #'     \item region_center_pos: Center position of the region
-#'     \item region_center_gene: Gene annotation at region center
-#'     \item nearest_genes_3: 3 nearest genes (simple format)
-#'     \item nearest_genes_5: 5 nearest genes (simple format)
-#'     \item nearest_genes_10: 10 nearest genes (simple format)
+#'     \item nearest_genes_N: N nearest genes for each value in 'nearest' parameter
 #'   }
+#'   For example, with nearest = c(1, 10), creates nearest_genes_1 and nearest_genes_10.
 #'
 #' @details
 #' This function:
 #' \enumerate{
 #'   \item Calculates the center position of the genomic region
-#'   \item Annotates the center position with the nearest gene
-#'   \item Finds multiple nearest genes for broader context
-#'   \item Uses simple gene name format for easy interpretation
+#'   \item Finds the specified number of nearest genes for each value in 'nearest'
+#'   \item Uses appropriate format: detailed for single gene, simple for multiple
 #' }
 #'
 #' @seealso 
@@ -1784,22 +1832,17 @@ create_result_template <- function(CHR_var,
 #'
 #' @examples
 #' \dontrun{
-#' # Prepare gene annotation
-#' gene_setup <- setup_gene_annotation()
-#' 
-#' # Create a result template
-#' result <- create_result_template(
-#'   CHR_var = "1", BP_START_var = 1000000, BP_STOP_var = 2000000,
-#'   sumstats_1_file = "file1", sumstats_2_file = "file2",
-#'   sumstats_1_tabix = "ok", sumstats_2_tabix = "ok"
-#' )
-#' 
-#' # Add gene annotations
+#' # Default: 1 and 10 nearest genes
 #' result_annotated <- add_gene_annotations(result, gene_setup$gene_map)
+#' 
+#' # Custom: 1, 5, and 20 nearest genes
+#' result_annotated <- add_gene_annotations(result, gene_setup$gene_map, 
+#'                                          nearest = c(1, 5, 20))
 #' }
 #'
 #' @export
-add_gene_annotations <- function(result, gene_map = NULL, verbose = FALSE) {
+add_gene_annotations <- function(result, gene_map = NULL, verbose = FALSE,
+                                 nearest = c(1, 10)) {
   
   # Input validation
   if (!is.data.frame(result)) {
@@ -1810,6 +1853,15 @@ add_gene_annotations <- function(result, gene_map = NULL, verbose = FALSE) {
   missing_cols <- setdiff(required_cols, colnames(result))
   if (length(missing_cols) > 0) {
     stop("result must contain columns: ", paste(missing_cols, collapse = ", "))
+  }
+  
+  # Validate nearest parameter
+  if (!is.numeric(nearest) || length(nearest) == 0) {
+    stop("nearest must be a numeric vector with at least one value")
+  }
+  nearest <- sort(unique(as.integer(nearest)))
+  if (any(nearest < 1)) {
+    stop("nearest values must be >= 1")
   }
   
   # Set up gene annotation if not provided
@@ -1830,7 +1882,7 @@ add_gene_annotations <- function(result, gene_map = NULL, verbose = FALSE) {
     return(result)
   }
   
-  # Process each row (though typically there's only one)
+  # Process each row
   for (i in seq_len(nrow(result))) {
     chr <- as.character(result$CHR_var[i])
     start_pos <- as.numeric(result$BP_START_var[i])
@@ -1845,173 +1897,295 @@ add_gene_annotations <- function(result, gene_map = NULL, verbose = FALSE) {
               " (center: ", center_pos, ")")
     }
     
-    # Annotate center position
+    # Annotate for each specified number of nearest genes
     tryCatch({
-      # Get detailed annotation for center
-      center_annotation <- annotate_position(
-        chr = chr, 
-        pos = center_pos, 
-        gene_map = gene_map,
-        n_nearest = 1,
-        output_format = "default"
-      )
-      result$region_center_gene[i] <- center_annotation
-      
-      # Get multiple nearest genes in simple format
-      nearest_3 <- annotate_position(
-        chr = chr, 
-        pos = center_pos, 
-        gene_map = gene_map,
-        n_nearest = 3,
-        output_format = "simple"
-      )
-      result$nearest_genes_3[i] <- nearest_3
-      
-      nearest_5 <- annotate_position(
-        chr = chr, 
-        pos = center_pos, 
-        gene_map = gene_map,
-        n_nearest = 5,
-        output_format = "simple"
-      )
-      result$nearest_genes_5[i] <- nearest_5
-      
-      nearest_10 <- annotate_position(
-        chr = chr, 
-        pos = center_pos, 
-        gene_map = gene_map,
-        n_nearest = 10,
-        output_format = "simple"
-      )
-      result$nearest_genes_10[i] <- nearest_10
-      
-      if (verbose) {
-        message("  Center gene: ", center_annotation)
-        message("  5 nearest: ", nearest_5)
+      for (n in nearest) {
+        # Use default format for single gene, simple format for multiple
+        output_format <- if (n == 1) "default" else "simple"
+        
+        annotation <- annotate_position(
+          chr = chr, 
+          pos = center_pos, 
+          gene_map = gene_map,
+          n_nearest = n,
+          output_format = output_format
+        )
+        
+        # Create column name
+        col_name <- if (n == 1) "nearest_gene_1" else paste0("nearest_genes_", n)
+        result[[col_name]][i] <- annotation
+        
+        if (verbose && n %in% c(1, max(nearest))) {
+          message("  ", n, " nearest: ", annotation)
+        }
       }
       
     }, error = function(e) {
       warning("Gene annotation failed for region ", chr, ":", start_pos, "-", stop_pos, 
               ": ", e$message)
-      # Leave as NA if annotation fails
+      # Create NA columns for failed annotations
+      for (n in nearest) {
+        col_name <- paste0("nearest_genes_", n)
+        result[[col_name]][i] <- NA_character_
+      }
     })
   }
   
   return(result)
 }
 
-#' Save colocalization results to files
-#'
-#' @description
-#' Saves colocalization results to compressed CSV format and optionally creates
-#' filtered Excel files for easy viewing of significant results.
-#'
-#' @param coloc_results A data.frame or data.table containing colocalization
-#'   results from one or more regions/phenotypes.
-#' @param file_out Character string. Base path for output files.
-#' @param write_excel Logical. Whether to create Excel file with filtered
-#'   results (default: FALSE).
-#' @param PP_H4_threshold Numeric. Minimum PP.H4.abf value for filtering
-#'   results in Excel output (default: 0.5).
-#' @param verbose Logical. Whether to print progress messages (default: TRUE).
-#' @param sans_ext Logical. Whether to remove extension from file_out before
-#'   adding new extensions (default: TRUE).
-#'
-#' @return Invisibly returns the base path used for output files.
-#'
-#' @details
-#' Output files created:
-#' \itemize{
-#'   \item {basename}_ge.csv.gz: Complete results in compressed CSV format
-#'   \item {basename}_filt.xlsx: Filtered results (if write_excel = TRUE)
-#' }
-#'
-#' The Excel file only includes results where PP.H4.abf >= PP_H4_threshold,
-#' making it easier to focus on likely colocalized signals.
-#'
-#' @importFrom data.table fwrite
-#' @importFrom writexl write_xlsx
+#' Save job metadata and summary information
 #' 
-#' @seealso 
-#' \code{\link{process_sumstats_form}} which calls this function
-#'
-#' @examples
-#' \dontrun{
-#' # Save results with Excel output for strong colocalizations
-#' save_coloc_results(
-#'   coloc_results = my_results,
-#'   file_out = "output/my_analysis",
-#'   write_excel = TRUE,
-#'   PP_H4_threshold = 0.8
-#' )
-#' }
-#'
+#' @description Helper function to save comprehensive job metadata after completion
+#' 
+#' @param dir_out Output directory path
+#' @param args_df Arguments data frame
+#' @param n_regions Total number of regions
+#' @param max_regions_per_job Maximum regions per job
+#' @param n_jobs_1 Number of jobs created
+#' @param mc_cores Number of cores used
+#' @param study_counts Table of study counts
+#' @param job_times Vector of job processing times
+#' @param verbose Whether to print messages
+#' 
+#' @return Invisibly returns list of saved file paths
+save_job_metadata <- function(dir_out, args_df, n_regions, max_regions_per_job, 
+                              n_jobs_1, mc_cores, study_counts, job_times, 
+                              verbose = TRUE) {
+  
+  # Define output files
+  args_df_file <- file.path(dir_out, "args_df.csv.gz")
+  job_info_file <- file.path(dir_out, "job_splitting_info.txt")
+  job_summary_file <- file.path(dir_out, "job_summary.csv")
+  
+  # Console output
+  if (verbose) {
+    message("\n=== Final Summary ===")
+    message(sprintf("Jobs completed successfully: %d", n_jobs_1))
+    message(sprintf("Total processing time: %.1f minutes", sum(job_times)))
+    message("\nSaving metadata:")
+    message("  - Arguments: ", args_df_file)
+    message("  - Job info: ", job_info_file)
+    message("  - Job summary: ", job_summary_file)
+  }
+  
+  # Save arguments
+  data.table::fwrite(args_df, args_df_file, compress = "gzip")
+  
+  # Create detailed job information text file
+  job_info <- c(
+    "=== JOB SPLITTING INFORMATION ===",
+    sprintf("Finished at: %s", Sys.time()),
+    "",
+    "=== REGIONS ===",
+    sprintf("Total regions: %d", n_regions),
+    sprintf("Regions per job: %d (max)", max_regions_per_job),
+    sprintf("Number of jobs: %d", n_jobs_1),
+    "",
+    "=== DATASETS ===",
+    sprintf("Total arguments (sumstats_2): %d", nrow(args_df)),
+    "",
+    "=== STUDY BREAKDOWN ===",
+    unlist(lapply(names(study_counts), function(study) {
+      sprintf("  - %s: %d datasets", study, study_counts[study])
+    })),
+    "",
+    "=== PARALLELIZATION ===",
+    sprintf("Cores per job: %d", mc_cores),
+    sprintf("Subjobs per job: %d", ceiling(nrow(args_df) / mc_cores)),
+    sprintf("Datasets per subjob: %d (max)", mc_cores),
+    "",
+    "=== JOB DETAILS ==="
+  )
+  
+  # Add per-job details
+  for (i in 1:n_jobs_1) {
+    start_idx <- (i - 1) * max_regions_per_job + 1
+    end_idx <- min(i * max_regions_per_job, n_regions)
+    n_regions_in_job <- end_idx - start_idx + 1
+    
+    job_info <- c(job_info,
+                  sprintf("Job %04d: regions %d-%d (n=%d), %d datasets, time=%.1f min",
+                          i, start_idx, end_idx, n_regions_in_job, nrow(args_df), job_times[i])
+    )
+  }
+  
+  job_info <- c(job_info,
+                "",
+                "=== OUTPUT STRUCTURE ===",
+                sprintf("Job directories: jobs/job_0001 to jobs/job_%04d", n_jobs_1),
+                "Each job contains:",
+                "  - sumstats_1.RDS: Primary dataset for job's regions",
+                "  - sumstats.tar: All secondary datasets (filtered)",
+                "  - coloc.tar: Colocalization results",
+                "",
+                "=== TOTAL OPERATIONS ===",
+                sprintf("Total colocalizations: %d regions x %d datasets = %d analyses",
+                        n_regions, nrow(args_df), n_regions * nrow(args_df))
+  )
+  
+  # Write to file
+  writeLines(job_info, job_info_file)
+  
+  # Display the job info to console if verbose
+  if (verbose) {
+    message("\n", paste(job_info, collapse = "\n"))
+  }
+  
+  # Create CSV with job details for easier parsing
+  job_summary_df <- data.frame(
+    job_id = sprintf("job_%04d", 1:n_jobs_1),
+    start_region = sapply(1:n_jobs_1, function(i) (i-1) * max_regions_per_job + 1),
+    end_region = sapply(1:n_jobs_1, function(i) min(i * max_regions_per_job, n_regions)),
+    n_regions = sapply(1:n_jobs_1, function(i) {
+      end_idx <- min(i * max_regions_per_job, n_regions)
+      start_idx <- (i - 1) * max_regions_per_job + 1
+      end_idx - start_idx + 1
+    }),
+    n_datasets = nrow(args_df),
+    n_analyses = sapply(1:n_jobs_1, function(i) {
+      end_idx <- min(i * max_regions_per_job, n_regions)
+      start_idx <- (i - 1) * max_regions_per_job + 1
+      (end_idx - start_idx + 1) * nrow(args_df)
+    }),
+    processing_time_min = job_times
+  )
+  
+  data.table::fwrite(job_summary_df, job_summary_file)
+  
+  invisible(list(
+    args_df = args_df_file,
+    job_info = job_info_file,
+    job_summary = job_summary_file
+  ))
+}
+
+#' Consolidate colocalization results by study using job metadata
+#' 
+#' @description
+#' Extracts and combines colocalization results from job-specific tar archives
+#' into study-specific RDS files, using the saved job metadata.
+#' 
+#' @param dir_out Base directory containing job subdirectories and metadata files
+#' @param output_subdir Subdirectory name for consolidated results (default: "consolidated")
+#' @param verbose Print progress messages (default: TRUE)
+#' 
+#' @return Invisibly returns list of created output files
+#' 
 #' @export
-save_coloc_results <- function(coloc_results,
-                               file_out,
-                               write_excel = FALSE,
-                               PP_H4_threshold = 0.5,
-                               verbose = TRUE,
-                               sans_ext = TRUE) {
+consolidate_coloc_results <- function(dir_out, output_subdir = "unfilt", verbose = TRUE) {
   
-  # Input validation
-  if (is.null(coloc_results) || nrow(coloc_results) == 0) {
-    warning("Empty colocalization results provided")
-    return(invisible(NULL))
+  # Read metadata files
+  args_df_file <- file.path(dir_out, "args_df.csv.gz")
+  job_summary_file <- file.path(dir_out, "job_summary.csv")
+  
+  if (!file.exists(args_df_file)) {
+    stop("args_df.csv.gz not found in ", dir_out)
+  }
+  if (!file.exists(job_summary_file)) {
+    stop("job_summary.csv not found in ", dir_out)
   }
   
-  if (!is.data.frame(coloc_results)) {
-    stop("coloc_results must be a data.frame or data.table")
+  args_df <- data.table::fread(args_df_file)
+  job_summary <- data.table::fread(job_summary_file)
+  
+  # Get unique studies
+  studies <- unique(args_df$sumstats_2_study)
+  if (verbose) {
+    message("Found ", length(studies), " studies to process")
+    message("Found ", nrow(job_summary), " jobs to consolidate")
   }
   
-  if (!is.numeric(PP_H4_threshold) || PP_H4_threshold < 0 || PP_H4_threshold > 1) {
-    stop("PP_H4_threshold must be a number between 0 and 1")
-  }
+  # Create output directory
+  dir_output <- file.path(dir_out, output_subdir)
+  if (!dir.exists(dir_output)) dir.create(dir_output, recursive = TRUE)
   
-  # Prepare base filename
-  if (sans_ext) {
-    file_out <- tools::file_path_sans_ext(file_out)
-  }
+  # Process each study
+  output_files <- character()
   
-  # Save complete results as compressed CSV
-  csv_file <- paste0(file_out, "_ge.csv.gz")
-  
-  tryCatch({
-    data.table::fwrite(coloc_results, csv_file, compress = "gzip")
-  }, error = function(e) {
-    stop("Failed to write CSV file: ", e$message)
-  })
-  
-  # Optionally create Excel file with filtered results
-  if (write_excel) {
-    if (!requireNamespace("writexl", quietly = TRUE)) {
-      warning("Package 'writexl' is required for Excel output but not installed")
-      return(invisible(file_out))
+  for (study in studies) {
+    if (verbose) message("\nProcessing study: ", study)
+    
+    # Get expected files for this study
+    study_files <- args_df[sumstats_2_study == study, basename(sumstats_2_file)]
+    expected_count <- length(study_files) * nrow(job_summary)
+    
+    # Temporary directory for extraction
+    temp_dir <- tempfile(pattern = paste0("coloc_", study, "_"))
+    dir.create(temp_dir, recursive = TRUE)
+    on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+    
+    # Extract and collect results from each job
+    all_results <- list()
+    file_count <- 0
+    
+    for (i in 1:nrow(job_summary)) {
+      job_id <- job_summary$job_id[i]
+      coloc_tar <- file.path(dir_out, "jobs", job_id, "coloc.tar")
+      
+      if (!file.exists(coloc_tar)) {
+        warning("coloc.tar not found for ", job_id)
+        next
+      }
+      
+      # Extract files for this study
+      extract_cmd <- sprintf(
+        "tar -xf '%s' -C '%s' '%s/' 2>/dev/null",
+        coloc_tar, temp_dir, study
+      )
+      
+      exit_code <- system(extract_cmd, ignore.stdout = TRUE)
+      
+      # Read extracted RDS files
+      study_dir <- file.path(temp_dir, study)
+      if (dir.exists(study_dir)) {
+        rds_files <- list.files(study_dir, pattern = "\\.RDS$", full.names = TRUE)
+        
+        for (rds_file in rds_files) {
+          result <- readRDS(rds_file)
+
+          all_results[[length(all_results) + 1]] <- result
+          file_count <- file_count + 1
+        }
+        
+        # Clean up extracted files for this job
+        unlink(study_dir, recursive = TRUE)
+      }
     }
     
-    # Filter for significant colocalizations
-    if ("PP.H4.abf" %in% colnames(coloc_results)) {
-      coloc_df_filt <- coloc_results[!is.na(coloc_results$PP.H4.abf) & 
-                                       coloc_results$PP.H4.abf >= PP_H4_threshold, ]
+    # Combine all results
+    if (length(all_results) > 0) {
+      combined_results <- data.table::rbindlist(all_results, fill = TRUE)
+
+      # Save consolidated results
+      output_file <- file.path(dir_output, paste0(study, "_unfilt.RDS"))
+      saveRDS(combined_results, output_file)
+      output_files <- c(output_files, output_file)
       
-      if (nrow(coloc_df_filt) > 0) {
-        # Sort by PP.H4.abf descending for easier review
-        coloc_df_filt <- coloc_df_filt[order(coloc_df_filt$PP.H4.abf, 
-                                             decreasing = TRUE), ]
-        
-        xlsx_file <- paste0(file_out, "_filt.xlsx")
-        
-        tryCatch({
-          writexl::write_xlsx(coloc_df_filt, xlsx_file)
-        }, error = function(e) {
-          warning("Failed to write Excel file: ", e$message)
-        })
-      } else {
+      if (verbose) {
+        message(sprintf("  - Processed %d/%d expected files", 
+                        file_count, expected_count))
+        message(sprintf("  - Combined %d rows into %s", 
+                        nrow(combined_results), basename(output_file)))
       }
+      
+      # Validation warning
+      if (file_count != expected_count) {
+        warning(sprintf("Study %s: Expected %d files (%.0f files x %.0f jobs), found %d", 
+                        study, expected_count, length(study_files), nrow(job_summary), file_count))
+      }
+      
     } else {
-      warning("PP.H4.abf column not found; cannot create filtered Excel file")
+      warning("No results found for study: ", study)
     }
   }
   
-  return(invisible(file_out))
+  if (verbose) {
+    message("\n=== Consolidation Summary ===")
+    message("Created ", length(output_files), " study files in ", dir_output)
+    message("\nYou can load results with:")
+    message("  results <- readRDS('", output_files[1], "')")
+  }
+  
+  invisible(output_files)
 }

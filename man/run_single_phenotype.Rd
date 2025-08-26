@@ -30,5 +30,5 @@ that can be combined using \code{rbindlist}.
 }
 \seealso{
 \code{\link{run_region}} for single region analysis
-\code{\link{process_sumstats_form}} which calls this function
+\code{\link{genepicoloc_run}} which calls this function
 }

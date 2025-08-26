@@ -49,5 +49,5 @@ appropriately and formatting each separately.
 }
 \seealso{
 \code{\link{format_sumstats_1}} for formatting primary datasets
-\code{\link{process_sumstats_form}} which calls this function
+\code{\link{genepicoloc_run}} which calls this function
 }

@@ -4,7 +4,12 @@
 \alias{add_gene_annotations}
 \title{Add gene annotations to colocalization results}
 \usage{
-add_gene_annotations(result, gene_map = NULL, verbose = FALSE)
+add_gene_annotations(
+  result,
+  gene_map = NULL,
+  verbose = FALSE,
+  nearest = c(1, 10)
+)
 }
 \arguments{
 \item{result}{A data.frame with region information (CHR_var, BP_START_var, BP_STOP_var).}
@@ -13,16 +18,17 @@ add_gene_annotations(result, gene_map = NULL, verbose = FALSE)
 If NULL, attempts to use packaged gene data.}
 
 \item{verbose}{Logical. Print gene annotation details (default: FALSE).}
+
+\item{nearest}{Numeric vector. Number of nearest genes to annotate for each region
+(default: c(1, 10)). Creates one column per value.}
 }
 \value{
 The input data.frame with added gene annotation columns:
 \itemize{
 \item region_center_pos: Center position of the region
-\item region_center_gene: Gene annotation at region center
-\item nearest_genes_3: 3 nearest genes (simple format)
-\item nearest_genes_5: 5 nearest genes (simple format)
-\item nearest_genes_10: 10 nearest genes (simple format)
+\item nearest_genes_N: N nearest genes for each value in 'nearest' parameter
 }
+For example, with nearest = c(1, 10), creates nearest_genes_1 and nearest_genes_10.
 }
 \description{
 Annotates genomic regions with nearest genes using the gene annotation
@@ -33,25 +39,18 @@ colocalization results.
 This function:
 \enumerate{
 \item Calculates the center position of the genomic region
-\item Annotates the center position with the nearest gene
-\item Finds multiple nearest genes for broader context
-\item Uses simple gene name format for easy interpretation
+\item Finds the specified number of nearest genes for each value in 'nearest'
+\item Uses appropriate format: detailed for single gene, simple for multiple
 }
 }
 \examples{
 \dontrun{
-# Prepare gene annotation
-gene_setup <- setup_gene_annotation()
-
-# Create a result template
-result <- create_result_template(
-  CHR_var = "1", BP_START_var = 1000000, BP_STOP_var = 2000000,
-  sumstats_1_file = "file1", sumstats_2_file = "file2",
-  sumstats_1_tabix = "ok", sumstats_2_tabix = "ok"
-)
-
-# Add gene annotations
+# Default: 1 and 10 nearest genes
 result_annotated <- add_gene_annotations(result, gene_setup$gene_map)
+
+# Custom: 1, 5, and 20 nearest genes
+result_annotated <- add_gene_annotations(result, gene_setup$gene_map, 
+                                         nearest = c(1, 5, 20))
 }
 
 }

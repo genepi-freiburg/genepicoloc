@@ -9,8 +9,7 @@ detect_directionality(ind_df)
 \arguments{
 \item{ind_df}{A data.frame with one row containing allele and effect
 information for both datasets. Must include columns:
-sumstats_1_ind_A1, sumstats_2_ind_A1, sumstats_2_ind_A2,
-sumstats_1_ind_BETA_sign, sumstats_2_ind_BETA_sign}
+sumstats_1_ind_A1, sumstats_2_ind_A1, sumstats_2_ind_A2}
 }
 \value{
 The input data.frame with an additional 'directionality' column:
@@ -42,9 +41,7 @@ directions might indicate different causal variants or pleiotropic effects.
 df <- data.frame(
   sumstats_1_ind_A1 = "A",
   sumstats_2_ind_A1 = "A", 
-  sumstats_2_ind_A2 = "G",
-  sumstats_1_ind_BETA_sign = 1,
-  sumstats_2_ind_BETA_sign = -1
+  sumstats_2_ind_A2 = "G"
 )
 detect_directionality(df)  # Returns df with directionality = -1
 }

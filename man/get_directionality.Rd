@@ -18,11 +18,9 @@ A data.frame with one row containing:
 \item sumstats_1_ind_A1/A2: Alleles in primary dataset
 \item sumstats_1_ind_nlog10P: Significance of lead variant
 \item sumstats_1_ind_BETA: Effect size in primary dataset
-\item sumstats_1_ind_BETA_sign: Sign of effect (+1 or -1)
 \item sumstats_2_ind_A1/A2: Alleles in secondary dataset
 \item sumstats_2_ind_nlog10P: Significance in secondary dataset
 \item sumstats_2_ind_BETA: Effect size in secondary dataset
-\item sumstats_2_ind_BETA_sign: Sign of effect (+1 or -1)
 \item directionality: 1 if same direction, -1 if opposite, NA if undetermined
 }
 }
