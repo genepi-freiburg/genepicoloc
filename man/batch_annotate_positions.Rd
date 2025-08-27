@@ -37,9 +37,9 @@ This function adds gene annotations to a data frame containing genomic coordinat
 result <- setup_gene_annotation()
 
 # Create annotation function
-annotation_func <- function(chr, pos) {
+annotation_func <- function(chr, pos) 
   annotate_position(chr, pos, result$gene_map)
-}
+
 
 # Example 1: Simple batch annotation
 my_variants <- data.frame(

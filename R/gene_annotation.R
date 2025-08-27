@@ -339,6 +339,7 @@ format_default_output <- function(nearest_genes, pos) {
     }
   }
 }
+
 #' Batch Annotate Multiple Genomic Positions
 #'
 #' Efficiently annotate multiple genomic positions using gene annotation data.
@@ -359,9 +360,9 @@ format_default_output <- function(nearest_genes, pos) {
 #' result <- setup_gene_annotation()
 #' 
 #' # Create annotation function
-#' annotation_func <- function(chr, pos) {
+#' annotation_func <- function(chr, pos) 
 #'   annotate_position(chr, pos, result$gene_map)
-#' }
+#'
 #' 
 #' # Example 1: Simple batch annotation
 #' my_variants <- data.frame(

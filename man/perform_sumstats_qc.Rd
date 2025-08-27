@@ -34,9 +34,9 @@ The QC attribute contains codes for what was filtered:
 \itemize{
 \item "ok": No issues found
 \item "dupvar": Duplicated variants removed
-\item "INFin{column}": Infinite values removed
-\item "NAin{column}": NA values removed
-\item "0in{column}": Zero values removed
+\item "INFin\if{html}{\out{<column>}}": Infinite values removed from specified column
+\item "NAin\if{html}{\out{<column>}}": NA values removed from specified column
+\item "0in\if{html}{\out{<column>}}": Zero values removed from specified column
 \item "1inAF": Fixed alleles removed
 }
 }

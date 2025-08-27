@@ -34,7 +34,9 @@ phenotypes. Use NA for case-control studies.}
 An object of class "sumstats_2_form" which is either:
 \itemize{
 \item A single sumstats object (if sumstats_pheno = "single")
-\item A list of sumstats objects (if sumstats_pheno = "multiple")
+\item A list of sumstats objects (if sumstats_pheno = "multiple"), where
+each element has its coloc_regions_PASS attribute filtered to regions
+containing data for that specific phenotype
 }
 With attributes: sumstats_pheno, sumstats_file
 }

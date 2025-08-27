@@ -13,41 +13,80 @@ genepicoloc_run(
   sumstats_2_type,
   sumstats_2_sdY,
   sumstats_2_study,
-  p_filt = 0.01,
-  p_min_save = 1e-05,
-  verbose = TRUE
+  verbose = TRUE,
+  save_sumstats = FALSE,
+  p_filt = 0.05,
+  p_min_save = 5e-08
 )
 }
 \arguments{
-\item{sumstats_1_form}{A formatted sumstats object containing the primary dataset.
-Must have a "coloc_regions_PASS" attribute.}
+\item{temp_sumstats_dir}{Path to temporary directory for sumstats output.}
 
-\item{sumstats_2_function}{Character string. Function name for retrieving secondary data.}
+\item{temp_coloc_dir}{Path to temporary directory for coloc results.}
 
-\item{sumstats_2_file}{Character string. Path to secondary summary statistics file.}
+\item{sumstats_1_form}{Formatted primary dataset with coloc_regions_PASS attribute.}
 
-\item{sumstats_2_type}{Character string. Type of secondary trait ('quant' or 'cc').}
+\item{sumstats_2_function}{Function name for retrieving secondary data.}
 
-\item{sumstats_2_sdY}{Numeric. Standard deviation for quantitative traits (NA for cc).}
+\item{sumstats_2_file}{Path to secondary summary statistics file.}
 
-\item{sumstats_2_study}{Character string. Study identifier for output organization.}
+\item{sumstats_2_type}{Type of secondary trait ('quant' or 'cc').}
 
-\item{verbose}{Logical. Print detailed progress messages (default: TRUE).}
+\item{sumstats_2_sdY}{Standard deviation for quantitative traits (NA for cc).}
+
+\item{sumstats_2_study}{Study identifier for tracking.}
+
+\item{verbose}{Logical. Print progress messages (default: TRUE).}
+
+\item{save_sumstats}{Logical. Whether to save filtered summary statistics
+(default: FALSE). Set to TRUE only if you need the filtered summary statistics
+for downstream analyses like fine-mapping. WARNING: This substantially increases
+disk usage (~20-30GB per 1,00 regions and 10,000 datasets with typical settings).
+When FALSE, only colocalization results are saved (~2-3GB).}
+
+\item{p_filt}{Numeric. Maximum p-value threshold for variants to include in
+saved summary statistics (default: 1, includes all variants). Only applies
+when save_sumstats = TRUE. Set to a lower value (e.g., 0.05) to reduce
+storage by excluding variants with high p-values. Note: For fine-mapping
+and conditional analyses, keep at 1 to preserve complete LD structure.}
+
+\item{p_min_save}{Numeric. Minimum p-value threshold for saving summary
+statistics sumstats_2 (default: 5e-8). Only regions with at least one variant
+with p-value below this threshold will be saved when save_sumstats is TRUE}
 }
 \value{
-Invisibly returns the path to the output file.
+Invisibly returns the sumstats_2_file path.
 }
 \description{
-Main processing function that formats secondary summary statistics and runs
-colocalization analysis against a primary dataset across all specified regions.
-This is typically called by \code{genepicoloc_wrapper} for each secondary dataset.
+Formats secondary summary statistics and runs colocalization analysis against
+a primary dataset across all specified regions. Handles both single and
+multi-phenotype datasets.
 }
 \details{
-This function:
+Processing steps:
 \enumerate{
-\item Formats the secondary summary statistics
-\item Runs colocalization for each region
-\item Handles both single and multi-phenotype datasets
-\item Saves results to compressed CSV
+\item Formats secondary summary statistics via format_sumstats_2
+\item For single phenotype: runs colocalization directly
+\item For multiple phenotypes: processes each phenotype separately
+\item Saves filtered sumstats (significant regions only)
+\item Saves colocalization results as RDS files
 }
+
+The function automatically detects multi-phenotype datasets (e.g., eQTL)
+and processes each phenotype independently, combining results afterward.
+}
+\examples{
+\dontrun{
+genepicoloc_run(
+  temp_sumstats_dir = "/tmp/sumstats",
+  temp_coloc_dir = "/tmp/coloc",
+  sumstats_1_form = primary_data,
+  sumstats_2_function = "retrieve_sumstats_tabix",
+  sumstats_2_file = "secondary.gz",
+  sumstats_2_type = "quant",
+  sumstats_2_sdY = 1.2,
+  sumstats_2_study = "StudyA"
+)
+}
+
 }

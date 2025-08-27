@@ -1,5 +1,4 @@
 # Group 0: Pipeline orchestration ----
-#' @description
 #' Three-level pipeline hierarchy:
 #' 1. genepicoloc_wrapper() - Splits regions into jobs, manages parallelization
 #' 2. genepicoloc_job() - Processes one job (region subset, all datasets) 
@@ -336,9 +335,18 @@ genepicoloc_wrapper <- function(dir_out,
 #' @param verbose Logical. Print progress messages (default: TRUE).
 #' @param debug_mode Logical. Run sequentially (default: FALSE).
 #' @param save_sumstats Logical. Whether to save filtered summary statistics 
-#'   (default: TRUE). Set to FALSE to save disk space when only colocalization 
-#'   results are needed.
-#'
+#'   (default: FALSE). Set to TRUE only if you need the filtered summary statistics
+#'   for downstream analyses like fine-mapping. WARNING: This substantially increases
+#'   disk usage (~20-30GB per 1,00 regions and 10,000 datasets with typical settings).
+#'   When FALSE, only colocalization results are saved (~2-3GB).
+#' @param p_filt Numeric. Maximum p-value threshold for variants to include in 
+#'   saved summary statistics (default: 1, includes all variants). Only applies 
+#'   when save_sumstats = TRUE. Set to a lower value (e.g., 0.05) to reduce 
+#'   storage by excluding variants with high p-values. Note: For fine-mapping 
+#'   and conditional analyses, keep at 1 to preserve complete LD structure. 
+#' @param p_min_save Numeric. Minimum p-value threshold for saving summary 
+#'   statistics sumstats_2 (default: 5e-8). Only regions with at least one variant 
+#'   with p-value below this threshold will be saved when save_sumstats is TRUE
 #' @return List with two elements:
 #'   \itemize{
 #'     \item n_sumstats: Number of sumstats files processed
@@ -382,7 +390,7 @@ genepicoloc_job <- function(sumstats_1_form,
                             mc_cores = 10,
                             verbose = TRUE,
                             debug_mode = FALSE,
-                            save_sumstats = TRUE,
+                            save_sumstats = FALSE,
                             p_filt = 0.05,
                             p_min_save = 5e-8) {
   
@@ -482,8 +490,18 @@ genepicoloc_job <- function(sumstats_1_form,
 #' @param p_min_save P-value threshold to save regions (default: 5e-8).
 #' @param verbose Logical. Print progress messages (default: TRUE).
 #' @param save_sumstats Logical. Whether to save filtered summary statistics 
-#'   (default: TRUE). Set to FALSE to save disk space when only colocalization 
-#'   results are needed.
+#'   (default: FALSE). Set to TRUE only if you need the filtered summary statistics
+#'   for downstream analyses like fine-mapping. WARNING: This substantially increases
+#'   disk usage (~20-30GB per 1,00 regions and 10,000 datasets with typical settings).
+#'   When FALSE, only colocalization results are saved (~2-3GB).
+#' @param p_filt Numeric. Maximum p-value threshold for variants to include in 
+#'   saved summary statistics (default: 1, includes all variants). Only applies 
+#'   when save_sumstats = TRUE. Set to a lower value (e.g., 0.05) to reduce 
+#'   storage by excluding variants with high p-values. Note: For fine-mapping 
+#'   and conditional analyses, keep at 1 to preserve complete LD structure. 
+#' @param p_min_save Numeric. Minimum p-value threshold for saving summary 
+#'   statistics sumstats_2 (default: 5e-8). Only regions with at least one variant 
+#'   with p-value below this threshold will be saved when save_sumstats is TRUE
 #' @return Invisibly returns the sumstats_2_file path.
 #'
 #' @details
@@ -522,10 +540,10 @@ genepicoloc_run <- function(temp_sumstats_dir,
                             sumstats_2_type,
                             sumstats_2_sdY,
                             sumstats_2_study,
-                            p_filt = 0.05,
-                            p_min_save = 5e-8,
                             verbose = TRUE,
-                            save_sumstats = TRUE) {
+                            save_sumstats = FALSE,
+                            p_filt = 0.05,
+                            p_min_save = 5e-8) {
   
   # Extract regions from primary dataset
   # NOTE: This will be a subset of the original regions when processing jobs
@@ -2155,7 +2173,7 @@ consolidate_coloc_results <- function(dir_out, output_subdir = "unfilt", verbose
     if (verbose) message("\nProcessing study: ", study)
     
     # Get expected files for this study
-    study_files <- args_df[sumstats_2_study == study, basename(sumstats_2_file)]
+    study_files <- args_df[args_df$sumstats_2_study == study, basename(sumstats_2_file)]
     expected_count <- length(study_files) * nrow(job_summary)
     
     # Temporary directory for extraction

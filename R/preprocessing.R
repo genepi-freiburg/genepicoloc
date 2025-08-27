@@ -300,9 +300,9 @@ set_max_nlog10P <- function(sumstats) {
 #' \itemize{
 #'   \item "ok": No issues found
 #'   \item "dupvar": Duplicated variants removed
-#'   \item "INFin{column}": Infinite values removed
-#'   \item "NAin{column}": NA values removed
-#'   \item "0in{column}": Zero values removed
+#'   \item "INFin<column>": Infinite values removed from specified column
+#'   \item "NAin<column>": NA values removed from specified column
+#'   \item "0in<column>": Zero values removed from specified column
 #'   \item "1inAF": Fixed alleles removed
 #' }
 #'
