@@ -36,12 +36,25 @@
 #'   For eQTL studies with multiple phenotypes, recommended value is not more
 #'   than 10. For other studies with a single phenotype it can be increased to 100.
 #' @param save_sumstats Logical. Whether to save filtered summary statistics 
-#'   (default: TRUE). Set to FALSE to save disk space when only colocalization 
-#'   results are needed.
+#'   (default: FALSE). Set to TRUE only if you need the filtered summary statistics
+#'   for downstream analyses like fine-mapping. WARNING: This substantially increases
+#'   disk usage (~20-30GB per 1,00 regions and 10,000 datasets with typical settings).
+#'   When FALSE, only colocalization results are saved (~2-3GB).
+#' @param p_filt Numeric. Maximum p-value threshold for variants to include in 
+#'   saved summary statistics (default: 1, includes all variants). Only applies 
+#'   when save_sumstats = TRUE. Set to a lower value (e.g., 0.05) to reduce 
+#'   storage by excluding variants with high p-values. Note: For fine-mapping 
+#'   and conditional analyses, keep at 1 to preserve complete LD structure. 
+#' @param p_min_save Numeric. Minimum p-value threshold for saving summary 
+#'   statistics sumstats_2 (default: 5e-8). Only regions with at least one variant 
+#'   with p-value below this threshold will be saved when save_sumstats is TRUE
+#' @param batch_size Integer or NULL. Number of secondary datasets to process per 
+#'   subjob (default: NULL, which sets it to mc_cores * 10). Controls Level 2 
+#'   parallelization batching.
 #'
-#' @return Invisibly returns vector of job processing times. Results are saved to
-#'   disk in job-specific subdirectories.
-#' 
+#' @return NULL (invisibly). This function is called for its side effects of 
+#'   writing analysis results to disk in the specified output directory.
+#'
 #' @details
 #' The function implements a two-level parallelization strategy:
 #' \enumerate{
@@ -61,16 +74,16 @@
 #' @examples
 #' \dontrun{
 #' sumstats_1_args <- list(
-#'   coloc_regions_PASS = regions_df,
+#'   coloc_regions_PASS = coloc_regions_PASS,
 #'   sumstats_1_function = "retrieve_sumstats_tabix",
-#'   sumstats_1_file = "primary.gz",
+#'   sumstats_1_file = "sumstats_1.gz",
 #'   sumstats_1_type = "quant",
-#'   sumstats_1_sdY = 1.5
+#'   sumstats_1_sdY = 1
 #' )
 #' 
 #' args_df <- data.frame(
 #'   sumstats_2_study = c("Study1", "Study2"),
-#'   sumstats_2_file = c("study1.gz", "study2.gz"),
+#'   sumstats_2_file = c("study1_sumstats_2.gz", "study2_sumstats_2.gz"),
 #'   sumstats_2_function = "retrieve_sumstats_tabix",
 #'   sumstats_2_type = "quant",
 #'   sumstats_2_sdY = NA
@@ -88,13 +101,45 @@
 genepicoloc_wrapper <- function(dir_out,
                                 sumstats_1_args,
                                 args_df,
-                                mc_cores = 10,
+                                mc_cores = 2,
                                 verbose = TRUE,
                                 debug_mode = FALSE,
                                 max_regions_per_job = 10,
-                                save_sumstats = TRUE,
-                                p_min_save = 1e-6,
+                                save_sumstats = FALSE,
+                                p_filt=1,
+                                p_min_save = 5e-8,
                                 batch_size = NULL) {
+  
+  # Warning for save_sumstats = TRUE
+  if (save_sumstats) {
+    warning_msg <- paste0(
+      "\n",
+      "================================================================================\n",
+      "WARNING: save_sumstats = TRUE will generate substantial disk usage!\n",
+      "--------------------------------------------------------------------------------\n",
+      "To reduce storage, consider:\n",
+      "  1. Set save_sumstats = FALSE (saves ~90% space)\n",
+      "  2. Use stricter p_min_save threshold (e.g., 1e-10)\n",
+      "  3. Process fewer regions or traits at once\n",
+      "================================================================================\n"
+    )
+    
+    if (interactive()) {
+      # In interactive mode, ask for confirmation
+      cat(warning_msg)
+      response <- readline(prompt = "Continue with save_sumstats = TRUE? (y/n): ")
+      if (!tolower(response) %in% c("y", "yes")) {
+        stop("Analysis cancelled by user. Set save_sumstats = FALSE to save disk space.")
+      }
+    } else {
+      # In non-interactive mode, just show warning
+      warning(warning_msg, immediate. = TRUE)
+    }
+  } else {
+    message("save_sumstats is FALSE (default), ",
+            "saving only colocalization results. ",
+            "This option is sufficient for most use cases.")
+  }
   
   # Input validation for sumstats_1_args
   required_args <- c("coloc_regions_PASS", "sumstats_1_function", 
@@ -155,11 +200,11 @@ genepicoloc_wrapper <- function(dir_out,
     )
     
     if (verbose) {
-      message("Output will be written to ", dir_out)
-      message("Queried ", format(nrow(sumstats_1_form), big.mark = ","), " rows")
       mb_size <- format(object.size(sumstats_1_form), units = "MB")
       if (mb_size == "0 Mb") mb_size <- format(object.size(sumstats_1_form), units = "KB")
-      message("sumstats_1 object size = ", mb_size)
+      message("Output will be written to ", dir_out)
+      message("sumstats_1: Queried ", format(nrow(sumstats_1_form), big.mark = ","),
+              " rows, object size = ", mb_size)
     }
     
     ### Saving sumstats_1 and creating tar archive for sumstats_2
@@ -187,7 +232,7 @@ genepicoloc_wrapper <- function(dir_out,
     ### STEP 2: Process arguments-based subjobs ###
     n_args <- nrow(args_df)
     # Set batch size if not specified
-    if (is.null(batch_size)) batch_size <- mc_cores * 5
+    if (is.null(batch_size)) batch_size <- mc_cores * 10
     
     n_jobs_2 <- ceiling(n_args / batch_size) # max jobs based on mc_cores
     if (verbose) {
@@ -211,6 +256,7 @@ genepicoloc_wrapper <- function(dir_out,
         verbose = verbose,
         debug_mode = debug_mode,
         save_sumstats = save_sumstats,
+        p_filt = p_filt,
         p_min_save = p_min_save
       )
       
@@ -272,7 +318,7 @@ genepicoloc_wrapper <- function(dir_out,
   }
   consolidate_coloc_results(dir_out = dir_out, verbose = verbose)
 
-  return(invisible(job_times))
+  return(invisible(NULL))
 }
 
 #' Process a single job of colocalization analyses
@@ -337,7 +383,8 @@ genepicoloc_job <- function(sumstats_1_form,
                             verbose = TRUE,
                             debug_mode = FALSE,
                             save_sumstats = TRUE,
-                            p_min_save = 1-6) {
+                            p_filt = 0.05,
+                            p_min_save = 5e-8) {
   
   # Create temp directories
   temp_coloc_dir <- tempfile(pattern = "coloc_", tmpdir = tempdir())
@@ -372,6 +419,7 @@ genepicoloc_job <- function(sumstats_1_form,
       sumstats_1_form = sumstats_1_form,
       verbose = verbose,
       save_sumstats = save_sumstats,
+      p_filt = p_filt,
       p_min_save = p_min_save
     ),
     SIMPLIFY = FALSE
@@ -430,8 +478,8 @@ genepicoloc_job <- function(sumstats_1_form,
 #' @param sumstats_2_type Type of secondary trait ('quant' or 'cc').
 #' @param sumstats_2_sdY Standard deviation for quantitative traits (NA for cc).
 #' @param sumstats_2_study Study identifier for tracking.
-#' @param p_filt P-value threshold for filtering (default: 1, keep all SNPs).
-#' @param p_min_save P-value threshold to save regions (default: 1e-6).
+#' @param p_filt P-value threshold for filtering (default: 0.05).
+#' @param p_min_save P-value threshold to save regions (default: 5e-8).
 #' @param verbose Logical. Print progress messages (default: TRUE).
 #' @param save_sumstats Logical. Whether to save filtered summary statistics 
 #'   (default: TRUE). Set to FALSE to save disk space when only colocalization 
@@ -474,8 +522,8 @@ genepicoloc_run <- function(temp_sumstats_dir,
                             sumstats_2_type,
                             sumstats_2_sdY,
                             sumstats_2_study,
-                            p_filt=1,
-                            p_min_save=1e-6,
+                            p_filt = 0.05,
+                            p_min_save = 5e-8,
                             verbose = TRUE,
                             save_sumstats = TRUE) {
   
