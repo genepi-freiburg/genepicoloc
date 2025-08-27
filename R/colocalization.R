@@ -437,7 +437,7 @@ genepicoloc_job <- function(sumstats_1_form,
   if (debug_mode) {
     results <- do.call(mapply, mapply_args)
   } else {
-    results <- do.call(mcmapply, c(mapply_args, list(mc.cores = mc_cores)))
+    results <- do.call(parallel::mcmapply, c(mapply_args, list(mc.cores = mc_cores)))
   }
   
   # Archive the results - only handle sumstats if saving

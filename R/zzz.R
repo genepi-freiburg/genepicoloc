@@ -25,7 +25,7 @@
   
   # Create startup message
   packageStartupMessage(
-    "genepicoloc v", version, " - R package to facilitate genetic (colocalization) analyses\n"
+    "genepicoloc v", version, " - R package to facilitate genetic colocalization analyses\n"
     # "For citation information, use: citation('", pkgname, "')"
   )
 }
