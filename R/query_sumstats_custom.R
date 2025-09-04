@@ -608,19 +608,22 @@ format_MVP_R4 <- function(sumstats) {
   # check
   cols_from <- c("SNP_ID", "chrom", "pos", "ref", "alt", "ea", "af", "num_samples", "beta", "sebeta", "pval", "q_pval", "i2", "direction")
   # some sumstats have or and ci
-  if (all(c("or", "ci") %in% colnames(sumstats))) {
-    # Split the CI column and convert to numeric
-    ci_split <- strsplit(sumstats$ci, ",")
-    ci_lower <- as.numeric(sapply(ci_split, function(x) x[1]))
-    ci_upper <- as.numeric(sapply(ci_split, function(x) x[2]))
-    # Calculate beta and sebeta
-    sumstats$beta <- log(as.numeric(sumstats$or))
-    sumstats$sebeta <- (log(ci_upper) - log(ci_lower)) / 3.92  # 3.92 = 2 * 1.96 for 95% CI
-    if (!all(cols_from %in% colnames(sumstats))) {
-      stop("Column mismatch when reading ", attr(sumstats, "sumstats_file"))
+  if (nrow(sumstats) == 0) {
+    sumstats$beta <- numeric(0)
+    sumstats$sebeta <- numeric(0)
+  } else {
+    if (all(c("or", "ci") %in% colnames(sumstats))) {
+      # Split the CI column and convert to numeric
+      ci_split <- strsplit(sumstats$ci, ",")
+      ci_lower <- as.numeric(sapply(ci_split, function(x) x[1]))
+      ci_upper <- as.numeric(sapply(ci_split, function(x) x[2]))
+      # Calculate beta and sebeta
+      sumstats$beta <- log(as.numeric(sumstats$or))
+      sumstats$sebeta <- (log(ci_upper) - log(ci_lower)) / 3.92  # 2*1.96 for 95% CI
     }
-  } else if (!all(c("beta", "sebeta") %in% colnames(sumstats))) {
-    stop("Neither or+ci no beta+sebeta are available")
+  }
+  if (!all(cols_from %in% colnames(sumstats))) {
+    stop("Column mismatch when reading ", attr(sumstats, "sumstats_file"))
   }
   # format
   sumstats$Name <- paste0("chr", sumstats$chrom, ":", sumstats$pos, ":", sumstats$ref, ":", sumstats$alt)

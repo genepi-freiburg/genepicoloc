@@ -1081,12 +1081,20 @@ run_region <- function(sumstats_1, sumstats_2,
   
   # Check primary dataset has data
   if (nrow(sumstats_1_sub) == 0) {
-    stop("No data found in sumstats_1 for region ", 
-         CHR_var, ":", BP_START_var, "-", BP_STOP_var)
+    warning("No data found in sumstats_1 for region ", 
+         CHR_var, ":", BP_START_var, "-", BP_STOP_var, immediate. = TRUE)
+    result$coloc <- "no_data_in_sumstats_1"
+    return(result)
   }
   
   sumstats_2_sub <- subset(sumstats_2, 
                            CHR == CHR_var & POS > BP_START_var & POS < BP_STOP_var)
+  
+  # Check secondary dataset has significant signal
+  if (nrow(sumstats_2_sub) == 0) {
+    result$coloc <- "no_data_in_sumstats_2"
+    return(result)
+  }
   
   # Calculate maximum significance values
   sumstats_1_sub <- set_max_nlog10P(sumstats_1_sub)
@@ -1101,8 +1109,10 @@ run_region <- function(sumstats_1, sumstats_2,
   
   # Check primary dataset has significant signal
   if (is.na(sumstats_1_max_nlog10P) || sumstats_1_max_nlog10P < min_nlog10P) {
-    stop("No significant SNPs in sumstats_1 (max -log10P = ", 
-         round(sumstats_1_max_nlog10P, 2), " < ", min_nlog10P, ")")
+    warning("No significant SNPs in sumstats_1 (max -log10P = ", 
+         round(sumstats_1_max_nlog10P, 2), " < ", min_nlog10P, ")", immediate. = TRUE)
+    result$coloc <- "no_signif_sumstats_1"
+    return(result)
   }
   
   # Check secondary dataset has significant signal
