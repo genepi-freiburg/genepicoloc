@@ -556,6 +556,8 @@ format_CKDGen_r4 <- function(sumstats) {
     stop("Column mismatch when reading ", attr(sumstats, "sumstats_file"))
   }
   # format
+  sumstats$`P-value` <- as.numeric(sumstats$`P-value`)
+  sumstats$`P-value`[sumstats$`P-value` == 0] <- .Machine$double.eps
   sumstats$nlog10P <- -log10(sumstats$`P-value`)
   sumstats <- match_cols(sumstats=sumstats,
                          Name="Name_hg38",
