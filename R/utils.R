@@ -117,3 +117,163 @@ handle_underflow <- function(pvalue_vec, return_nlog10P = FALSE) {
   }
 }
 
+#' Validate coloc_regions_PASS data frame
+#' 
+#' @description
+#' Validates that coloc_regions_PASS has the correct structure and content
+#' for colocalization analysis.
+#' 
+#' @param coloc_regions_PASS Data frame to validate
+#' @param param_name Character. Name of the parameter (for error messages)
+#' 
+#' @return NULL (invisibly) if validation passes, otherwise stops with error
+#' 
+#' @details
+#' Validates:
+#' \itemize{
+#'   \item Is a data.frame with at least 1 row
+#'   \item Has exactly 3 required columns: CHR_var, BP_START_var, BP_STOP_var
+#'   \item CHR_var contains valid chromosome names (1-22, X, Y, XY, MT, or chr-prefixed)
+#'   \item BP_START_var and BP_STOP_var are positive integers
+#'   \item BP_START_var <= BP_STOP_var for each region
+#' }
+#' 
+#' @examples
+#' \dontrun{
+#' # Valid example
+#' regions <- data.frame(
+#'   CHR_var = c("1", "2", "X"),
+#'   BP_START_var = c(567054, 661911, 7534918),
+#'   BP_STOP_var = c(1567054, 1661911, 8534918)
+#' )
+#' validate_coloc_regions(regions)
+#' 
+#' # This would fail - missing required columns
+#' bad_regions <- data.frame(chr = "1", start = 100, end = 200)
+#' validate_coloc_regions(bad_regions) # Error
+#' }
+validate_coloc_regions <- function(coloc_regions_PASS, param_name = "coloc_regions_PASS") {
+  
+  # Check if it's a data.frame
+  if (!is.data.frame(coloc_regions_PASS)) {
+    stop(sprintf("%s must be a data.frame, got %s", 
+                 param_name, class(coloc_regions_PASS)[1]))
+  }
+  
+  # Check if it has at least one row
+  if (nrow(coloc_regions_PASS) == 0) {
+    stop(sprintf("%s must contain at least one row", param_name))
+  }
+  
+  # Check required columns
+  required_cols <- c("CHR_var", "BP_START_var", "BP_STOP_var")
+  missing_cols <- setdiff(required_cols, names(coloc_regions_PASS))
+  
+  if (length(missing_cols) > 0) {
+    stop(sprintf("%s missing required columns: %s. Required columns are: %s", 
+                 param_name,
+                 paste(missing_cols, collapse = ", "),
+                 paste(required_cols, collapse = ", ")))
+  }
+  
+  # Check for extra columns (warning only)
+  extra_cols <- setdiff(names(coloc_regions_PASS), required_cols)
+  if (length(extra_cols) > 0) {
+    warning(sprintf("%s contains additional columns that will be ignored: %s", 
+                    param_name, paste(extra_cols, collapse = ", ")))
+  }
+  
+  # Validate CHR_var
+  chr_values <- coloc_regions_PASS$CHR_var
+  
+  # Convert to character if not already
+  if (!is.character(chr_values)) {
+    chr_values <- as.character(chr_values)
+    coloc_regions_PASS$CHR_var <- chr_values
+    message(sprintf("Converting %s$CHR_var to character", param_name))
+  }
+  
+  # Define valid chromosome names and normalize chr prefixes
+  valid_chrs_base <- c(
+    as.character(1:22),           # Autosomes: "1", "2", ..., "22"
+    "X", "Y", "XY", "MT", "M"     # Sex chromosomes and mitochondrial
+  )
+  
+  # Also accept chr-prefixed versions but convert them
+  valid_chrs_with_prefix <- c(
+    paste0("chr", 1:22),          # With chr prefix: "chr1", "chr2", ...
+    "chrX", "chrY", "chrXY", "chrMT", "chrM"  # Sex/mito with chr prefix
+  )
+  
+  all_valid_chrs <- c(valid_chrs_base, valid_chrs_with_prefix)
+  
+  # Check for invalid chromosomes first
+  invalid_chrs <- chr_values[!chr_values %in% all_valid_chrs]
+  if (length(invalid_chrs) > 0) {
+    unique_invalid <- unique(invalid_chrs)
+    stop(sprintf("%s$CHR_var contains invalid chromosome names: %s. Valid options are: %s", 
+                 param_name,
+                 paste(unique_invalid, collapse = ", "),
+                 paste(head(valid_chrs_base, 10), collapse = ", "),
+                 if (length(valid_chrs_base) > 10) "..." else ""))
+  }
+  
+  # Convert chr-prefixed chromosomes to standard format
+  has_chr_prefix <- grepl("^chr", chr_values)
+  if (any(has_chr_prefix)) {
+    chr_values[has_chr_prefix] <- sub("^chr", "", chr_values[has_chr_prefix])
+    coloc_regions_PASS$CHR_var <- chr_values
+    n_converted <- sum(has_chr_prefix)
+    message(sprintf("Converted %d chromosome names from 'chr' prefix format to standard format (e.g., 'chr1' -> '1')", 
+                    n_converted))
+  }
+  
+  # Validate BP_START_var and BP_STOP_var
+  bp_cols <- c("BP_START_var", "BP_STOP_var")
+  
+  for (col in bp_cols) {
+    bp_values <- coloc_regions_PASS[[col]]
+    
+    if (!is.numeric(bp_values)) {
+      stop(sprintf("%s$%s must be numeric, got %s", 
+                   param_name, col, class(bp_values)[1]))
+    }
+    
+    # Check for non-integer values
+    if (any(!bp_values == as.integer(bp_values), na.rm = TRUE)) {
+      warning(sprintf("%s$%s contains non-integer values, converting to integers", 
+                      param_name, col))
+      coloc_regions_PASS[[col]] <- as.integer(round(bp_values))
+    }
+    
+    # Check for non-positive values
+    if (any(bp_values <= 0, na.rm = TRUE)) {
+      invalid_rows <- which(bp_values <= 0)
+      stop(sprintf("%s$%s must contain positive integers. Invalid values at rows: %s", 
+                   param_name, col, paste(head(invalid_rows, 5), collapse = ", ")))
+    }
+    
+    # Check for missing values
+    if (any(is.na(bp_values))) {
+      invalid_rows <- which(is.na(bp_values))
+      stop(sprintf("%s$%s contains missing values at rows: %s", 
+                   param_name, col, paste(head(invalid_rows, 5), collapse = ", ")))
+    }
+  }
+  
+  # Validate that BP_START_var <= BP_STOP_var
+  invalid_ranges <- coloc_regions_PASS$BP_START_var > coloc_regions_PASS$BP_STOP_var
+  if (any(invalid_ranges)) {
+    invalid_rows <- which(invalid_ranges)
+    stop(sprintf("%s: BP_START_var must be <= BP_STOP_var. Invalid ranges at rows: %s", 
+                 param_name, paste(head(invalid_rows, 5), collapse = ", ")))
+  }
+  
+  # Summary message
+  message(sprintf(" %s validation passed: %d regions across %d chromosomes", 
+                  param_name, 
+                  nrow(coloc_regions_PASS),
+                  length(unique(chr_values))))
+  
+  return(invisible(NULL))
+}

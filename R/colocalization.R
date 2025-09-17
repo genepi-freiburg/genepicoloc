@@ -105,6 +105,7 @@ genepicoloc_wrapper <- function(dir_out,
                                 debug_mode = FALSE,
                                 max_regions_per_job = 10,
                                 save_sumstats = FALSE,
+                                force_save_sumstats = FALSE,
                                 p_filt=1,
                                 p_min_save = 5e-8,
                                 batch_size = NULL) {
@@ -123,7 +124,11 @@ genepicoloc_wrapper <- function(dir_out,
       "================================================================================\n"
     )
     
-    if (interactive()) {
+    if (force_save_sumstats) {
+      # If force_save_sumstats = TRUE, skip interactive prompt
+      warning(warning_msg, immediate. = TRUE)
+      message("force_save_sumstats = TRUE: Proceeding without user confirmation.")
+    } else if (interactive()) {
       # In interactive mode, ask for confirmation
       cat(warning_msg)
       response <- readline(prompt = "Continue with save_sumstats = TRUE? (y/n): ")
@@ -149,9 +154,10 @@ genepicoloc_wrapper <- function(dir_out,
          paste(missing_args, collapse = ", "))
   }
   
-  # Extract coloc_regions_PASS from the args
+  # Extract coloc_regions_PASS from the args and validate its structure and content
   coloc_regions_PASS <- sumstats_1_args$coloc_regions_PASS
-  
+  validate_coloc_regions(coloc_regions_PASS, "coloc_regions_PASS")
+
   # Jobs metadata
   study_counts <- table(args_df$sumstats_2_study)
   if (verbose) {
@@ -162,7 +168,10 @@ genepicoloc_wrapper <- function(dir_out,
       message(sprintf("  - %s: %d datasets", study, study_counts[study]))
     }
   }
-  
+  # Save arguments
+  args_df_file <- file.path(dir_out, "args_df.csv.gz")
+  data.table::fwrite(args_df, args_df_file, compress = "gzip")
+
   ### STEP 1: Process region-based jobs ###
   # Determine parallelization for level 1 - regions
   n_regions <- nrow(coloc_regions_PASS)
@@ -186,18 +195,21 @@ genepicoloc_wrapper <- function(dir_out,
     }
     
     # Create job-specific output directory
-    dir_out <- file.path(dir_out, "jobs", sprintf("job_%04d", job_idx))
+    dir_out <- file.path(dir_out, "jobs", sprintf("job_%03d", job_idx))
     if (!dir.exists(dir_out)) dir.create(dir_out, recursive = TRUE)
+    
+    # Save the regions subset for this job
+    coloc_regions_subset <- coloc_regions_PASS[start_idx:end_idx,]
+    write.csv(coloc_regions_subset, file.path(dir_out, "coloc_regions.csv"), row.names = FALSE)
     
     # Format sumstats_1 for this job's regions only
     sumstats_1_form <- format_sumstats_1(
-      coloc_regions_PASS = coloc_regions_PASS[start_idx:end_idx,],
+      coloc_regions_PASS = coloc_regions_subset,  # Use the subset here too
       sumstats_1_function = sumstats_1_args$sumstats_1_function,
       sumstats_1_file = sumstats_1_args$sumstats_1_file,
       sumstats_1_type = sumstats_1_args$sumstats_1_type,
       sumstats_1_sdY = sumstats_1_args$sumstats_1_sdY
-    )
-    
+    )    
     if (verbose) {
       mb_size <- format(object.size(sumstats_1_form), units = "MB")
       if (mb_size == "0 Mb") mb_size <- format(object.size(sumstats_1_form), units = "KB")
@@ -2045,9 +2057,6 @@ save_job_metadata <- function(dir_out, args_df, n_regions, max_regions_per_job,
     message("  - Job summary: ", job_summary_file)
   }
   
-  # Save arguments
-  data.table::fwrite(args_df, args_df_file, compress = "gzip")
-  
   # Create detailed job information text file
   job_info <- c(
     "=== JOB SPLITTING INFORMATION ===",
@@ -2081,7 +2090,7 @@ save_job_metadata <- function(dir_out, args_df, n_regions, max_regions_per_job,
     n_regions_in_job <- end_idx - start_idx + 1
     
     job_info <- c(job_info,
-                  sprintf("Job %04d: regions %d-%d (n=%d), %d datasets, time=%.1f min",
+                  sprintf("Job %03d: regions %d-%d (n=%d), %d datasets, time=%.1f min",
                           i, start_idx, end_idx, n_regions_in_job, nrow(args_df), job_times[i])
     )
   }
@@ -2089,7 +2098,7 @@ save_job_metadata <- function(dir_out, args_df, n_regions, max_regions_per_job,
   job_info <- c(job_info,
                 "",
                 "=== OUTPUT STRUCTURE ===",
-                sprintf("Job directories: jobs/job_0001 to jobs/job_%04d", n_jobs_1),
+                sprintf("Job directories: jobs/job_0001 to jobs/job_%03d", n_jobs_1),
                 "Each job contains:",
                 "  - sumstats_1.RDS: Primary dataset for job's regions",
                 "  - sumstats.tar: All secondary datasets (filtered)",
@@ -2110,7 +2119,7 @@ save_job_metadata <- function(dir_out, args_df, n_regions, max_regions_per_job,
   
   # Create CSV with job details for easier parsing
   job_summary_df <- data.frame(
-    job_id = sprintf("job_%04d", 1:n_jobs_1),
+    job_id = sprintf("job_%03d", 1:n_jobs_1),
     start_region = sapply(1:n_jobs_1, function(i) (i-1) * max_regions_per_job + 1),
     end_region = sapply(1:n_jobs_1, function(i) min(i * max_regions_per_job, n_regions)),
     n_regions = sapply(1:n_jobs_1, function(i) {
