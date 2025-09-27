@@ -19,6 +19,7 @@ genepicoloc_wrapper(
   debug_mode = FALSE,
   max_regions_per_job = 10,
   save_sumstats = FALSE,
+  force_save_sumstats = FALSE,
   p_filt = 1,
   p_min_save = 5e-08,
   batch_size = NULL
