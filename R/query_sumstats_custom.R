@@ -628,7 +628,7 @@ format_MVP_R4 <- function(sumstats) {
     stop("Column mismatch when reading ", attr(sumstats, "sumstats_file"))
   }
   # format
-  sumstats$Name <- paste0("chr", sumstats$chrom, ":", sumstats$pos, ":", sumstats$ref, ":", sumstats$alt)
+  sumstats$Name <- paste0("chr", sumstats$chrom, ":", sumstats$pos, ":", sumstats$alt, ":", sumstats$ref)
   sumstats$nlog10P <- -log10(sumstats$pval)
   # colnames
   sumstats <- match_cols(sumstats=sumstats,
