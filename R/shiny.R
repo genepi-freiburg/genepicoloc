@@ -479,7 +479,7 @@ launch_coloc_viewer <- function(port = 3838,
       
       # Third priority: demo data
       if (input$use_demo > 0) {
-        demo_file <- "/scratch/global/oleg/tmp/annot_filt.csv.gz"
+        demo_file <- ""
         if (file.exists(demo_file)) {
           return(fread(demo_file))
         } else {
