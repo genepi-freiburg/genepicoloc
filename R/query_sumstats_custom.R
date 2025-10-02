@@ -636,7 +636,7 @@ format_MVP_R4 <- function(sumstats) {
                          rsID="SNP_ID",
                          CHR="chrom",
                          POS="pos",
-                         A1="alt",
+                         A1="ea",
                          A2="ref",
                          BETA="beta",
                          SE="sebeta",
