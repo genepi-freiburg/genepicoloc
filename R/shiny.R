@@ -114,13 +114,13 @@ launch_coloc_viewer <- function(port = 3838,
                
                # Create study cards in a grid layout
                fluidRow(
-                 lapply(names(available_studies), function(study_id) {
+                 lapply(names(available_studies), function(study_name) {
                    column(4,
                           div(class = "study-card",
-                              onclick = paste0("Shiny.setInputValue('selected_study', '", study_id, "', {priority: 'event'});"),
-                              h4(available_studies[[study_id]]),
+                              onclick = paste0("Shiny.setInputValue('selected_study', '", study_name, "', {priority: 'event'});"),
+                              h4(study_name),
                               p(style = "font-size: 12px; font-style: italic;", 
-                                paste("Folder:", study_id)),
+                                paste("Folder:", available_studies[[study_name]])),
                               tags$button(class = "btn btn-primary btn-sm", "Load Study")
                           )
                    )
@@ -279,6 +279,12 @@ launch_coloc_viewer <- function(port = 3838,
                  column(10, offset = 1,
                         h2("GWAS Colocalization Network Viewer Documentation"),
                         br(),
+                        
+                        # Add the visualization section
+                        h3("The Challenge: From GWAS Hits to Biological Insights"),
+                        plotOutput("workflow_diagram", height = "400px"),
+                        br(),
+                        
                         h3("Getting Started"),
                         p("This application visualizes GWAS colocalization results across multiple studies."),
                         
@@ -336,16 +342,19 @@ launch_coloc_viewer <- function(port = 3838,
     
     # === Event Handlers ===
     
-    # Handle study selection from home page (REPLACE the existing one)
+    # Handle study selection from home page
     observeEvent(input$selected_study, {
       req(input$selected_study)
       
+      # Get the folder name from the study name
+      folder_name <- available_studies[[input$selected_study]]
+      
       # Construct file path
-      file_path <- file.path(STUDY_BASE_PATH, input$selected_study, "annot", "annot_filt.RDS")
+      file_path <- file.path(STUDY_BASE_PATH, folder_name, "annot", "annot_filt.RDS")
       
       # Check if file exists
       if (file.exists(file_path)) {
-        # Store current study
+        # Store current study (now storing the name, not the folder)
         current_study(input$selected_study)
         
         # Clear the uploaded data flag
@@ -356,13 +365,13 @@ launch_coloc_viewer <- function(port = 3838,
         
         # Show loading notification
         showNotification(
-          paste("Loading study:", available_studies[[input$selected_study]]),
+          paste("Loading study:", input$selected_study),
           type = "message",
           duration = 3
         )
       } else {
         showNotification(
-          paste("Error: Could not find data file for", available_studies[[input$selected_study]]),
+          paste("Error: Could not find data file for", input$selected_study),
           type = "error",
           duration = 5
         )
@@ -465,11 +474,12 @@ launch_coloc_viewer <- function(port = 3838,
       
       # Second priority: auto-loaded study from home page
       if (!is.null(current_study())) {
-        file_path <- file.path(STUDY_BASE_PATH, current_study(), "annot", "annot_filt.RDS")
+        folder_name <- available_studies[[current_study()]]
+        file_path <- file.path(STUDY_BASE_PATH, folder_name, "annot", "annot_filt.RDS")
         if (file.exists(file_path)) {
           data <- readRDS(file_path)
           showNotification(
-            paste("Successfully loaded:", available_studies[[current_study()]]),
+            paste("Successfully loaded:", current_study()),
             type = "message",
             duration = 3
           )
@@ -633,8 +643,8 @@ launch_coloc_viewer <- function(port = 3838,
         div(
           style = "background-color: #e8f4f8; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
           h5("Currently Loaded:", style = "margin: 0;"),
-          p(available_studies[[current_study()]], style = "margin: 5px 0; font-weight: bold;"),
-          p(paste("File:", current_study()), style = "margin: 0; font-size: 11px; color: #666;")
+          p(current_study(), style = "margin: 5px 0; font-weight: bold;"),
+          p(paste("Folder:", available_studies[[current_study()]]), style = "margin: 0; font-size: 11px; color: #666;")
         )
       } else {
         div(
@@ -870,6 +880,86 @@ launch_coloc_viewer <- function(port = 3838,
         )
       })
     })
+    
+    # Workflow diagram for Documentation tab
+    output$workflow_diagram <- renderPlot({
+      par(mar = c(1, 1, 3, 1), bg = "white")
+      plot(NULL, xlim = c(0, 10), ylim = c(0, 11), 
+           xlab = "", ylab = "", axes = FALSE)
+      
+      title("From GWAS Discovery to Biological Insight", 
+            cex.main = 1.5, font.main = 2)
+      
+      # Box colors
+      col_gwas <- "#3498db"
+      col_challenge <- "#e74c3c"
+      col_resources <- "#2ecc71"
+      col_solution <- "#f39c12"
+      
+      # Level 1: GWAS Studies
+      rect(1, 9.2, 3, 10.3, col = col_gwas, border = "black", lwd = 2)
+      text(2, 9.9, "Multiple GWAS", cex = 0.9, font = 2, col = "white")
+      text(2, 9.5, "Meta-analyses", cex = 0.8, col = "white")
+      
+      # Arrow down
+      arrows(2, 9.2, 2, 8.3, lwd = 2, length = 0.15)
+      
+      # Level 2: Loci discovered
+      rect(0.8, 7.3, 3.2, 8.2, col = col_challenge, border = "black", lwd = 2)
+      text(2, 7.9, "Hundreds-Thousands", cex = 0.85, font = 2, col = "white")
+      text(2, 7.5, "of Significant Loci", cex = 0.85, font = 2, col = "white")
+      
+      # Challenge boxes
+      rect(4, 8.4, 5.8, 9.2, col = "#ecf0f1", border = col_challenge, lwd = 2)
+      text(4.9, 8.8, "Many are intergenic", cex = 0.7)
+      
+      rect(4, 7.3, 5.8, 8.1, col = "#ecf0f1", border = col_challenge, lwd = 2)
+      text(4.9, 7.7, "Gene function", cex = 0.7)
+      text(4.9, 7.5, "often unknown", cex = 0.7)
+      
+      # Arrow to question
+      arrows(2, 7.3, 2, 6.4, lwd = 2, length = 0.15)
+      
+      # Question box
+      rect(0.8, 5.4, 3.2, 6.3, col = col_challenge, border = "black", lwd = 2)
+      text(2, 6, "What biological/", cex = 0.85, font = 2, col = "white")
+      text(2, 5.6, "clinical pathways?", cex = 0.85, font = 2, col = "white")
+      
+      # Resources column (right side)
+      text(7.5, 10.2, "Integration Resources", cex = 1.1, font = 2)
+      
+      resource_y <- seq(9.5, 6, length.out = 7)
+      resources <- c("PheWAS", "Phenotypes", "pGWAS", "Proteomics", 
+                     "eQTL (blood)", "Tissue eQTL", "Other GWAS")
+      
+      for (i in seq_along(resources)) {
+        rect(6.5, resource_y[i] - 0.25, 8.5, resource_y[i] + 0.25, 
+             col = col_resources, border = "black", lwd = 1)
+        text(7.5, resource_y[i], resources[i], cex = 0.7, col = "white", font = 2)
+      }
+      
+      # Arrows connecting
+      arrows(3.2, 5.85, 4.2, 4.8, lwd = 2.5, length = 0.15, col = col_solution)
+      arrows(6.5, 7.75, 5.8, 4.8, lwd = 2.5, length = 0.15, col = col_solution)
+      
+      # Solution box
+      rect(3.5, 3.8, 6.5, 5.3, col = col_solution, border = "black", lwd = 3)
+      text(5, 4.95, "Colocalization", cex = 1.1, font = 2)
+      text(5, 4.55, "Analysis", cex = 1.1, font = 2)
+      text(5, 4.1, "Network Viewer", cex = 0.9, font = 1)
+      
+      # Bottom: Benefits
+      rect(0.5, 0.5, 9.5, 2.8, col = "#ecf0f1", border = col_solution, lwd = 2)
+      text(5, 2.4, "Benefits of This Tool:", cex = 1, font = 2)
+      text(5, 1.9, "• Identify multi-trait associations across all resources simultaneously", 
+           cex = 0.75, adj = 0.5)
+      text(5, 1.4, "• Discover biological pathways and cross-phenotype relationships", 
+           cex = 0.75, adj = 0.5)
+      text(5, 0.9, "• Generate hypotheses about gene function and clinical connections", 
+           cex = 0.75, adj = 0.5)
+      
+    }, height = 450)
+    
   }
   
   # Run app
