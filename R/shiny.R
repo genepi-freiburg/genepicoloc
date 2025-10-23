@@ -1,11 +1,10 @@
 # shiny visualization for genepicoloc
 
 #' Launch GWAS Colocalization Network Viewer
-#' 
+#'
 #' @param port Port number (default: 3838)
 #' @param study_base_path Base path for study data
 #' @param available_studies Named list of available studies or path to file containing the list
-#' @param enable_llm Enable AI/LLM features (default: FALSE)
 #' @export
 launch_coloc_viewer <- function(port = 3838,
                                 STUDY_BASE_PATH,
@@ -19,29 +18,7 @@ launch_coloc_viewer <- function(port = 3838,
   library(jsonlite)
   library(data.table)
   library(DT)
-  
-  # disable AI features for initial deployment
-  ENABLE_LLM <- FALSE
-  if (ENABLE_LLM) {
-    rag_scripts <- ""
-    invisible(sapply(list.files(rag_scripts, full.names = T), source))
-    force_recreate <- TRUE
-    library(ellmer)
-    library(ragnar)
-    ### Initialize RAG system once
-    dir_rag <- ""
-    ragnar_model <- "all-minilm:latest_t20"
-    ollama_model <- "llama3.2:3b_t20" # "gemma3:1b_t10"
-    STORE_PATH <- setup_genomics_rag(ragnar_model = ragnar_model,
-                                     dir_rag = dir_rag,
-                                     force_recreate = force_recreate)
-  } else {
-    setup_genomics_rag <- function(...) { return(NULL) }
-    interpret_with_ragnar <- function(...) {
-      return("AI features disabled for testing")
-    }
-  }
-  
+
   # Define color palette for studies
   study_colors <- c(
     "CKDGen_r5" = "#1f77b4",
@@ -231,18 +208,18 @@ launch_coloc_viewer <- function(port = 3838,
                  
                  # Main panel
                  column(
-                   width = 6,
+                   width = 9,
                    tabsetPanel(
-                     tabPanel("Network", 
+                     tabPanel("Network",
                               visNetworkOutput("network", height = "600px"),
                               br(),
                               h4("Selected Node Details"),
                               verbatimTextOutput("node_info")),
-                     
+
                      tabPanel("Data Table",
                               br(),
                               DTOutput("data_table")),
-                     
+
                      tabPanel("Summary",
                               br(),
                               h4("Colocalization Summary for Selected Region"),
@@ -250,28 +227,7 @@ launch_coloc_viewer <- function(port = 3838,
                               br(),
                               verbatimTextOutput("summary_stats"))
                    )  # End tabsetPanel
-                 ),  # End main column
-                 
-                 # Right LLM panel
-                 column(
-                   width = 3,
-                   wellPanel(
-                     h4("AI Assistant"),
-                     actionButton("llm_interpret", "AI Interpret Region", 
-                                  class = "btn-success", width = "100%",
-                                  icon = icon("brain")),
-                     br(),
-                     br(),
-                     textAreaInput("llm_query", 
-                                   "Ask a follow-up question:", 
-                                   placeholder = "e.g., What diseases is this gene associated with?",
-                                   rows = 3),
-                     actionButton("llm_submit", "Ask", class = "btn-primary", width = "100%"),
-                     hr(),
-                     h5("Response:"),
-                     uiOutput("llm_response")
-                   )  # End wellPanel
-                 )  # End right column
+                 )  # End main column
                )  # End fluidRow
       ),
       tabPanel("Documentation",
@@ -790,97 +746,7 @@ launch_coloc_viewer <- function(port = 3838,
         fwrite(filtered_data(), file)
       }
     )
-    
-    # LLM interpret button handler
-    observeEvent(input$llm_interpret, {
-      req(filtered_data())
-      
-      # Show loading message
-      output$llm_response <- renderUI({
-        tags$div(
-          class = "text-muted",
-          tags$i(class = "fa fa-spinner fa-spin"),
-          " Analyzing with RAG system..."
-        )
-      })
-      
-      # Prepare context
-      dt <- filtered_data()
-      region_info <- unique(dt[, .(nearest_gene_1, CHR_var, BP_START_var, BP_STOP_var)])
-      
-      # Get top traits
-      top_traits <- dt[order(-PP.H4.abf)][1:min(5, nrow(dt)), ]
-      trait_names <- sapply(1:nrow(top_traits), function(i) {
-        trait_name <- switch(top_traits$source_study[i],
-                             "CKDGen_r5" = top_traits$CKDGen_r5_ckdgen_r5_name[i],
-                             "FinnGen_r9" = top_traits$FinnGen_r9_phenotype[i],
-                             "GCKD_mGWAS_plasma" = top_traits$GCKD_mGWAS_plasma_BIOCHEMICAL[i],
-                             "GCKD_mGWAS_urine" = top_traits$GCKD_mGWAS_urine_BIOCHEMICAL[i],
-                             "Icelanders_pGWAS" = top_traits$Icelanders_pGWAS_Protein..short.name.[i],
-                             "MVP_R4" = top_traits$MVP_R4_Analyzed.variable[i],
-                             "UKB_PPP_EUR" = top_traits$UKB_PPP_EUR_olink_target_fullname[i],
-                             "UKB_TOPMed" = top_traits$UKB_TOPMed_phenostring[i],
-                             "pho_ca" = top_traits$pho_ca_pho_ca_name[i],
-                             "eQTLGen" = top_traits$eQTLGen_gene_name[i],
-                             "Kidney_eQTL" = top_traits$Kidney_eQTL_gene_name[i],
-                             "Unknown trait")
-        if (is.na(trait_name) || trait_name == "") trait_name <- "Unknown trait"
-        return(trait_name)
-      })
-      
-      trait_names <- unique(trait_names[!is.na(trait_names)])
-      
-      additional_context <- paste0(
-        "GWAS colocalization analysis for chr", region_info$CHR_var[1], ":", 
-        format(region_info$BP_START_var[1], big.mark = ","), "-", 
-        format(region_info$BP_STOP_var[1], big.mark = ","), 
-        " with ", nrow(dt), " colocalizations (mean PP.H4=", 
-        round(mean(dt$PP.H4.abf), 3), ")."
-      )
-      
-      # Call RAG system
-      response <- interpret_with_ragnar(
-        gene = region_info$nearest_gene_1[1],
-        traits = trait_names,
-        additional_context = additional_context,
-        store_path = STORE_PATH,
-        ollama_model = ollama_model
-      )
-      
-      # Display response
-      output$llm_response <- renderUI({
-        tags$div(
-          style = "max-height: 400px; overflow-y: auto; padding: 10px; background-color: #f5f5f5; border-radius: 5px;",
-          HTML(gsub("\n", "<br>", response))
-        )
-      })
-    })
-    
-    # Custom query button
-    observeEvent(input$llm_submit, {
-      req(input$llm_query, filtered_data())
-      
-      dt <- filtered_data()
-      region_info <- unique(dt[, .(nearest_gene_1)])
-      
-      print(input$llm_query)
-      # Use RAG for custom queries too
-      response <- interpret_with_ragnar(
-        gene = region_info$nearest_gene_1[1],
-        traits = paste0("Question: ", input$llm_query),
-        additional_context = input$llm_query,
-        store_path = STORE_PATH,
-        ollama_model = ollama_model
-      )    
-      
-      output$llm_response <- renderUI({
-        tags$div(
-          style = "max-height: 400px; overflow-y: auto; padding: 10px; background-color: #f5f5f5; border-radius: 5px;",
-          HTML(gsub("\n", "<br>", response))
-        )
-      })
-    })
-    
+
     # Workflow diagram for Documentation tab
     output$workflow_diagram <- renderPlot({
       par(mar = c(1, 1, 3, 1), bg = "white")
