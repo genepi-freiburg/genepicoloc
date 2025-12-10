@@ -1,7 +1,7 @@
 genepicoloc
 ==============
 
-***R package to facilitate genetic colocalization analysis.***
+***Connecting GWAS loci to molecular traits and complex phenotypes with interactive colocalization browser***
 
 **Authors:** Oleg Borisov, Zulema Rodriguez Hernandez, Sara Monteiro Martins,
 Inga Steinbrenner, Pascal Schlosser, et al.  
