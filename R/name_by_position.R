@@ -336,13 +336,8 @@ name_by_position <- function(sumstats,
 #' @param A2_name Character. Column name for second allele
 #' @param liftOver_bin Character. Path to liftOver binary (default: "liftOver")
 #' @param liftOver_chain Character. Path to liftOver chain file
-#' @param dbSNP_file Character. Path to dbSNP file for name harmonization (optional)
-#' @param tabix_bin Character. Path to tabix binary (default: "/usr/bin/tabix")
-#' @param mc_cores Integer. Number of CPU cores for parallel processing (default: 4)
 #' @param keep_lower Logical. Whether to keep lowercase alleles (default: FALSE)
-#' @param do_sorting Logical. Whether to sort output by position (default: TRUE)
 #' @param rm_tmp_liftOver Logical. Whether to remove temporary files (default: TRUE)
-#' @param do_name_by_position Logical. Whether to perform name harmonization (default: TRUE)
 #'
 #' @return A data.table with lifted coordinates in new columns:
 #' \itemize{
@@ -350,9 +345,10 @@ name_by_position <- function(sumstats,
 #'   \item \strong{POS_hg38}: Position in target build
 #'   \item \strong{A1_hg38}: First allele (strand-flipped if necessary)
 #'   \item \strong{A2_hg38}: Second allele (strand-flipped if necessary)
-#'   \item \strong{Name_hg38}: Standardized variant names (if do_name_by_position=TRUE)
-#'   \item \strong{rs}: dbSNP identifiers (if do_name_by_position=TRUE)
 #' }
+#'
+#' @note For variant name harmonization (adding Name_hg38 and rsID columns),
+#' use \code{\link{name_by_position}} as a separate step after liftOver.
 #'
 #' @details
 #' This function performs comprehensive genomic coordinate conversion:
@@ -427,226 +423,150 @@ name_by_position <- function(sumstats,
 #' print(sumstats_hg38)
 #' }
 #'
-#' @importFrom data.table fread fwrite setDT rbindlist
-#' @importFrom parallel mclapply
+#' @importFrom data.table fread fwrite setDT copy set
 #' @export
-genepi_liftover <- function(sumstats, 
-                            CHR_name, 
-                            POS_name, 
-                            A1_name, 
+genepi_liftover <- function(sumstats,
+                            CHR_name,
+                            POS_name,
+                            A1_name,
                             A2_name,
                             liftOver_bin = "liftOver",
                             liftOver_chain,
-                            dbSNP_file = NULL,
-                            tabix_bin = "/usr/bin/tabix",
-                            mc_cores = 4, 
-                            keep_lower = FALSE, 
-                            do_sorting = TRUE, 
-                            rm_tmp_liftOver = TRUE,
-                            do_name_by_position = TRUE) {
-  
+                            keep_lower = FALSE) {
+
   message("=== Genomic Coordinate Lift Over ===")
-  message("This function converts genomic coordinates between genome builds.")
-  message("Tools: UCSC liftOver - https://genome.ucsc.edu/cgi-bin/hgLiftOver")
-  
+
   # Validate required tools and files
   if (!file.exists(liftOver_bin) && Sys.which(liftOver_bin) == "") {
     stop("liftOver binary not found: ", liftOver_bin,
          "\nDownload from: https://hgdownload.soe.ucsc.edu/admin/exe/")
   }
-  
+
   if (!file.exists(liftOver_chain)) {
     stop("Chain file not found: ", liftOver_chain,
          "\nDownload from: https://hgdownload.soe.ucsc.edu/goldenPath/")
   }
-  
-  if (do_name_by_position) {
-    if (is.null(dbSNP_file) || !file.exists(dbSNP_file)) {
-      warning("dbSNP file not found. Skipping name harmonization.")
-      do_name_by_position <- FALSE
-    }
-    
-    if (!file.exists(tabix_bin) && Sys.which(tabix_bin) == "") {
-      warning("tabix binary not found. Skipping name harmonization.")
-      do_name_by_position <- FALSE
-    }
+
+  # Work on a copy to avoid modifying original
+  if (!data.table::is.data.table(sumstats)) {
+    sumstats <- data.table::as.data.table(sumstats)
+  } else {
+    sumstats <- data.table::copy(sumstats)
   }
-  
-  # Convert to data.table if needed
-  if (!"data.table" %in% class(sumstats)) {
-    message("Converting input to data.table...")
-    data.table::setDT(sumstats)
+
+  n_input <- nrow(sumstats)
+  message("Input: ", format(n_input, big.mark = ","), " variants")
+
+  # Create temp files using proper tempfile()
+  bed_file <- tempfile(pattern = "liftover_input_", fileext = ".bed")
+  output_file <- tempfile(pattern = "liftover_output_", fileext = ".bed")
+  unmapped_file <- tempfile(pattern = "liftover_unmapped_", fileext = ".bed")
+
+  # Ensure cleanup on exit (even if function fails)
+  on.exit({
+    unlink(c(bed_file, output_file, unmapped_file), force = TRUE)
+  }, add = TRUE)
+
+  # Add row index for tracking through liftOver
+  row_id_col <- ".liftover_row_id"
+  sumstats[, (row_id_col) := .I]
+
+  # Handle chromosome naming (liftOver expects 'chr' prefix)
+  chr_had_prefix <- any(grepl("^chr", sumstats[[CHR_name]], ignore.case = TRUE))
+  if (!chr_had_prefix) {
+    sumstats[, (CHR_name) := paste0("chr", get(CHR_name))]
   }
-  
-  # Generate unique temporary file prefix
-  tmp_name <- paste(sample(letters, 20, replace = TRUE), collapse = "")
-  
-  message("Temporary files will be created in: ", getwd())
-  message("Files will be automatically cleaned up after processing.")
-  
-  # Add row index for tracking
-  sumstats[[tmp_name]] <- paste0("row_", seq_len(nrow(sumstats)))
-  
-  # Handle chromosome naming
-  change_chr_back <- FALSE
-  if (!any(grepl("chr", sumstats[[CHR_name]]))) {
-    message("Adding 'chr' prefix for UCSC compatibility...")
-    sumstats[[CHR_name]] <- paste0("chr", sumstats[[CHR_name]])
-    change_chr_back <- TRUE
-  }
-  
+
   # Handle allele case
-  if ((any(grepl("[[:lower:]]", sumstats[[A1_name]])) | 
-       any(grepl("[[:lower:]]", sumstats[[A2_name]]))) & 
-      (!keep_lower)) {
-    message("Converting alleles to uppercase...")
-    sumstats[[A1_name]] <- toupper(sumstats[[A1_name]])
-    sumstats[[A2_name]] <- toupper(sumstats[[A2_name]])
+  if (!keep_lower) {
+    if (any(grepl("[a-z]", sumstats[[A1_name]])) || any(grepl("[a-z]", sumstats[[A2_name]]))) {
+      message("Converting alleles to uppercase...")
+      sumstats[, (A1_name) := toupper(get(A1_name))]
+      sumstats[, (A2_name) := toupper(get(A2_name))]
+    }
   }
-  
-  # Prepare BED file for liftOver
-  message("Preparing data for liftOver...")
-  
-  sumstats[["score"]] <- "."
-  sumstats[["strand"]] <- "+"
-  
-  # Create BED format file (0-based coordinates)
-  bed_file <- paste0(tmp_name, "_liftOver.bed")
-  data.table::fwrite(
-    sumstats[, c(CHR_name, POS_name, POS_name, tmp_name, "score", "strand"), with = FALSE],
-    bed_file,
-    sep = "\t", 
-    quote = FALSE, 
-    col.names = FALSE, 
-    row.names = FALSE
-  )
-  
+
+  # Write BED file for liftOver (BED format: chr, start, end, name, score, strand)
+  bed_data <- sumstats[, .(
+    chr = get(CHR_name),
+    start = get(POS_name),
+    end = get(POS_name),
+    name = get(row_id_col),
+    score = ".",
+    strand = "+"
+  )]
+  data.table::fwrite(bed_data, bed_file, sep = "\t", col.names = FALSE)
+
   # Execute liftOver
   message("Running liftOver...")
-  
-  output_file <- paste0(tmp_name, "_liftOver_newFile.bed")
-  unmapped_file <- paste0(tmp_name, "_liftOver_unMapped.bed")
-  
-  liftover_cmd <- paste(
+  exit_code <- system2(
     liftOver_bin,
-    bed_file,
-    liftOver_chain,
-    output_file,
-    unmapped_file
+    args = c(bed_file, liftOver_chain, output_file, unmapped_file),
+    stdout = FALSE, stderr = FALSE
   )
-  
-  system_result <- system(liftover_cmd)
-  
-  if (system_result != 0) {
-    stop("liftOver failed. Check input files and tool installation.")
+
+  if (exit_code != 0) {
+    stop("liftOver failed with exit code ", exit_code)
   }
-  
-  # Read results
-  new_coords <- data.table::fread(output_file, header = FALSE)
-  
-  unmapped_variants <- tryCatch({
-    unmapped_data <- read.table(unmapped_file, header = FALSE)
-    if (nrow(unmapped_data) > 0) unmapped_data[["V4"]] else character(0)
-  }, error = function(e) character(0))
-  
-  # Report liftOver statistics
-  n_unmapped <- length(unmapped_variants)
-  n_total <- nrow(sumstats)
-  unmapped_pct <- round(100 * n_unmapped / n_total, 2)
-  
-  message("=== LiftOver Results ===")
-  message("Total variants: ", n_total)
-  message("Successfully lifted: ", n_total - n_unmapped)
-  message("Failed to lift: ", n_unmapped, " (", unmapped_pct, "%)")
-  
-  if (unmapped_pct > 1) {
-    warning("High percentage of unmapped variants. Check input data quality.")
+
+  # Read lifted coordinates
+  lifted <- data.table::fread(output_file, header = FALSE,
+                               col.names = c("CHR_hg38", "POS_hg38", "end", row_id_col, "score", "strand_hg38"))
+  lifted[, c("end", "score") := NULL]
+
+  # Read unmapped variants (if any)
+  n_unmapped <- 0
+
+  if (file.exists(unmapped_file) && file.size(unmapped_file) > 0) {
+    unmapped <- tryCatch({
+      data.table::fread(unmapped_file, header = FALSE, fill = TRUE)
+    }, error = function(e) NULL)
+    if (!is.null(unmapped) && nrow(unmapped) > 0) {
+      # Unmapped file has comment lines starting with #
+      unmapped <- unmapped[!grepl("^#", V1)]
+      n_unmapped <- nrow(unmapped)
+    }
   }
-  
-  # Remove unmapped variants
+
+  # Report statistics
+  n_lifted <- nrow(lifted)
+  message("Lifted: ", format(n_lifted, big.mark = ","), " variants (",
+          round(100 * n_lifted / n_input, 1), "%)")
   if (n_unmapped > 0) {
-    sumstats <- sumstats[!sumstats[[tmp_name]] %in% unmapped_variants, ]
+    message("Unmapped: ", format(n_unmapped, big.mark = ","), " variants (",
+            round(100 * n_unmapped / n_input, 2), "%)")
   }
-  
-  # Clean up temporary liftOver files
-  if (rm_tmp_liftOver) {
-    temp_files <- c(bed_file, output_file, unmapped_file)
-    lapply(temp_files, unlink)
-  }
-  
-  # Process new coordinates
-  if (nrow(sumstats) != nrow(new_coords)) {
-    stop("Mismatch between input and output data. Check liftOver results.")
-  }
-  
-  # Clean and rename coordinate columns
-  new_coords[["V3"]] <- new_coords[["V5"]] <- NULL
-  colnames(new_coords) <- c("CHR_hg38", "POS_hg38", tmp_name, "strand_hg38")
-  
-  # Merge with original data
-  message("Merging with new coordinates...")
-  sumstats_lifted <- merge(sumstats, new_coords, by = tmp_name, sort = FALSE)
-  
-  if (nrow(sumstats_lifted) != nrow(new_coords)) {
-    stop("Error in merging lifted coordinates.")
-  }
-  
-  # Handle strand flipping
-  flip_indices <- sumstats_lifted[["strand_hg38"]] == "-"
-  n_flipped <- sum(flip_indices)
-  
+
+  # Merge lifted coordinates back to original data
+  sumstats_lifted <- merge(sumstats, lifted, by = row_id_col, all = FALSE)
+
+  # Handle strand flipping for negative strand
+  n_flipped <- sum(sumstats_lifted$strand_hg38 == "-")
   if (n_flipped > 0) {
-    message("Flipping strand for ", n_flipped, " variants...")
-    
-    sumstats_lifted[["A1_hg38"]] <- ifelse(
-      flip_indices,
-      flip_alleles(sumstats_lifted[[A1_name]]),
-      sumstats_lifted[[A1_name]]
-    )
-    
-    sumstats_lifted[["A2_hg38"]] <- ifelse(
-      flip_indices,
-      flip_alleles(sumstats_lifted[[A2_name]]),
-      sumstats_lifted[[A2_name]]
-    )
+    message("Flipping ", format(n_flipped, big.mark = ","), " variants on negative strand...")
+    flip_idx <- sumstats_lifted$strand_hg38 == "-"
+    sumstats_lifted[flip_idx, A1_hg38 := flip_alleles(get(A1_name))]
+    sumstats_lifted[flip_idx, A2_hg38 := flip_alleles(get(A2_name))]
+    sumstats_lifted[!flip_idx, A1_hg38 := get(A1_name)]
+    sumstats_lifted[!flip_idx, A2_hg38 := get(A2_name)]
   } else {
-    sumstats_lifted[["A1_hg38"]] <- sumstats_lifted[[A1_name]]
-    sumstats_lifted[["A2_hg38"]] <- sumstats_lifted[[A2_name]]
+    sumstats_lifted[, A1_hg38 := get(A1_name)]
+    sumstats_lifted[, A2_hg38 := get(A2_name)]
   }
-  
-  # Perform name harmonization if requested
-  if (do_name_by_position) {
-    message("Performing variant name harmonization...")
-    
-    sumstats_lifted <- name_by_position(
-      sumstats = sumstats_lifted,
-      CHR_name = "CHR_hg38",
-      POS_name = "POS_hg38",
-      A1_name = "A1_hg38",
-      A2_name = "A2_hg38",
-      dbSNP_file = dbSNP_file,
-      tabix_bin = tabix_bin,
-      tmp_name = tmp_name,
-      do_sorting = do_sorting,
-      keep_lower = keep_lower
-    )
+
+  # Clean up: remove helper columns, restore chr naming
+  sumstats_lifted[, c(row_id_col, "strand_hg38") := NULL]
+
+  # Remove 'chr' prefix from output columns
+  sumstats_lifted[, CHR_hg38 := gsub("^chr", "", CHR_hg38)]
+
+  # Restore original chr column if we added prefix
+  if (!chr_had_prefix) {
+    sumstats_lifted[, (CHR_name) := gsub("^chr", "", get(CHR_name))]
   }
-  
-  # Clean up chromosome naming
-  if (change_chr_back) {
-    sumstats_lifted[[CHR_name]] <- gsub("chr", "", sumstats_lifted[[CHR_name]])
-  }
-  
-  # Remove temporary and processing columns
-  cols_to_remove <- c("score", "strand", "strand_hg38", tmp_name)
-  sumstats_lifted[, (cols_to_remove) := NULL]
-  
-  # Ensure CHR_hg38 doesn't have chr prefix
-  sumstats_lifted[["CHR_hg38"]] <- gsub("chr", "", sumstats_lifted[["CHR_hg38"]])
-  
-  message("=== Lift Over Complete ===")
-  message("New coordinates added as: CHR_hg38, POS_hg38, A1_hg38, A2_hg38")
-  
+
+  message("Output: ", format(nrow(sumstats_lifted), big.mark = ","), " variants with hg38 coordinates")
+
   return(sumstats_lifted)
 }
 
