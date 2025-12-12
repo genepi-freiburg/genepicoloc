@@ -151,13 +151,17 @@ name_by_position <- function(sumstats,
 
   for (chr in chromosomes) {
     sumstats_chr <- sumstats[get(CHR_name) == chr]
+    n_chr <- nrow(sumstats_chr)
 
     # Get position range for tabix query
     pos_min <- min(sumstats_chr[[POS_name]])
     pos_max <- max(sumstats_chr[[POS_name]])
     region <- paste0(chr, ":", pos_min, "-", pos_max)
 
-    # Query dbSNP with tabix
+    message("  Chr ", chr, ": querying ", format(n_chr, big.mark = ","),
+            " variants (", format(pos_min, big.mark = ","), "-", format(pos_max, big.mark = ","), ")...")
+
+    # Query dbSNP with tabix (this can take a while for large regions)
     dbsnp_raw <- tryCatch({
       system2(tabix_bin, c(dbSNP_file, region), stdout = TRUE, stderr = FALSE)
     }, error = function(e) character(0))
@@ -177,6 +181,11 @@ name_by_position <- function(sumstats,
     if (nrow(dbsnp) == 0) {
       message("  Chr ", chr, ": no position matches")
       next
+    }
+
+    # Expand multi-allelic variants (ALT contains comma-separated alleles)
+    if (any(grepl(",", dbsnp$ALT))) {
+      dbsnp <- dbsnp[, .(ALT = unlist(strsplit(ALT, ","))), by = .(CHR, POS, rsID, REF)]
     }
 
     # Create Name column (always with chr prefix)
@@ -202,8 +211,9 @@ name_by_position <- function(sumstats,
     matched[, c("CHR", "REF", "ALT") := NULL]
 
     n_matched <- nrow(matched)
+    pct_matched <- round(100 * n_matched / n_chr, 1)
     message("  Chr ", chr, ": matched ", format(n_matched, big.mark = ","), "/",
-            format(nrow(sumstats_chr), big.mark = ","), " variants")
+            format(n_chr, big.mark = ","), " variants (", pct_matched, "%)")
 
     results_list[[chr]] <- matched
   }
