@@ -82,246 +82,146 @@
 #' print(result)
 #' }
 #'
-#' @importFrom data.table fread fwrite setDT rbindlist
-#' @importFrom processx process
+#' @importFrom data.table fread fwrite setDT rbindlist setnames setorder copy
 #' @export
 name_by_position <- function(sumstats,
-                             CHR_name = "CHR_hg38", 
+                             CHR_name = "CHR_hg38",
                              POS_name = "POS_hg38",
-                             A1_name = "A1_hg38", 
+                             A1_name = "A1_hg38",
                              A2_name = "A2_hg38",
-                             tabix_bin = "/usr/bin/tabix", 
-                             dbSNP_file, 
-                             tmp_name = NULL,
-                             do_sorting = TRUE, 
+                             tabix_bin = "tabix",
+                             dbSNP_file,
                              keep_lower = FALSE) {
-  
-  # Validate dependencies
-  if (!file.exists(tabix_bin)) {
-    stop("tabix binary not found at: ", tabix_bin, 
-         "\nPlease install tabix or specify correct path.")
+
+  message("=== Variant Name Matching ===")
+
+ # Validate dependencies
+  if (Sys.which(tabix_bin) == "" && !file.exists(tabix_bin)) {
+    stop("tabix not found. Install htslib or specify path.")
   }
-  
+
   if (!file.exists(dbSNP_file)) {
-    stop("dbSNP file not found at: ", dbSNP_file)
+    stop("dbSNP file not found: ", dbSNP_file)
   }
-  
-  # Set temporary file name
-  if (is.null(tmp_name)) tmp_name <- tempfile()
-  
-  # Define column names
-  name_out <- "Name_hg38"
-  rs_name <- "rs"
-  unique_id_name <- "unique_ID"
-  
-  # Validate and convert input data
-  if (!"data.table" %in% class(sumstats)) {
-    message("Converting sumstats to data.table...")
-    data.table::setDT(sumstats)
-  }
-  
-  # Ensure position column is numeric
-  if (!is.numeric(sumstats[[POS_name]])) {
-    message("Converting position column to numeric...")
-    sumstats[[POS_name]] <- as.numeric(sumstats[[POS_name]])
-  }
-  
-  # Handle chromosome naming
-  change_chr_back <- FALSE
-  if (!any(grepl("chr", sumstats[[CHR_name]]))) {
-    message("Adding 'chr' prefix to chromosome names for UCSC compatibility...")
-    sumstats[[CHR_name]] <- paste0("chr", sumstats[[CHR_name]])
-    change_chr_back <- TRUE
-  }
-  
-  # Handle allele case
-  if ((any(grepl("[[:lower:]]", sumstats[[A1_name]])) | 
-       any(grepl("[[:lower:]]", sumstats[[A2_name]]))) & 
-      (!keep_lower)) {
-    message("Converting alleles to uppercase...")
-    sumstats[[A1_name]] <- toupper(sumstats[[A1_name]])
-    sumstats[[A2_name]] <- toupper(sumstats[[A2_name]])
-  }
-  
-  # Handle sex chromosome naming
-  if ("chr23" %in% unique(sumstats[[CHR_name]])) {
-    message("Converting chr23 to chrX...")
-    sumstats[[CHR_name]][sumstats[[CHR_name]] == "chr23"] <- "chrX"
-  }
-  
-  message("Starting variant name matching by genomic position...")
-  message("This function harmonizes allele coding to match reference standards.")
-  
-  CHR_vec <- unique(sumstats[[CHR_name]])
-  
-  # Nested function: Process each chromosome with tabix
-  tabix_per_chr <- function(CHR_var) {
-    name_match <- paste0(tmp_name, "_", CHR_var, "_tabix")
-    sumstats_chr <- sumstats[sumstats[[CHR_name]] == CHR_var, ]
-    
-    # Add unique identifier
-    sumstats_chr[[unique_id_name]] <- paste0("row_", seq_len(nrow(sumstats_chr)))
-    sumstats_chr <- sumstats_chr[order(sumstats_chr[[POS_name]]), ]
-    
-    # Save chromosome-specific data
-    saveRDS(sumstats_chr, paste0(name_match, "_sumstats_chr.RDS"))
-    
-    # Create unique position file for tabix query
-    sumstats_chr_u <- unique(sumstats_chr[, c(CHR_name, POS_name), with = FALSE])
-    sumstats_chr_u <- sumstats_chr_u[order(sumstats_chr_u[[POS_name]]), ]
-    
-    data.table::fwrite(sumstats_chr_u, name_match, 
-                       sep = "\t", col.names = FALSE)
-    
-    # Launch tabix process
-    p <- processx::process$new(
-      tabix_bin,
-      c("-h", dbSNP_file, "-R", name_match, "-cache", "5000"),
-      stdout = paste0(name_match, "_out")
-    )
-    
-    return(list(
-      process = p,
-      CHR_var = CHR_var,
-      output_file = paste0(name_match, "_out"),
-      sumstats_chr.RDS = paste0(name_match, "_sumstats_chr.RDS")
-    ))
-  }
-  
-  # Nested function: Process tabix output
-  read_tabix_output <- function(output_file, CHR_var, sumstats_chr.RDS) {
-    dbSNP_subset <- suppressWarnings(data.table::fread(output_file))
-    sumstats_chr <- readRDS(sumstats_chr.RDS)
-    
-    # Handle empty results
-    if (nrow(dbSNP_subset) == 0) {
-      message("No matches found for chromosome: ", CHR_var)
-      return(setNames(NA, CHR_var))
-    }
-    
-    # Process dbSNP data
-    stopifnot(all(colnames(dbSNP_subset) == paste0("V", 1:6)))
-    
-    # Filter for exact position matches
-    dbSNP_subset <- dbSNP_subset[dbSNP_subset[["V2"]] %in% sumstats_chr[[POS_name]], ]
-    
-    # Extract alternative allele information
-    dbSNP_subset[["V5"]] <- gsub(".*:(.*)", "\\1", dbSNP_subset[["V6"]])
-    
-    # Set column names
-    dbSNP_subset[["V1"]] <- NULL
-    colnames(dbSNP_subset)[colnames(dbSNP_subset) == "V3"] <- rs_name
-    colnames(dbSNP_subset)[colnames(dbSNP_subset) == "V6"] <- name_out
-    
-    # Merge with summary statistics
-    sumstats_chr <- merge(sumstats_chr, dbSNP_subset, 
-                          by.x = POS_name, by.y = "V2", 
-                          all.x = TRUE, allow.cartesian = TRUE)
-    
-    # Find matching alleles (both orientations)
-    index_found <- (sumstats_chr[["V4"]] == sumstats_chr[[A1_name]] & 
-                      sumstats_chr[["V5"]] == sumstats_chr[[A2_name]]) |
-      (sumstats_chr[["V5"]] == sumstats_chr[[A1_name]] & 
-         sumstats_chr[["V4"]] == sumstats_chr[[A2_name]])
-    
-    index_found[is.na(index_found)] <- FALSE
-    sumstats_chr <- sumstats_chr[index_found, ]
-    
-    # Remove duplicates
-    sumstats_chr <- sumstats_chr[!duplicated(sumstats_chr[[unique_id_name]]), ]
-    
-    # Clean up columns
-    sumstats_chr[["V4"]] <- sumstats_chr[["V5"]] <- NULL
-    
-    # Sort if requested
-    if (do_sorting) {
-      sumstats_chr <- sumstats_chr[order(sumstats_chr[[POS_name]]), ]
-    }
-    
-    message("Completed name annotation for chromosome: ", CHR_var)
-    
-    # Clean up temporary files
-    temp_files <- c(output_file, gsub("_out", "", output_file), sumstats_chr.RDS)
-    lapply(temp_files, unlink)
-    
-    return(sumstats_chr)
-  }
-  
-  # Execute tabix queries for all chromosomes
-  process_list <- lapply(CHR_vec, tabix_per_chr)
-  
-  message("Waiting for tabix queries to complete...")
-  
-  # Wait for all processes to complete
-  while (TRUE) {
-    all_finished <- all(sapply(process_list, function(x) !x$process$is_alive()))
-    if (all_finished) break
-    Sys.sleep(15)
-  }
-  
-  # Process results
-  args_df <- do.call(rbind, lapply(process_list, function(x) {
-    data.frame(
-      output_file = x$output_file,
-      CHR_var = x$CHR_var,
-      sumstats_chr.RDS = x$sumstats_chr.RDS,
-      stringsAsFactors = FALSE
-    )
-  }))
-  
-  out_list <- Map(read_tabix_output,
-                  output_file = args_df$output_file,
-                  CHR_var = args_df$CHR_var,
-                  sumstats_chr.RDS = args_df$sumstats_chr.RDS)
-  
-  # Handle failed chromosomes
-  discarded_names <- names(unlist(out_list[!sapply(out_list, is.data.frame)]))
-  
-  if (length(discarded_names) == 0) {
-    message("Successfully processed all chromosomes.")
+
+  # Work on a copy
+  if (!data.table::is.data.table(sumstats)) {
+    sumstats <- data.table::as.data.table(sumstats)
   } else {
-    message("No matches found for chromosomes: ", 
-            paste(discarded_names, collapse = ", "))
-    out_list <- out_list[sapply(out_list, is.data.frame)]
+    sumstats <- data.table::copy(sumstats)
   }
-  
+
+  n_input <- nrow(sumstats)
+  message("Input: ", format(n_input, big.mark = ","), " variants")
+
+  # Ensure position is numeric
+  if (!is.numeric(sumstats[[POS_name]])) {
+    sumstats[, (POS_name) := as.numeric(get(POS_name))]
+  }
+
+  # Detect chromosome naming in dbSNP file
+  dbsnp_chroms <- system2(tabix_bin, c(dbSNP_file, "-l"), stdout = TRUE, stderr = FALSE)
+  dbsnp_has_chr <- any(grepl("^chr", dbsnp_chroms))
+  sumstats_has_chr <- any(grepl("^chr", sumstats[[CHR_name]]))
+
+  # Adjust chromosome naming to match dbSNP
+  if (dbsnp_has_chr && !sumstats_has_chr) {
+    sumstats[, (CHR_name) := paste0("chr", get(CHR_name))]
+  } else if (!dbsnp_has_chr && sumstats_has_chr) {
+    sumstats[, (CHR_name) := gsub("^chr", "", get(CHR_name))]
+  }
+
+  # Handle allele case
+  if (!keep_lower) {
+    if (any(grepl("[a-z]", sumstats[[A1_name]])) || any(grepl("[a-z]", sumstats[[A2_name]]))) {
+      message("Converting alleles to uppercase...")
+      sumstats[, (A1_name) := toupper(get(A1_name))]
+      sumstats[, (A2_name) := toupper(get(A2_name))]
+    }
+  }
+
+  # Add row ID for tracking
+  sumstats[, .row_id := .I]
+
+  # Process each chromosome
+  chromosomes <- unique(sumstats[[CHR_name]])
+  message("Processing ", length(chromosomes), " chromosome(s)...")
+
+  results_list <- list()
+
+  for (chr in chromosomes) {
+    sumstats_chr <- sumstats[get(CHR_name) == chr]
+
+    # Get position range for tabix query
+    pos_min <- min(sumstats_chr[[POS_name]])
+    pos_max <- max(sumstats_chr[[POS_name]])
+    region <- paste0(chr, ":", pos_min, "-", pos_max)
+
+    # Query dbSNP with tabix
+    dbsnp_raw <- tryCatch({
+      system2(tabix_bin, c(dbSNP_file, region), stdout = TRUE, stderr = FALSE)
+    }, error = function(e) character(0))
+
+    if (length(dbsnp_raw) == 0) {
+      message("  Chr ", chr, ": no dbSNP data in region")
+      next
+    }
+
+    # Parse tabix output (VCF format: CHR, POS, ID, REF, ALT, ...)
+    dbsnp <- data.table::fread(text = dbsnp_raw, header = FALSE, sep = "\t", select = 1:5,
+                                col.names = c("CHR", "POS", "rsID", "REF", "ALT"))
+
+    # Filter to exact positions in sumstats
+    dbsnp <- dbsnp[POS %in% sumstats_chr[[POS_name]]]
+
+    if (nrow(dbsnp) == 0) {
+      message("  Chr ", chr, ": no position matches")
+      next
+    }
+
+    # Create Name column (always with chr prefix)
+    chr_prefix <- ifelse(grepl("^chr", dbsnp$CHR), dbsnp$CHR, paste0("chr", dbsnp$CHR))
+    dbsnp[, Name_hg38 := paste0(chr_prefix, ":", POS, ":", REF, ":", ALT)]
+
+    # Merge with sumstats
+    merged <- merge(sumstats_chr, dbsnp,
+                    by.x = POS_name, by.y = "POS",
+                    all.x = FALSE, allow.cartesian = TRUE)
+
+    # Match alleles (either orientation)
+    matched <- merged[
+      (REF == get(A1_name) & ALT == get(A2_name)) |
+      (ALT == get(A1_name) & REF == get(A2_name))
+    ]
+
+    # Remove duplicates (keep first match per variant)
+    matched <- matched[!duplicated(.row_id)]
+
+    # Rename and clean columns
+    data.table::setnames(matched, "rsID", "rs")
+    matched[, c("CHR", "REF", "ALT") := NULL]
+
+    n_matched <- nrow(matched)
+    message("  Chr ", chr, ": matched ", format(n_matched, big.mark = ","), "/",
+            format(nrow(sumstats_chr), big.mark = ","), " variants")
+
+    results_list[[chr]] <- matched
+  }
+
   # Combine results
-  out_dt <- data.table::rbindlist(out_list)
-  
-  # Generate matching statistics
-  in_situ_matching_1 <- paste0(out_dt[[CHR_name]], ":",
-                               out_dt[[POS_name]], ":",
-                               out_dt[[A2_name]], ":",
-                               out_dt[[A1_name]])
-  
-  in_situ_matching_2 <- paste0(out_dt[[CHR_name]], ":",
-                               out_dt[[POS_name]], ":",
-                               out_dt[[A1_name]], ":",
-                               out_dt[[A2_name]])
-  
-  # Report matching statistics
-  match_stats_1 <- sum(out_dt[[name_out]] == in_situ_matching_1)
-  match_stats_2 <- sum(out_dt[[name_out]] == in_situ_matching_2)
-  total_variants <- nrow(out_dt)
-  
-  message("=== Matching Statistics ===")
-  message("Assuming A2 is REF allele: ", match_stats_1, "/", total_variants, 
-          " (", round(100 * match_stats_1/total_variants, 1), "%) matches")
-  message("Assuming A1 is REF allele: ", match_stats_2, "/", total_variants, 
-          " (", round(100 * match_stats_2/total_variants, 1), "%) matches")
-  
-  if (max(match_stats_1, match_stats_2) / total_variants > 0.8) {
-    message("High matching rate suggests good allele coding consistency.")
-  } else if (abs(match_stats_1 - match_stats_2) < 0.1 * total_variants) {
-    message("Similar matching rates suggest mixed allele coding - using position-based names recommended.")
+  if (length(results_list) == 0) {
+    warning("No variants matched. Check chromosome naming and positions.")
+    return(sumstats[0])  # Return empty data.table with same structure
   }
-  
-  # Remove chr prefix if it was added
-  if (change_chr_back) {
-    out_dt[[CHR_name]] <- gsub("chr", "", out_dt[[CHR_name]])
-  }
-  
-  return(out_dt)
+
+  result <- data.table::rbindlist(results_list, fill = TRUE)
+
+  # Clean up
+  result[, .row_id := NULL]
+
+  message("Output: ", format(nrow(result), big.mark = ","), " variants with rsID and Name")
+
+  return(result)
 }
 
 #' Genomic Coordinate Lift Over with Variant Harmonization
