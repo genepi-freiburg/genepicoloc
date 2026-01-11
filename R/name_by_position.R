@@ -1,6 +1,6 @@
 #' Find SNP Names by Genomic Position
 #'
-#' Matches genomic variants to dbSNP identifiers and standardized names using 
+#' Matches genomic variants to dbSNP identifiers and standardized names using
 #' chromosomal position and allele information. This function queries a tabix-indexed
 #' dbSNP VCF file to find matching variants and harmonizes allele coding.
 #'
@@ -9,10 +9,10 @@
 #' @param POS_name Character. Column name for genomic position (default: "POS_hg38")
 #' @param A1_name Character. Column name for first allele (default: "A1_hg38")
 #' @param A2_name Character. Column name for second allele (default: "A2_hg38")
-#' @param tabix_bin Character. Path to tabix binary (default: "/usr/bin/tabix")
-#' @param dbSNP_file Character. Path to tabix-indexed dbSNP VCF file
-#' @param tmp_name Character. Temporary file prefix (default: NULL, uses tempfile())
-#' @param do_sorting Logical. Whether to sort output by position (default: TRUE)
+#' @param tabix_bin Character. Path to tabix binary (default: "tabix")
+#' @param dbSNP_file Character. Path to single tabix-indexed dbSNP VCF file (optional if dbSNP_dir provided)
+#' @param dbSNP_dir Character. Path to directory containing per-chromosome VCF files
+#'   named homo_sapiens-chr{CHR}.vcf.gz (optional if dbSNP_file provided)
 #' @param keep_lower Logical. Whether to keep lowercase alleles (default: FALSE)
 #'
 #' @return A data.table with additional columns:
@@ -32,22 +32,22 @@
 #'   \item Returns harmonized variant names and rs identifiers
 #' }
 #'
-#' The function handles ambiguous allele orders by trying both A1/A2 and A2/A1 
+#' The function handles ambiguous allele orders by trying both A1/A2 and A2/A1
 #' combinations and provides matching statistics to help assess data quality.
 #'
-#' @section Required Files:
-#' You need a tabix-indexed dbSNP VCF file. To create one:
-#' \enumerate{
-#'   \item Download dbSNP VCF from NCBI or Ensembl
-#'   \item Process to create a 6-column format: CHR, POS, RS_ID, REF, ALT, NAME
-#'   \item Compress with bgzip and index with tabix
+#' @section dbSNP File Options:
+#' You can provide either:
+#' \itemize{
+#'   \item \strong{dbSNP_file}: Single VCF file containing all chromosomes
+#'   \item \strong{dbSNP_dir}: Directory with per-chromosome files (homo_sapiens-chr{CHR}.vcf.gz)
 #' }
 #'
-#' Expected file format (tab-separated):
+#' Per-chromosome files can be downloaded from Ensembl:
 #' \preformatted{
-#' chr1    10001   rs1570391677   T   A   chr1:10001:T:A
-#' chr1    10001   rs1570391677   T   C   chr1:10001:T:C
-#' chr1    10002   rs1570391692   A   C   chr1:10002:A:C
+#' for chr in {1..22} X Y MT; do
+#'   wget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr$chr.vcf.gz
+#'   wget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr$chr.vcf.gz.csi
+#' done
 #' }
 #'
 #' @section Dependencies:
@@ -60,26 +60,17 @@
 #'
 #' @examples
 #' \dontrun{
-#' # Example usage with sample data
-#' library(data.table)
-#' 
-#' # Create sample summary statistics
-#' sumstats <- data.table(
-#'   CHR_hg38 = c("1", "1", "2"),
-#'   POS_hg38 = c(10001, 10002, 20001),
-#'   A1_hg38 = c("T", "A", "G"),
-#'   A2_hg38 = c("A", "C", "C")
-#' )
-#' 
-#' # Find names by position
+#' # Example with single file
 #' result <- name_by_position(
 #'   sumstats = sumstats,
-#'   dbSNP_file = "path/to/dbSNP_file.vcf.gz",
-#'   tabix_bin = "/usr/bin/tabix"
+#'   dbSNP_file = "path/to/dbSNP_all.vcf.gz"
 #' )
-#' 
-#' # Check matching statistics in console output
-#' print(result)
+#'
+#' # Example with per-chromosome directory
+#' result <- name_by_position(
+#'   sumstats = sumstats,
+#'   dbSNP_dir = "/path/to/ensembl_vcf/"
+#' )
 #' }
 #'
 #' @importFrom data.table fread fwrite setDT rbindlist setnames setorder copy
@@ -90,18 +81,32 @@ name_by_position <- function(sumstats,
                              A1_name = "A1_hg38",
                              A2_name = "A2_hg38",
                              tabix_bin = "tabix",
-                             dbSNP_file,
+                             dbSNP_file = NULL,
+                             dbSNP_dir = NULL,
                              keep_lower = FALSE) {
 
   message("=== Variant Name Matching ===")
 
- # Validate dependencies
+  # Validate dependencies
   if (Sys.which(tabix_bin) == "" && !file.exists(tabix_bin)) {
     stop("tabix not found. Install htslib or specify path.")
   }
 
-  if (!file.exists(dbSNP_file)) {
-    stop("dbSNP file not found: ", dbSNP_file)
+  # Validate dbSNP source - need either file or directory
+ use_per_chr <- FALSE
+  if (!is.null(dbSNP_dir)) {
+    if (!dir.exists(dbSNP_dir)) {
+      stop("dbSNP directory not found: ", dbSNP_dir)
+    }
+    use_per_chr <- TRUE
+    message("Using per-chromosome VCF files from: ", dbSNP_dir)
+  } else if (!is.null(dbSNP_file)) {
+    if (!file.exists(dbSNP_file)) {
+      stop("dbSNP file not found: ", dbSNP_file)
+    }
+    message("Using single VCF file: ", dbSNP_file)
+  } else {
+    stop("Must provide either dbSNP_file or dbSNP_dir")
   }
 
   # Work on a copy
@@ -117,18 +122,6 @@ name_by_position <- function(sumstats,
   # Ensure position is numeric
   if (!is.numeric(sumstats[[POS_name]])) {
     sumstats[, (POS_name) := as.numeric(get(POS_name))]
-  }
-
-  # Detect chromosome naming in dbSNP file
-  dbsnp_chroms <- system2(tabix_bin, c(dbSNP_file, "-l"), stdout = TRUE, stderr = FALSE)
-  dbsnp_has_chr <- any(grepl("^chr", dbsnp_chroms))
-  sumstats_has_chr <- any(grepl("^chr", sumstats[[CHR_name]]))
-
-  # Adjust chromosome naming to match dbSNP
-  if (dbsnp_has_chr && !sumstats_has_chr) {
-    sumstats[, (CHR_name) := paste0("chr", get(CHR_name))]
-  } else if (!dbsnp_has_chr && sumstats_has_chr) {
-    sumstats[, (CHR_name) := gsub("^chr", "", get(CHR_name))]
   }
 
   # Handle allele case
@@ -153,17 +146,45 @@ name_by_position <- function(sumstats,
     sumstats_chr <- sumstats[get(CHR_name) == chr]
     n_chr <- nrow(sumstats_chr)
 
+    # Determine dbSNP file for this chromosome
+    if (use_per_chr) {
+      # Build per-chromosome filename
+      # Ensembl files use "1", "X", "MT" (no chr prefix)
+      chr_for_file <- gsub("^chr", "", chr)
+      dbSNP_file_chr <- file.path(dbSNP_dir, paste0("homo_sapiens-chr", chr_for_file, ".vcf.gz"))
+
+      if (!file.exists(dbSNP_file_chr)) {
+        message("  Chr ", chr, ": VCF file not found, skipping (", basename(dbSNP_file_chr), ")")
+        next
+      }
+    } else {
+      dbSNP_file_chr <- dbSNP_file
+    }
+
+    # Detect chromosome naming in dbSNP file (only once per file)
+    dbsnp_chroms <- system2(tabix_bin, c(dbSNP_file_chr, "-l"), stdout = TRUE, stderr = FALSE)
+    dbsnp_has_chr <- any(grepl("^chr", dbsnp_chroms))
+    sumstats_chr_has_chr <- grepl("^chr", chr)
+
+    # Adjust chromosome for tabix query to match dbSNP naming
+    chr_query <- chr
+    if (dbsnp_has_chr && !sumstats_chr_has_chr) {
+      chr_query <- paste0("chr", chr)
+    } else if (!dbsnp_has_chr && sumstats_chr_has_chr) {
+      chr_query <- gsub("^chr", "", chr)
+    }
+
     # Get position range for tabix query
     pos_min <- min(sumstats_chr[[POS_name]])
     pos_max <- max(sumstats_chr[[POS_name]])
-    region <- paste0(chr, ":", pos_min, "-", pos_max)
+    region <- paste0(chr_query, ":", pos_min, "-", pos_max)
 
     message("  Chr ", chr, ": querying ", format(n_chr, big.mark = ","),
             " variants (", format(pos_min, big.mark = ","), "-", format(pos_max, big.mark = ","), ")...")
 
     # Query dbSNP with tabix (this can take a while for large regions)
     dbsnp_raw <- tryCatch({
-      system2(tabix_bin, c(dbSNP_file, region), stdout = TRUE, stderr = FALSE)
+      system2(tabix_bin, c(dbSNP_file_chr, region), stdout = TRUE, stderr = FALSE)
     }, error = function(e) character(0))
 
     if (length(dbsnp_raw) == 0) {

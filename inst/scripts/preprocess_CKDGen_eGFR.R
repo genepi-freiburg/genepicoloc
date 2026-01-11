@@ -5,14 +5,24 @@
 # This script demonstrates the complete preprocessing workflow:
 # 1. Download summary statistics from public source
 # 2. LiftOver coordinates from hg19 to hg38
-# 3. Add rsID and standardized variant names (optional)
+# 3. Add rsID and standardized variant names via Ensembl VCF
 # 4. Calculate -log10(P) with underflow handling
 # 5. Harmonize column names to genepicoloc standard format
 #
 # Example data: CKDGen Round 4 eGFR (Wuttke et al. 2019, PMID: 31152163)
 #
-# For detailed explanations, see the companion tutorial:
-#   inst/scripts/preprocessing_tutorial.Rmd
+# -----------------------------------------------------------------------------
+# Ensembl VCF files for rsID lookup
+# -----------------------------------------------------------------------------
+# For testing (chr21 only, ~165MB):
+#   wget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr21.vcf.gz
+#   wget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr21.vcf.gz.csi
+#
+# For production (all chromosomes, ~15GB total):
+#   for chr in {1..22} X Y MT; do
+#     wget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr${chr}.vcf.gz
+#     wget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr${chr}.vcf.gz.csi
+#   done
 #
 # =============================================================================
 
