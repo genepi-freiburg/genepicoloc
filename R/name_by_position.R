@@ -4,7 +4,7 @@
 #' chromosomal position and allele information. This function queries a tabix-indexed
 #' dbSNP VCF file to find matching variants and harmonizes allele coding.
 #'
-#' @param sumstats A data.table containing summary statistics with genomic coordinates
+#' @param sumstats A data.frame or data.table containing summary statistics with genomic coordinates
 #' @param CHR_name Character. Column name for chromosome (default: "CHR_hg38")
 #' @param POS_name Character. Column name for genomic position (default: "POS_hg38")
 #' @param A1_name Character. Column name for first allele (default: "A1_hg38")
@@ -15,7 +15,7 @@
 #'   named homo_sapiens-chr{CHR}.vcf.gz (optional if dbSNP_file provided)
 #' @param keep_lower Logical. Whether to keep lowercase alleles (default: FALSE)
 #'
-#' @return A data.table with additional columns:
+#' @return A data.frame with additional columns:
 #' \itemize{
 #'   \item \strong{rs}: dbSNP rs identifiers
 #'   \item \strong{Name_hg38}: Standardized variant names (CHR:POS:REF:ALT format)
@@ -73,7 +73,7 @@
 #' )
 #' }
 #'
-#' @importFrom data.table fread fwrite setDT rbindlist setnames setorder copy
+#' @importFrom data.table fread rbindlist
 #' @export
 name_by_position <- function(sumstats,
                              CHR_name = "CHR_hg38",
@@ -93,7 +93,7 @@ name_by_position <- function(sumstats,
   }
 
   # Validate dbSNP source - need either file or directory
- use_per_chr <- FALSE
+  use_per_chr <- FALSE
   if (!is.null(dbSNP_dir)) {
     if (!dir.exists(dbSNP_dir)) {
       stop("dbSNP directory not found: ", dbSNP_dir)
@@ -109,42 +109,40 @@ name_by_position <- function(sumstats,
     stop("Must provide either dbSNP_file or dbSNP_dir")
   }
 
-  # Work on a copy
-  if (!data.table::is.data.table(sumstats)) {
-    sumstats <- data.table::as.data.table(sumstats)
-  } else {
-    sumstats <- data.table::copy(sumstats)
-  }
+  # Work on a copy as data.frame
+  df <- as.data.frame(sumstats)
 
-  n_input <- nrow(sumstats)
+  n_input <- nrow(df)
   message("Input: ", format(n_input, big.mark = ","), " variants")
 
   # Ensure position is numeric
-  if (!is.numeric(sumstats[[POS_name]])) {
-    sumstats[, (POS_name) := as.numeric(get(POS_name))]
+  if (!is.numeric(df[[POS_name]])) {
+    df[[POS_name]] <- as.numeric(df[[POS_name]])
   }
 
   # Handle allele case
   if (!keep_lower) {
-    if (any(grepl("[a-z]", sumstats[[A1_name]])) || any(grepl("[a-z]", sumstats[[A2_name]]))) {
+    if (any(grepl("[a-z]", df[[A1_name]])) || any(grepl("[a-z]", df[[A2_name]]))) {
       message("Converting alleles to uppercase...")
-      sumstats[, (A1_name) := toupper(get(A1_name))]
-      sumstats[, (A2_name) := toupper(get(A2_name))]
+      df[[A1_name]] <- toupper(df[[A1_name]])
+      df[[A2_name]] <- toupper(df[[A2_name]])
     }
   }
 
   # Add row ID for tracking
-  sumstats[, .row_id := .I]
+  df$.row_id <- seq_len(nrow(df))
 
   # Process each chromosome
-  chromosomes <- unique(sumstats[[CHR_name]])
+  chromosomes <- unique(df[[CHR_name]])
   message("Processing ", length(chromosomes), " chromosome(s)...")
 
   results_list <- list()
 
   for (chr_val in chromosomes) {
-    sumstats_chr <- sumstats[get(CHR_name) == chr_val]
-    n_chr <- nrow(sumstats_chr)
+    # Subset for this chromosome
+    chr_idx <- df[[CHR_name]] == chr_val
+    df_chr <- df[chr_idx, , drop = FALSE]
+    n_chr <- nrow(df_chr)
 
     # Determine dbSNP file for this chromosome
     if (use_per_chr) {
@@ -161,7 +159,7 @@ name_by_position <- function(sumstats,
       dbSNP_file_chr <- dbSNP_file
     }
 
-    # Detect chromosome naming in dbSNP file (only once per file)
+    # Detect chromosome naming in dbSNP file
     dbsnp_chroms <- system2(tabix_bin, c(dbSNP_file_chr, "-l"), stdout = TRUE, stderr = FALSE)
     dbsnp_has_chr <- any(grepl("^chr", dbsnp_chroms))
     sumstats_chr_has_chr <- grepl("^chr", chr_val)
@@ -175,14 +173,14 @@ name_by_position <- function(sumstats,
     }
 
     # Get position range for tabix query
-    pos_min <- min(sumstats_chr[[POS_name]])
-    pos_max <- max(sumstats_chr[[POS_name]])
+    pos_min <- min(df_chr[[POS_name]])
+    pos_max <- max(df_chr[[POS_name]])
     region <- paste0(chr_query, ":", pos_min, "-", pos_max)
 
     message("  Chr ", chr_val, ": querying ", format(n_chr, big.mark = ","),
             " variants (", format(pos_min, big.mark = ","), "-", format(pos_max, big.mark = ","), ")...")
 
-    # Query dbSNP with tabix (this can take a while for large regions)
+    # Query dbSNP with tabix
     dbsnp_raw <- tryCatch({
       system2(tabix_bin, c(dbSNP_file_chr, region), stdout = TRUE, stderr = FALSE)
     }, error = function(e) character(0))
@@ -195,9 +193,10 @@ name_by_position <- function(sumstats,
     # Parse tabix output (VCF format: CHR, POS, ID, REF, ALT, ...)
     dbsnp <- data.table::fread(text = dbsnp_raw, header = FALSE, sep = "\t", select = 1:5,
                                 col.names = c("CHR", "POS", "rsID", "REF", "ALT"))
+    dbsnp <- as.data.frame(dbsnp)
 
     # Filter to exact positions in sumstats
-    dbsnp <- dbsnp[POS %in% sumstats_chr[[POS_name]]]
+    dbsnp <- dbsnp[dbsnp$POS %in% df_chr[[POS_name]], , drop = FALSE]
 
     if (nrow(dbsnp) == 0) {
       message("  Chr ", chr_val, ": no position matches")
@@ -206,30 +205,46 @@ name_by_position <- function(sumstats,
 
     # Expand multi-allelic variants (ALT contains comma-separated alleles)
     if (any(grepl(",", dbsnp$ALT))) {
-      dbsnp <- dbsnp[, .(ALT = unlist(strsplit(ALT, ","))), by = .(CHR, POS, rsID, REF)]
+      expanded_list <- lapply(seq_len(nrow(dbsnp)), function(i) {
+        row <- dbsnp[i, , drop = FALSE]
+        alts <- unlist(strsplit(row$ALT, ","))
+        data.frame(
+          CHR = row$CHR,
+          POS = row$POS,
+          rsID = row$rsID,
+          REF = row$REF,
+          ALT = alts,
+          stringsAsFactors = FALSE
+        )
+      })
+      dbsnp <- do.call(rbind, expanded_list)
     }
 
     # Create Name column (always with chr prefix)
     chr_prefix <- ifelse(grepl("^chr", dbsnp$CHR), dbsnp$CHR, paste0("chr", dbsnp$CHR))
-    dbsnp[, Name_hg38 := paste0(chr_prefix, ":", POS, ":", REF, ":", ALT)]
+    dbsnp$Name_hg38 <- paste0(chr_prefix, ":", dbsnp$POS, ":", dbsnp$REF, ":", dbsnp$ALT)
 
     # Merge with sumstats
-    merged <- merge(sumstats_chr, dbsnp,
-                    by.x = POS_name, by.y = "POS",
-                    all.x = FALSE, allow.cartesian = TRUE)
+    merged <- merge(df_chr, dbsnp, by.x = POS_name, by.y = "POS", all.x = FALSE)
+
+    if (nrow(merged) == 0) {
+      message("  Chr ", chr_val, ": no position matches after merge")
+      next
+    }
 
     # Match alleles (either orientation)
-    matched <- merged[
-      (REF == get(A1_name) & ALT == get(A2_name)) |
-      (ALT == get(A1_name) & REF == get(A2_name))
-    ]
+    match_forward <- merged$REF == merged[[A1_name]] & merged$ALT == merged[[A2_name]]
+    match_reverse <- merged$ALT == merged[[A1_name]] & merged$REF == merged[[A2_name]]
+    matched <- merged[match_forward | match_reverse, , drop = FALSE]
 
     # Remove duplicates (keep first match per variant)
-    matched <- matched[!duplicated(.row_id)]
+    matched <- matched[!duplicated(matched$.row_id), , drop = FALSE]
 
-    # Rename and clean columns
-    data.table::setnames(matched, "rsID", "rs")
-    matched[, c("CHR", "REF", "ALT") := NULL]
+    # Rename rsID to rs and remove helper columns
+    names(matched)[names(matched) == "rsID"] <- "rs"
+    matched$CHR <- NULL
+    matched$REF <- NULL
+    matched$ALT <- NULL
 
     n_matched <- nrow(matched)
     pct_matched <- round(100 * n_matched / n_chr, 1)
@@ -242,13 +257,14 @@ name_by_position <- function(sumstats,
   # Combine results
   if (length(results_list) == 0) {
     warning("No variants matched. Check chromosome naming and positions.")
-    return(sumstats[0])  # Return empty data.table with same structure
+    return(df[0, , drop = FALSE])
   }
 
-  result <- data.table::rbindlist(results_list, fill = TRUE)
+  result <- do.call(rbind, results_list)
+  rownames(result) <- NULL
 
-  # Clean up
-  result[, .row_id := NULL]
+  # Clean up row_id column
+  result$.row_id <- NULL
 
   message("Output: ", format(nrow(result), big.mark = ","), " variants with rsID and Name")
 
@@ -260,17 +276,16 @@ name_by_position <- function(sumstats,
 #' Performs genomic coordinate conversion between genome builds (e.g., hg19 to hg38)
 #' using UCSC liftOver tool, with optional variant name harmonization via dbSNP.
 #'
-#' @param sumstats A data.table containing summary statistics with genomic coordinates
+#' @param sumstats A data.frame or data.table containing summary statistics with genomic coordinates
 #' @param CHR_name Character. Column name for chromosome
-#' @param POS_name Character. Column name for genomic position  
+#' @param POS_name Character. Column name for genomic position
 #' @param A1_name Character. Column name for first allele
 #' @param A2_name Character. Column name for second allele
 #' @param liftOver_bin Character. Path to liftOver binary (default: "liftOver")
 #' @param liftOver_chain Character. Path to liftOver chain file
 #' @param keep_lower Logical. Whether to keep lowercase alleles (default: FALSE)
-#' @param rm_tmp_liftOver Logical. Whether to remove temporary files (default: TRUE)
 #'
-#' @return A data.table with lifted coordinates in new columns:
+#' @return A data.frame with lifted coordinates in new columns:
 #' \itemize{
 #'   \item \strong{CHR_hg38}: Chromosome in target build
 #'   \item \strong{POS_hg38}: Position in target build
@@ -287,7 +302,6 @@ name_by_position <- function(sumstats,
 #'   \item Validates input data and required external tools
 #'   \item Converts coordinates using UCSC liftOver
 #'   \item Handles strand flipping for negative strand variants
-#'   \item Optionally harmonizes variant names using dbSNP
 #'   \item Returns cleaned data with new genomic coordinates
 #' }
 #'
@@ -295,66 +309,61 @@ name_by_position <- function(sumstats,
 #' of the number of failed variants.
 #'
 #' @section Required Tools:
-#' 
+#'
 #' **liftOver Binary:**
 #' Download from UCSC Genome Browser:
 #' \url{https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver}
-#' 
+#'
 #' **Chain Files:**
 #' Download appropriate chain file from:
 #' \url{https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/}
-#' 
+#'
 #' Common chain files:
 #' \itemize{
 #'   \item hg19 to hg38: \code{hg19ToHg38.over.chain.gz}
 #'   \item hg18 to hg38: \code{hg18ToHg38.over.chain.gz}
 #'   \item hg38 to hg19: \code{hg38ToHg19.over.chain.gz}
 #' }
-#' 
+#'
 #' **Installation:**
 #' \preformatted{
 #' # Download liftOver binary
 #' wget https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver
 #' chmod +x liftOver
-#' 
+#'
 #' # Download chain file
 #' wget https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz
 #' }
 #'
-#' @section dbSNP File Setup:
-#' For variant name harmonization, you need a processed dbSNP file. See 
-#' \code{\link{name_by_position}} for details on file format and creation.
-#'
 #' @examples
 #' \dontrun{
 #' # Basic liftOver from hg19 to hg38
-#' library(data.table)
-#' 
+#'
 #' # Sample data in hg19 coordinates
-#' sumstats_hg19 <- data.table(
+#' sumstats_hg19 <- data.frame(
 #'   CHR = c("1", "2", "3"),
 #'   POS = c(1000000, 2000000, 3000000),
 #'   A1 = c("A", "G", "T"),
 #'   A2 = c("G", "C", "C"),
 #'   PVAL = c(1e-8, 1e-6, 1e-5)
 #' )
-#' 
+#'
 #' # Perform liftOver
 #' sumstats_hg38 <- genepi_liftover(
 #'   sumstats = sumstats_hg19,
 #'   CHR_name = "CHR",
-#'   POS_name = "POS", 
+#'   POS_name = "POS",
 #'   A1_name = "A1",
 #'   A2_name = "A2",
 #'   liftOver_bin = "path/to/liftOver",
 #'   liftOver_chain = "path/to/hg19ToHg38.over.chain.gz"
 #' )
-#' 
+#'
 #' # Check results
 #' print(sumstats_hg38)
 #' }
 #'
-#' @importFrom data.table fread fwrite setDT copy set
+#' @importFrom data.table fread fwrite
 #' @export
 genepi_liftover <- function(sumstats,
                             CHR_name,
@@ -378,14 +387,10 @@ genepi_liftover <- function(sumstats,
          "\nDownload from: https://hgdownload.soe.ucsc.edu/goldenPath/")
   }
 
-  # Work on a copy to avoid modifying original
-  if (!data.table::is.data.table(sumstats)) {
-    sumstats <- data.table::as.data.table(sumstats)
-  } else {
-    sumstats <- data.table::copy(sumstats)
-  }
+  # Work on a copy as data.frame
+  df <- as.data.frame(sumstats)
 
-  n_input <- nrow(sumstats)
+  n_input <- nrow(df)
   message("Input: ", format(n_input, big.mark = ","), " variants")
 
   # Create temp files using proper tempfile()
@@ -393,40 +398,40 @@ genepi_liftover <- function(sumstats,
   output_file <- tempfile(pattern = "liftover_output_", fileext = ".bed")
   unmapped_file <- tempfile(pattern = "liftover_unmapped_", fileext = ".bed")
 
-  # Ensure cleanup on exit (even if function fails)
+ # Ensure cleanup on exit (even if function fails)
   on.exit({
     unlink(c(bed_file, output_file, unmapped_file), force = TRUE)
   }, add = TRUE)
 
   # Add row index for tracking through liftOver
-  row_id_col <- ".liftover_row_id"
-  sumstats[, (row_id_col) := .I]
+  df$.liftover_row_id <- seq_len(nrow(df))
 
   # Handle chromosome naming (liftOver expects 'chr' prefix)
-  chr_had_prefix <- any(grepl("^chr", sumstats[[CHR_name]], ignore.case = TRUE))
+  chr_had_prefix <- any(grepl("^chr", df[[CHR_name]], ignore.case = TRUE))
   if (!chr_had_prefix) {
-    sumstats[, (CHR_name) := paste0("chr", get(CHR_name))]
+    df[[CHR_name]] <- paste0("chr", df[[CHR_name]])
   }
 
   # Handle allele case
   if (!keep_lower) {
-    if (any(grepl("[a-z]", sumstats[[A1_name]])) || any(grepl("[a-z]", sumstats[[A2_name]]))) {
+    if (any(grepl("[a-z]", df[[A1_name]])) || any(grepl("[a-z]", df[[A2_name]]))) {
       message("Converting alleles to uppercase...")
-      sumstats[, (A1_name) := toupper(get(A1_name))]
-      sumstats[, (A2_name) := toupper(get(A2_name))]
+      df[[A1_name]] <- toupper(df[[A1_name]])
+      df[[A2_name]] <- toupper(df[[A2_name]])
     }
   }
 
   # Write BED file for liftOver (BED format: chr, start, end, name, score, strand)
-  bed_data <- sumstats[, .(
-    chr = get(CHR_name),
-    start = get(POS_name),
-    end = get(POS_name),
-    name = get(row_id_col),
+  bed_data <- data.frame(
+    chr = df[[CHR_name]],
+    start = df[[POS_name]],
+    end = df[[POS_name]],
+    name = df$.liftover_row_id,
     score = ".",
-    strand = "+"
-  )]
-  data.table::fwrite(bed_data, bed_file, sep = "\t", col.names = FALSE)
+    strand = "+",
+    stringsAsFactors = FALSE
+  )
+  write.table(bed_data, bed_file, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
 
   # Execute liftOver
   message("Running liftOver...")
@@ -442,21 +447,18 @@ genepi_liftover <- function(sumstats,
 
   # Read lifted coordinates
   lifted <- data.table::fread(output_file, header = FALSE,
-                               col.names = c("CHR_hg38", "POS_hg38", "end", row_id_col, "score", "strand_hg38"))
-  lifted[, c("end", "score") := NULL]
+                               col.names = c("CHR_hg38", "POS_hg38", "end", ".liftover_row_id", "score", "strand_hg38"))
+  lifted <- as.data.frame(lifted)
+  lifted$end <- NULL
+  lifted$score <- NULL
 
   # Read unmapped variants (if any)
   n_unmapped <- 0
-
   if (file.exists(unmapped_file) && file.size(unmapped_file) > 0) {
-    unmapped <- tryCatch({
-      data.table::fread(unmapped_file, header = FALSE, fill = TRUE)
-    }, error = function(e) NULL)
-    if (!is.null(unmapped) && nrow(unmapped) > 0) {
-      # Unmapped file has comment lines starting with #
-      unmapped <- unmapped[!grepl("^#", V1)]
-      n_unmapped <- nrow(unmapped)
-    }
+    unmapped_lines <- readLines(unmapped_file, warn = FALSE)
+    # Filter out comment lines
+    unmapped_lines <- unmapped_lines[!grepl("^#", unmapped_lines)]
+    n_unmapped <- length(unmapped_lines)
   }
 
   # Report statistics
@@ -469,36 +471,58 @@ genepi_liftover <- function(sumstats,
   }
 
   # Merge lifted coordinates back to original data
-  sumstats_lifted <- merge(sumstats, lifted, by = row_id_col, all = FALSE)
+  df_lifted <- merge(df, lifted, by = ".liftover_row_id", all = FALSE)
 
   # Handle strand flipping for negative strand
-  n_flipped <- sum(sumstats_lifted$strand_hg38 == "-")
+  flip_idx <- df_lifted$strand_hg38 == "-"
+  n_flipped <- sum(flip_idx)
+
   if (n_flipped > 0) {
     message("Flipping ", format(n_flipped, big.mark = ","), " variants on negative strand...")
-    flip_idx <- sumstats_lifted$strand_hg38 == "-"
-    sumstats_lifted[flip_idx, A1_hg38 := flip_alleles(get(A1_name))]
-    sumstats_lifted[flip_idx, A2_hg38 := flip_alleles(get(A2_name))]
-    sumstats_lifted[!flip_idx, A1_hg38 := get(A1_name)]
-    sumstats_lifted[!flip_idx, A2_hg38 := get(A2_name)]
+    df_lifted$A1_hg38 <- df_lifted[[A1_name]]
+    df_lifted$A2_hg38 <- df_lifted[[A2_name]]
+    df_lifted$A1_hg38[flip_idx] <- flip_alleles(df_lifted[[A1_name]][flip_idx])
+    df_lifted$A2_hg38[flip_idx] <- flip_alleles(df_lifted[[A2_name]][flip_idx])
   } else {
-    sumstats_lifted[, A1_hg38 := get(A1_name)]
-    sumstats_lifted[, A2_hg38 := get(A2_name)]
+    df_lifted$A1_hg38 <- df_lifted[[A1_name]]
+    df_lifted$A2_hg38 <- df_lifted[[A2_name]]
   }
 
-  # Clean up: remove helper columns, restore chr naming
-  sumstats_lifted[, c(row_id_col, "strand_hg38") := NULL]
+  # Clean up: remove helper columns
+  df_lifted$.liftover_row_id <- NULL
+  df_lifted$strand_hg38 <- NULL
 
   # Remove 'chr' prefix from output columns
-  sumstats_lifted[, CHR_hg38 := gsub("^chr", "", CHR_hg38)]
+  df_lifted$CHR_hg38 <- gsub("^chr", "", df_lifted$CHR_hg38)
 
   # Restore original chr column if we added prefix
   if (!chr_had_prefix) {
-    sumstats_lifted[, (CHR_name) := gsub("^chr", "", get(CHR_name))]
+    df_lifted[[CHR_name]] <- gsub("^chr", "", df_lifted[[CHR_name]])
   }
 
-  message("Output: ", format(nrow(sumstats_lifted), big.mark = ","), " variants with hg38 coordinates")
+  message("Output: ", format(nrow(df_lifted), big.mark = ","), " variants with hg38 coordinates")
 
-  return(sumstats_lifted)
+  return(df_lifted)
+}
+
+#' Flip alleles to complementary bases
+#'
+#' @param alleles Character vector of alleles (A, T, G, C)
+#' @return Character vector of complementary alleles
+#' @keywords internal
+flip_alleles <- function(alleles) {
+  # Create mapping for complement
+  mapping <- c("A" = "T", "T" = "A", "G" = "C", "C" = "G",
+               "a" = "t", "t" = "a", "g" = "c", "c" = "g")
+
+  # For each allele, flip each base
+ sapply(alleles, function(allele) {
+    bases <- strsplit(allele, "")[[1]]
+    flipped <- mapping[bases]
+    # If any base not in mapping, keep original
+    flipped[is.na(flipped)] <- bases[is.na(flipped)]
+    paste(flipped, collapse = "")
+  }, USE.NAMES = FALSE)
 }
 
 #' Create dbSNP Reference File for Position-Based Matching
@@ -511,8 +535,8 @@ genepi_liftover <- function(sumstats,
 #' @param output_file Character. Path for output processed file
 #' @param compress Logical. Whether to compress output with bgzip (default: TRUE)
 #' @param index Logical. Whether to create tabix index (default: TRUE)
-#' @param tabix_bin Character. Path to tabix binary (default: "/usr/bin/tabix")
-#' @param bgzip_bin Character. Path to bgzip binary (default: "/usr/bin/bgzip")
+#' @param tabix_bin Character. Path to tabix binary (default: "tabix")
+#' @param bgzip_bin Character. Path to bgzip binary (default: "bgzip")
 #'
 #' @return Character. Path to the created file
 #'
@@ -520,7 +544,7 @@ genepi_liftover <- function(sumstats,
 #' This function processes a standard dbSNP VCF file to create the required
 #' 6-column format for position-based matching:
 #' \enumerate{
-#'   \item CHR - Chromosome 
+#'   \item CHR - Chromosome
 #'   \item POS - Position
 #'   \item RS_ID - dbSNP rs identifier
 #'   \item REF - Reference allele
@@ -546,56 +570,55 @@ genepi_liftover <- function(sumstats,
 #' )
 #' }
 #'
-#' @importFrom data.table fread fwrite
+#' @importFrom data.table fread
 #' @export
 create_dbsnp_file <- function(input_vcf,
                               output_file,
                               compress = TRUE,
                               index = TRUE,
-                              tabix_bin = "/usr/bin/tabix",
-                              bgzip_bin = "/usr/bin/bgzip") {
-  
+                              tabix_bin = "tabix",
+                              bgzip_bin = "bgzip") {
+
   message("Processing dbSNP VCF file: ", input_vcf)
-  
+
   # Read VCF file
-  vcf_data <- data.table::fread(input_vcf, skip = "^#CHROM")
-  
+  vcf_data <- data.table::fread(input_vcf, skip = "#CHROM")
+  vcf_data <- as.data.frame(vcf_data)
+
   # Process multi-allelic variants
-  processed_data <- vcf_data[, {
-    alt_alleles <- strsplit(ALT, ",")[[1]]
-    lapply(alt_alleles, function(alt) {
-      name <- paste(`#CHROM`, POS, REF, alt, sep = ":")
-      data.table(
-        CHR = `#CHROM`,
-        POS = POS,
-        RS_ID = ID,
-        REF = REF,
-        ALT = alt,
-        NAME = name
-      )
-    })
-  }, by = seq_len(nrow(vcf_data))]
-  
-  # Flatten the results
-  final_data <- rbindlist(processed_data$V1)
-  
+  result_list <- lapply(seq_len(nrow(vcf_data)), function(i) {
+    row <- vcf_data[i, ]
+    alt_alleles <- unlist(strsplit(row$ALT, ","))
+    data.frame(
+      CHR = row$`#CHROM`,
+      POS = row$POS,
+      RS_ID = row$ID,
+      REF = row$REF,
+      ALT = alt_alleles,
+      NAME = paste(row$`#CHROM`, row$POS, row$REF, alt_alleles, sep = ":"),
+      stringsAsFactors = FALSE
+    )
+  })
+
+  final_data <- do.call(rbind, result_list)
+
   # Write output
   temp_file <- paste0(output_file, ".tmp")
-  data.table::fwrite(final_data, temp_file, sep = "\t", col.names = FALSE)
-  
+  write.table(final_data, temp_file, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
   if (compress) {
     message("Compressing with bgzip...")
-    system(paste(bgzip_bin, temp_file))
+    system2(bgzip_bin, temp_file)
     file.rename(paste0(temp_file, ".gz"), output_file)
   } else {
     file.rename(temp_file, output_file)
   }
-  
+
   if (index && compress) {
     message("Creating tabix index...")
-    system(paste(tabix_bin, "-s", "1", "-b", "2", "-e", "2", output_file))
+    system2(tabix_bin, c("-s", "1", "-b", "2", "-e", "2", output_file))
   }
-  
+
   message("Created dbSNP file: ", output_file)
   return(output_file)
 }
