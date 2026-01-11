@@ -368,6 +368,8 @@ name_by_position <- function(sumstats,
 #' @param liftOver_bin Character. Path to liftOver binary (default: "liftOver")
 #' @param liftOver_chain Character. Path to liftOver chain file
 #' @param keep_lower Logical. Whether to keep lowercase alleles (default: FALSE)
+#' @param chunk_size Integer. Number of variants to process per chunk for memory efficiency.
+#'   Set to NULL to disable chunking. Default is 1000000 (1M variants).
 #'
 #' @return A data.frame with lifted coordinates in new columns:
 #' \itemize{
@@ -447,7 +449,7 @@ name_by_position <- function(sumstats,
 #' print(sumstats_hg38)
 #' }
 #'
-#' @importFrom data.table fread fwrite
+#' @importFrom data.table fread
 #' @export
 genepi_liftover <- function(sumstats,
                             CHR_name,
@@ -456,7 +458,8 @@ genepi_liftover <- function(sumstats,
                             A2_name,
                             liftOver_bin = "liftOver",
                             liftOver_chain,
-                            keep_lower = FALSE) {
+                            keep_lower = FALSE,
+                            chunk_size = 1000000) {
 
   message("=== Genomic Coordinate Lift Over ===")
 
@@ -473,22 +476,8 @@ genepi_liftover <- function(sumstats,
 
   # Work on a copy as data.frame
   df <- as.data.frame(sumstats)
-
   n_input <- nrow(df)
   message("Input: ", format(n_input, big.mark = ","), " variants")
-
-  # Create temp files using proper tempfile()
-  bed_file <- tempfile(pattern = "liftover_input_", fileext = ".bed")
-  output_file <- tempfile(pattern = "liftover_output_", fileext = ".bed")
-  unmapped_file <- tempfile(pattern = "liftover_unmapped_", fileext = ".bed")
-
- # Ensure cleanup on exit (even if function fails)
-  on.exit({
-    unlink(c(bed_file, output_file, unmapped_file), force = TRUE)
-  }, add = TRUE)
-
-  # Add row index for tracking through liftOver
-  df$.liftover_row_id <- seq_len(nrow(df))
 
   # Handle chromosome naming (liftOver expects 'chr' prefix)
   chr_had_prefix <- any(grepl("^chr", df[[CHR_name]], ignore.case = TRUE))
@@ -505,12 +494,140 @@ genepi_liftover <- function(sumstats,
     }
   }
 
-  # Write BED file for liftOver (BED format: chr, start, end, name, score, strand)
+  # Add row index for tracking
+  df$.liftover_row_id <- seq_len(nrow(df))
+
+  # Determine if chunking is needed
+  use_chunking <- !is.null(chunk_size) && n_input > chunk_size
+
+  if (use_chunking) {
+    # Process in chunks
+    n_chunks <- ceiling(n_input / chunk_size)
+    message("Processing in ", n_chunks, " chunks of ~", format(chunk_size, big.mark = ","), " variants each")
+
+    chunk_results <- list()
+    total_unmapped <- 0
+
+    for (i in seq_len(n_chunks)) {
+      start_idx <- (i - 1) * chunk_size + 1
+      end_idx <- min(i * chunk_size, n_input)
+
+      message("\n--- Chunk ", i, "/", n_chunks, " (rows ", format(start_idx, big.mark = ","),
+              "-", format(end_idx, big.mark = ","), ") ---")
+
+      df_chunk <- df[start_idx:end_idx, , drop = FALSE]
+
+      chunk_result <- .process_liftover_chunk(
+        df_chunk = df_chunk,
+        CHR_name = CHR_name,
+        POS_name = POS_name,
+        A1_name = A1_name,
+        A2_name = A2_name,
+        liftOver_bin = liftOver_bin,
+        liftOver_chain = liftOver_chain
+      )
+
+      if (!is.null(chunk_result$result) && nrow(chunk_result$result) > 0) {
+        chunk_results[[i]] <- chunk_result$result
+      }
+      total_unmapped <- total_unmapped + chunk_result$n_unmapped
+
+      # Clean up
+      rm(df_chunk, chunk_result)
+      gc(verbose = FALSE)
+    }
+
+    # Combine results
+    if (length(chunk_results) == 0) {
+      warning("No variants lifted. Check input coordinates.")
+      df$.liftover_row_id <- NULL
+      return(df[0, , drop = FALSE])
+    }
+
+    df_lifted <- do.call(rbind, chunk_results)
+
+    # Summary statistics
+    message("\n--- Summary ---")
+    message("Lifted: ", format(nrow(df_lifted), big.mark = ","), " variants (",
+            round(100 * nrow(df_lifted) / n_input, 1), "%)")
+    if (total_unmapped > 0) {
+      message("Unmapped: ", format(total_unmapped, big.mark = ","), " variants (",
+              round(100 * total_unmapped / n_input, 2), "%)")
+    }
+
+  } else {
+    # Process all at once
+    result <- .process_liftover_chunk(
+      df_chunk = df,
+      CHR_name = CHR_name,
+      POS_name = POS_name,
+      A1_name = A1_name,
+      A2_name = A2_name,
+      liftOver_bin = liftOver_bin,
+      liftOver_chain = liftOver_chain
+    )
+
+    if (is.null(result$result) || nrow(result$result) == 0) {
+      warning("No variants lifted. Check input coordinates.")
+      df$.liftover_row_id <- NULL
+      return(df[0, , drop = FALSE])
+    }
+
+    df_lifted <- result$result
+  }
+
+  rownames(df_lifted) <- NULL
+
+  # Remove helper columns
+  df_lifted$.liftover_row_id <- NULL
+
+  # Remove 'chr' prefix from output columns
+  df_lifted$CHR_hg38 <- gsub("^chr", "", df_lifted$CHR_hg38)
+
+  # Restore original chr column if we added prefix
+  if (!chr_had_prefix) {
+    df_lifted[[CHR_name]] <- gsub("^chr", "", df_lifted[[CHR_name]])
+  }
+
+  message("\nOutput: ", format(nrow(df_lifted), big.mark = ","), " variants with hg38 coordinates")
+
+  return(df_lifted)
+}
+
+#' Process a chunk of variants through liftOver
+#'
+#' Internal function that processes a subset of variants through UCSC liftOver.
+#'
+#' @param df_chunk Data frame chunk to process
+#' @param CHR_name Column name for chromosome
+#' @param POS_name Column name for position
+#' @param A1_name Column name for allele 1
+#' @param A2_name Column name for allele 2
+#' @param liftOver_bin Path to liftOver binary
+#' @param liftOver_chain Path to chain file
+#'
+#' @return List with 'result' (data frame) and 'n_unmapped' (integer)
+#' @keywords internal
+.process_liftover_chunk <- function(df_chunk, CHR_name, POS_name, A1_name, A2_name,
+                                     liftOver_bin, liftOver_chain) {
+
+  n_chunk <- nrow(df_chunk)
+
+  # Create temp files
+  bed_file <- tempfile(pattern = "liftover_input_", fileext = ".bed")
+  output_file <- tempfile(pattern = "liftover_output_", fileext = ".bed")
+  unmapped_file <- tempfile(pattern = "liftover_unmapped_", fileext = ".bed")
+
+  on.exit({
+    unlink(c(bed_file, output_file, unmapped_file), force = TRUE)
+  }, add = TRUE)
+
+  # Write BED file
   bed_data <- data.frame(
-    chr = df[[CHR_name]],
-    start = df[[POS_name]],
-    end = df[[POS_name]],
-    name = df$.liftover_row_id,
+    chr = df_chunk[[CHR_name]],
+    start = df_chunk[[POS_name]],
+    end = df_chunk[[POS_name]],
+    name = df_chunk$.liftover_row_id,
     score = ".",
     strand = "+",
     stringsAsFactors = FALSE
@@ -530,39 +647,39 @@ genepi_liftover <- function(sumstats,
   }
 
   # Read lifted coordinates
+  if (!file.exists(output_file) || file.size(output_file) == 0) {
+    message("No variants lifted in this chunk")
+    return(list(result = NULL, n_unmapped = n_chunk))
+  }
+
   lifted <- data.table::fread(output_file, header = FALSE,
                                col.names = c("CHR_hg38", "POS_hg38", "end", ".liftover_row_id", "score", "strand_hg38"))
   lifted <- as.data.frame(lifted)
   lifted$end <- NULL
   lifted$score <- NULL
 
-  # Read unmapped variants (if any)
+  # Count unmapped
   n_unmapped <- 0
   if (file.exists(unmapped_file) && file.size(unmapped_file) > 0) {
     unmapped_lines <- readLines(unmapped_file, warn = FALSE)
-    # Filter out comment lines
     unmapped_lines <- unmapped_lines[!grepl("^#", unmapped_lines)]
     n_unmapped <- length(unmapped_lines)
   }
 
-  # Report statistics
+  # Report
   n_lifted <- nrow(lifted)
-  message("Lifted: ", format(n_lifted, big.mark = ","), " variants (",
-          round(100 * n_lifted / n_input, 1), "%)")
-  if (n_unmapped > 0) {
-    message("Unmapped: ", format(n_unmapped, big.mark = ","), " variants (",
-            round(100 * n_unmapped / n_input, 2), "%)")
-  }
+  message("Lifted: ", format(n_lifted, big.mark = ","), "/", format(n_chunk, big.mark = ","),
+          " variants (", round(100 * n_lifted / n_chunk, 1), "%)")
 
-  # Merge lifted coordinates back to original data
-  df_lifted <- merge(df, lifted, by = ".liftover_row_id", all = FALSE)
+  # Merge
+  df_lifted <- merge(df_chunk, lifted, by = ".liftover_row_id", all = FALSE)
 
-  # Handle strand flipping for negative strand
+  # Handle strand flipping
   flip_idx <- df_lifted$strand_hg38 == "-"
   n_flipped <- sum(flip_idx)
 
   if (n_flipped > 0) {
-    message("Flipping ", format(n_flipped, big.mark = ","), " variants on negative strand...")
+    message("Flipping ", format(n_flipped, big.mark = ","), " variants on negative strand")
     df_lifted$A1_hg38 <- df_lifted[[A1_name]]
     df_lifted$A2_hg38 <- df_lifted[[A2_name]]
     df_lifted$A1_hg38[flip_idx] <- flip_alleles(df_lifted[[A1_name]][flip_idx])
@@ -572,21 +689,10 @@ genepi_liftover <- function(sumstats,
     df_lifted$A2_hg38 <- df_lifted[[A2_name]]
   }
 
-  # Clean up: remove helper columns
-  df_lifted$.liftover_row_id <- NULL
+  # Remove strand column
   df_lifted$strand_hg38 <- NULL
 
-  # Remove 'chr' prefix from output columns
-  df_lifted$CHR_hg38 <- gsub("^chr", "", df_lifted$CHR_hg38)
-
-  # Restore original chr column if we added prefix
-  if (!chr_had_prefix) {
-    df_lifted[[CHR_name]] <- gsub("^chr", "", df_lifted[[CHR_name]])
-  }
-
-  message("Output: ", format(nrow(df_lifted), big.mark = ","), " variants with hg38 coordinates")
-
-  return(df_lifted)
+  return(list(result = df_lifted, n_unmapped = n_unmapped))
 }
 
 #' Flip alleles to complementary bases
