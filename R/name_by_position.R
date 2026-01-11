@@ -183,21 +183,12 @@ name_by_position <- function(sumstats = NULL,
       return(data.frame())
     }
 
-    # Find CHR and POS column indices for sorting
-    chr_col <- which(header == CHR_name)
-    pos_col <- which(header == POS_name)
-    if (length(chr_col) == 0 || length(pos_col) == 0) {
-      stop("Could not find CHR column '", CHR_name, "' or POS column '", POS_name, "' in header")
-    }
-
-    # Sort by CHR and POS, then split into chunks
+    # Pre-split file into chunks (one-time cost, true O(1) per chunk read)
     if (is.null(chunk_size)) chunk_size <- total_lines
-    message("Sorting and splitting file into chunks...")
-    sort_split_cmd <- sprintf(
-      "%s '%s' | tail -n +2 | sort -t'\t' -k%d,%dV -k%d,%dn | split -l %d - '%s/chunk_'",
-      cat_cmd, input_file, chr_col, chr_col, pos_col, pos_col, chunk_size, chunk_dir
-    )
-    system(sort_split_cmd)
+    message("Splitting file into chunks...")
+    split_cmd <- sprintf("%s '%s' | tail -n +2 | split -l %d - '%s/chunk_'",
+                         cat_cmd, input_file, chunk_size, chunk_dir)
+    system(split_cmd)
 
     chunk_files <- sort(list.files(chunk_dir, full.names = TRUE, pattern = "^chunk_"))
     n_chunks <- length(chunk_files)
@@ -459,27 +450,21 @@ name_by_position <- function(sumstats = NULL,
       chr_query <- gsub("^chr", "", chr_val)
     }
 
-    # Create positions file for tabix -R (BED format: chr, start-1, end)
-    positions <- unique(df_chr[[POS_name]])
-    pos_file <- tempfile(fileext = ".bed")
-    pos_bed <- data.frame(
-      chr = chr_query,
-      start = positions - 1L,
-      end = positions
-    )
-    write.table(pos_bed, pos_file, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
+    # Get position range for tabix query
+    pos_min <- min(df_chr[[POS_name]])
+    pos_max <- max(df_chr[[POS_name]])
+    region <- paste0(chr_query, ":", pos_min, "-", pos_max)
 
     message("  Chr ", chr_val, ": querying ", format(n_chr, big.mark = ","),
-            " variants (", format(length(positions), big.mark = ","), " unique positions)...")
+            " variants (", format(pos_min, big.mark = ","), "-", format(pos_max, big.mark = ","), ")...")
 
-    # Query dbSNP with tabix -R (positions file, not range)
+    # Query dbSNP with tabix
     dbsnp_raw <- tryCatch({
-      system2(tabix_bin, c("-R", pos_file, dbSNP_file_chr), stdout = TRUE, stderr = FALSE)
+      system2(tabix_bin, c(dbSNP_file_chr, region), stdout = TRUE, stderr = FALSE)
     }, error = function(e) character(0))
-    unlink(pos_file)
 
     if (length(dbsnp_raw) == 0) {
-      message("  Chr ", chr_val, ": no dbSNP data for positions")
+      message("  Chr ", chr_val, ": no dbSNP data in region")
       next
     }
 
@@ -487,6 +472,9 @@ name_by_position <- function(sumstats = NULL,
     dbsnp <- data.table::fread(text = dbsnp_raw, header = FALSE, sep = "\t", select = 1:5,
                                 col.names = c("CHR", "POS", "rsID", "REF", "ALT"))
     dbsnp <- as.data.frame(dbsnp)
+
+    # Filter to exact positions in sumstats
+    dbsnp <- dbsnp[dbsnp$POS %in% df_chr[[POS_name]], , drop = FALSE]
 
     if (nrow(dbsnp) == 0) {
       message("  Chr ", chr_val, ": no position matches")
