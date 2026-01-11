@@ -462,15 +462,34 @@ name_by_position <- function(sumstats = NULL,
     # Get position range for tabix query
     pos_min <- min(df_chr[[POS_name]])
     pos_max <- max(df_chr[[POS_name]])
-    region <- paste0(chr_query, ":", pos_min, "-", pos_max)
+    range_size <- pos_max - pos_min
+    max_range <- 2e6  # 2Mb limit
 
-    message("  Chr ", chr_val, ": querying ", format(n_chr, big.mark = ","),
-            " variants (", format(pos_min, big.mark = ","), "-", format(pos_max, big.mark = ","), ")...")
+    # Use range query if small, positions file if large
+    if (range_size <= max_range) {
+      # Range query (fast for contiguous regions)
+      region <- paste0(chr_query, ":", pos_min, "-", pos_max)
+      message("  Chr ", chr_val, ": querying ", format(n_chr, big.mark = ","),
+              " variants (", format(pos_min, big.mark = ","), "-", format(pos_max, big.mark = ","), ")...")
 
-    # Query dbSNP with tabix
-    dbsnp_raw <- tryCatch({
-      system2(tabix_bin, c(dbSNP_file_chr, region), stdout = TRUE, stderr = FALSE)
-    }, error = function(e) character(0))
+      dbsnp_raw <- tryCatch({
+        system2(tabix_bin, c(dbSNP_file_chr, region), stdout = TRUE, stderr = FALSE)
+      }, error = function(e) character(0))
+    } else {
+      # Positions file query (efficient for sparse/large regions)
+      positions <- unique(df_chr[[POS_name]])
+      pos_file <- tempfile(fileext = ".bed")
+      pos_bed <- data.frame(chr = chr_query, start = positions - 1L, end = positions)
+      write.table(pos_bed, pos_file, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+      message("  Chr ", chr_val, ": querying ", format(n_chr, big.mark = ","),
+              " variants (range ", format(range_size / 1e6, digits = 1), "Mb > 2Mb, using positions file)...")
+
+      dbsnp_raw <- tryCatch({
+        system2(tabix_bin, c("-R", pos_file, dbSNP_file_chr), stdout = TRUE, stderr = FALSE)
+      }, error = function(e) character(0))
+      unlink(pos_file)
+    }
 
     if (length(dbsnp_raw) == 0) {
       message("  Chr ", chr_val, ": no dbSNP data in region")
@@ -482,7 +501,7 @@ name_by_position <- function(sumstats = NULL,
                                 col.names = c("CHR", "POS", "rsID", "REF", "ALT"))
     dbsnp <- as.data.frame(dbsnp)
 
-    # Filter to exact positions in sumstats
+    # Filter to exact positions in sumstats (needed for range query)
     dbsnp <- dbsnp[dbsnp$POS %in% df_chr[[POS_name]], , drop = FALSE]
 
     if (nrow(dbsnp) == 0) {
