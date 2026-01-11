@@ -21,7 +21,8 @@
 #'   named homo_sapiens-chr{CHR}.vcf.gz (optional if dbSNP_file provided)
 #' @param keep_lower Logical. Whether to keep lowercase alleles (default: FALSE)
 #' @param chunk_size Integer. Number of variants to process per chunk for memory efficiency.
-#'   Set to NULL to disable chunking. Default is 100000 (100K variants).
+#'   Set to NULL to disable chunking. Default is 10000 (10K variants) for name_by_position
+#'   due to higher RAM usage from dbSNP queries.
 #'
 #' @return A data.frame with additional columns (or NULL if output_file is provided):
 #' \itemize{
@@ -98,7 +99,7 @@ name_by_position <- function(sumstats = NULL,
                              dbSNP_file = NULL,
                              dbSNP_dir = NULL,
                              keep_lower = FALSE,
-                             chunk_size = 100000) {
+                             chunk_size = 10000) {
 
   message("=== Variant Name Matching ===")
 
@@ -252,21 +253,28 @@ name_by_position <- function(sumstats = NULL,
     if (!is.null(output_file)) {
       message("Writing results to: ", output_file)
 
+      # Determine write path (avoid writing to .gz then compressing)
+      if (grepl("\\.(gz|bgz)$", output_file)) {
+        write_path <- sub("\\.(gz|bgz)$", "", output_file)
+        do_compress <- TRUE
+      } else {
+        write_path <- output_file
+        do_compress <- FALSE
+      }
+
       # Write header from first file
       first_result <- data.table::fread(result_files[1], nrows = 0)
-      data.table::fwrite(first_result, output_file, sep = "\t")
+      data.table::fwrite(first_result, write_path, sep = "\t")
 
       # Append all results
       for (rf in result_files) {
-        append_cmd <- sprintf("tail -n +2 '%s' >> '%s'", rf, output_file)
+        append_cmd <- sprintf("tail -n +2 '%s' >> '%s'", rf, write_path)
         system(append_cmd)
       }
 
       # Compress if requested
-      if (grepl("\\.gz$", output_file)) {
-        uncompressed <- sub("\\.gz$", "", output_file)
-        file.rename(output_file, uncompressed)
-        system2("gzip", uncompressed)
+      if (do_compress) {
+        system2("gzip", c("-f", write_path))
       }
 
       message("Output: ", format(total_matched, big.mark = ","), " variants written to file")
@@ -371,11 +379,12 @@ name_by_position <- function(sumstats = NULL,
   # Write to file if requested
   if (!is.null(output_file)) {
     message("Writing results to: ", output_file)
-    data.table::fwrite(result, output_file, sep = "\t")
-    if (grepl("\\.gz$", output_file)) {
-      uncompressed <- sub("\\.gz$", "", output_file)
-      file.rename(output_file, uncompressed)
-      system2("gzip", uncompressed)
+    if (grepl("\\.(gz|bgz)$", output_file)) {
+      write_path <- sub("\\.(gz|bgz)$", "", output_file)
+      data.table::fwrite(result, write_path, sep = "\t")
+      system2("gzip", c("-f", write_path))
+    } else {
+      data.table::fwrite(result, output_file, sep = "\t")
     }
     message("\nOutput: ", format(nrow(result), big.mark = ","), " variants written to file")
     return(invisible(NULL))
@@ -799,21 +808,28 @@ genepi_liftover <- function(sumstats = NULL,
     if (!is.null(output_file)) {
       message("Writing results to: ", output_file)
 
+      # Determine write path (avoid writing to .gz then compressing)
+      if (grepl("\\.(gz|bgz)$", output_file)) {
+        write_path <- sub("\\.(gz|bgz)$", "", output_file)
+        do_compress <- TRUE
+      } else {
+        write_path <- output_file
+        do_compress <- FALSE
+      }
+
       # Write header from first file
       first_result <- data.table::fread(result_files[1], nrows = 0)
-      data.table::fwrite(first_result, output_file, sep = "\t")
+      data.table::fwrite(first_result, write_path, sep = "\t")
 
       # Append all results
       for (rf in result_files) {
-        append_cmd <- sprintf("tail -n +2 '%s' >> '%s'", rf, output_file)
+        append_cmd <- sprintf("tail -n +2 '%s' >> '%s'", rf, write_path)
         system(append_cmd)
       }
 
       # Compress if requested
-      if (grepl("\\.gz$", output_file)) {
-        uncompressed <- sub("\\.gz$", "", output_file)
-        file.rename(output_file, uncompressed)
-        system2("gzip", uncompressed)
+      if (do_compress) {
+        system2("gzip", c("-f", write_path))
       }
 
       message("Output: ", format(total_lifted, big.mark = ","), " variants written to file")
@@ -947,11 +963,12 @@ genepi_liftover <- function(sumstats = NULL,
   # Write to file if requested
   if (!is.null(output_file)) {
     message("Writing results to: ", output_file)
-    data.table::fwrite(df_lifted, output_file, sep = "\t")
-    if (grepl("\\.gz$", output_file)) {
-      uncompressed <- sub("\\.gz$", "", output_file)
-      file.rename(output_file, uncompressed)
-      system2("gzip", uncompressed)
+    if (grepl("\\.(gz|bgz)$", output_file)) {
+      write_path <- sub("\\.(gz|bgz)$", "", output_file)
+      data.table::fwrite(df_lifted, write_path, sep = "\t")
+      system2("gzip", c("-f", write_path))
+    } else {
+      data.table::fwrite(df_lifted, output_file, sep = "\t")
     }
     message("\nOutput: ", format(nrow(df_lifted), big.mark = ","), " variants written to file")
     return(invisible(NULL))
