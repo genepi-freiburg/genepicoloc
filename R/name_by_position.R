@@ -4,7 +4,13 @@
 #' chromosomal position and allele information. This function queries a tabix-indexed
 #' dbSNP VCF file to find matching variants and harmonizes allele coding.
 #'
-#' @param sumstats A data.frame or data.table containing summary statistics with genomic coordinates
+#' @param sumstats A data.frame or data.table containing summary statistics with genomic coordinates.
+#'   Can be NULL if input_file is provided.
+#' @param input_file Character. Path to input file (supports .gz). Alternative to sumstats parameter
+#'   for memory-efficient processing of large files. When provided, chunks are read directly from
+#'   disk using bash, avoiding loading the full file into R.
+#' @param output_file Character. Path to output file. If provided, results are written to disk
+#'   instead of returned as data.frame. Recommended for large files.
 #' @param CHR_name Character. Column name for chromosome (default: "CHR_hg38")
 #' @param POS_name Character. Column name for genomic position (default: "POS_hg38")
 #' @param A1_name Character. Column name for first allele (default: "A1_hg38")
@@ -15,9 +21,9 @@
 #'   named homo_sapiens-chr{CHR}.vcf.gz (optional if dbSNP_file provided)
 #' @param keep_lower Logical. Whether to keep lowercase alleles (default: FALSE)
 #' @param chunk_size Integer. Number of variants to process per chunk for memory efficiency.
-#'   Set to NULL to disable chunking. Default is 10000 (10K variants).
+#'   Set to NULL to disable chunking. Default is 100000 (100K variants).
 #'
-#' @return A data.frame with additional columns:
+#' @return A data.frame with additional columns (or NULL if output_file is provided):
 #' \itemize{
 #'   \item \strong{rs}: dbSNP rs identifiers
 #'   \item \strong{Name_hg38}: Standardized variant names (CHR:POS:REF:ALT format)
@@ -27,16 +33,15 @@
 #' This function performs the following steps:
 #' \enumerate{
 #'   \item Validates input data and converts to appropriate formats
-#'   \item Adds 'chr' prefix to chromosomes if missing (required for UCSC format)
 #'   \item Converts alleles to uppercase (unless keep_lower=TRUE)
 #'   \item Uses tabix to query dbSNP file for each chromosome
 #'   \item Matches variants by position and allele combination
 #'   \item Returns harmonized variant names and rs identifiers
 #' }
 #'
-#' For large datasets (>1M variants), the function processes data in chunks to
-#' reduce memory usage. Each chunk is processed independently and results are
-#' combined at the end.
+#' For very large files (>10M variants), use input_file parameter instead of loading
+#' data into R first. This enables bash-level chunking where only one chunk is ever
+#' in memory at a time.
 #'
 #' The function handles ambiguous allele orders by trying both A1/A2 and A2/A1
 #' combinations and provides matching statistics to help assess data quality.
@@ -66,29 +71,25 @@
 #'
 #' @examples
 #' \dontrun{
-#' # Example with single file
+#' # Example with data.frame
 #' result <- name_by_position(
 #'   sumstats = sumstats,
 #'   dbSNP_file = "path/to/dbSNP_all.vcf.gz"
 #' )
 #'
-#' # Example with per-chromosome directory
+#' # Example with file input (memory efficient for large files)
 #' result <- name_by_position(
-#'   sumstats = sumstats,
+#'   input_file = "large_sumstats.tsv.gz",
+#'   output_file = "result.tsv.gz",
 #'   dbSNP_dir = "/path/to/ensembl_vcf/"
-#' )
-#'
-#' # Process very large file with smaller chunks to reduce memory
-#' result <- name_by_position(
-#'   sumstats = large_sumstats,
-#'   dbSNP_dir = "/path/to/ensembl_vcf/",
-#'   chunk_size = 500000
 #' )
 #' }
 #'
-#' @importFrom data.table fread
+#' @importFrom data.table fread fwrite
 #' @export
-name_by_position <- function(sumstats,
+name_by_position <- function(sumstats = NULL,
+                             input_file = NULL,
+                             output_file = NULL,
                              CHR_name = "CHR_hg38",
                              POS_name = "POS_hg38",
                              A1_name = "A1_hg38",
@@ -97,16 +98,24 @@ name_by_position <- function(sumstats,
                              dbSNP_file = NULL,
                              dbSNP_dir = NULL,
                              keep_lower = FALSE,
-                             chunk_size = 10000) {
+                             chunk_size = 100000) {
 
   message("=== Variant Name Matching ===")
+
+  # Validate input source
+  if (is.null(sumstats) && is.null(input_file)) {
+    stop("Must provide either sumstats or input_file")
+  }
+  if (!is.null(sumstats) && !is.null(input_file)) {
+    stop("Provide either sumstats or input_file, not both")
+  }
 
   # Validate dependencies
   if (Sys.which(tabix_bin) == "" && !file.exists(tabix_bin)) {
     stop("tabix not found. Install htslib or specify path.")
   }
 
-  # Validate dbSNP source - need either file or directory
+  # Validate dbSNP source
   use_per_chr <- FALSE
   if (!is.null(dbSNP_dir)) {
     if (!dir.exists(dbSNP_dir)) {
@@ -123,7 +132,141 @@ name_by_position <- function(sumstats,
     stop("Must provide either dbSNP_file or dbSNP_dir")
   }
 
-  # Work on a copy as data.frame
+  # ===== FILE-BASED PROCESSING (memory efficient) =====
+  if (!is.null(input_file)) {
+    if (!file.exists(input_file)) {
+      stop("Input file not found: ", input_file)
+    }
+
+    message("Using file-based chunking for memory efficiency")
+
+    # Determine if gzipped
+    is_gzipped <- grepl("\\.gz$", input_file)
+    cat_cmd <- if (is_gzipped) "zcat" else "cat"
+
+    # Count lines (excluding header)
+    count_cmd <- sprintf("%s '%s' | tail -n +2 | wc -l", cat_cmd, input_file)
+    total_lines <- as.integer(system(count_cmd, intern = TRUE))
+    message("Input file: ", format(total_lines, big.mark = ","), " variants")
+
+    if (total_lines == 0) {
+      warning("Input file has no data rows")
+      return(data.frame())
+    }
+
+    # Create temp directory for results
+    temp_dir <- tempfile(pattern = "name_by_pos_")
+    dir.create(temp_dir)
+    on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+    # Calculate chunks
+    if (is.null(chunk_size)) chunk_size <- total_lines
+    n_chunks <- ceiling(total_lines / chunk_size)
+    message("Processing in ", n_chunks, " chunks of ~", format(chunk_size, big.mark = ","), " variants each")
+
+    total_matched <- 0
+
+    for (i in seq_len(n_chunks)) {
+      skip_lines <- (i - 1) * chunk_size
+      take_lines <- min(chunk_size, total_lines - skip_lines)
+
+      message("\n--- Chunk ", i, "/", n_chunks, " ---")
+
+      # Extract chunk with header using bash (memory efficient)
+      chunk_file <- file.path(temp_dir, paste0("chunk_", i, ".tsv"))
+
+      # Get header + chunk of data
+      extract_cmd <- sprintf(
+        "{ %s '%s' | head -1; %s '%s' | tail -n +2 | tail -n +%d | head -n %d; } > '%s'",
+        cat_cmd, input_file, cat_cmd, input_file, skip_lines + 1, take_lines, chunk_file
+      )
+      system(extract_cmd)
+
+      # Read chunk
+      df_chunk <- data.table::fread(chunk_file, header = TRUE)
+      df_chunk <- as.data.frame(df_chunk)
+      unlink(chunk_file)
+
+      # Add row ID
+      df_chunk$.row_id <- seq_len(nrow(df_chunk))
+
+      # Handle allele case
+      if (!keep_lower) {
+        df_chunk[[A1_name]] <- toupper(df_chunk[[A1_name]])
+        df_chunk[[A2_name]] <- toupper(df_chunk[[A2_name]])
+      }
+
+      # Process chunk
+      chunk_result <- .process_variants_chunk(
+        df_chunk = df_chunk,
+        CHR_name = CHR_name,
+        POS_name = POS_name,
+        A1_name = A1_name,
+        A2_name = A2_name,
+        tabix_bin = tabix_bin,
+        dbSNP_file = dbSNP_file,
+        dbSNP_dir = dbSNP_dir,
+        use_per_chr = use_per_chr
+      )
+
+      if (!is.null(chunk_result) && nrow(chunk_result) > 0) {
+        chunk_result$.row_id <- NULL
+        total_matched <- total_matched + nrow(chunk_result)
+
+        # Write chunk result
+        result_file <- file.path(temp_dir, paste0("result_", i, ".tsv"))
+        data.table::fwrite(chunk_result, result_file, sep = "\t")
+      }
+
+      rm(df_chunk, chunk_result)
+      gc(verbose = FALSE)
+    }
+
+    message("\n--- Summary ---")
+    message("Total matched: ", format(total_matched, big.mark = ","), " variants")
+
+    # Combine results
+    result_files <- list.files(temp_dir, pattern = "^result_.*\\.tsv$", full.names = TRUE)
+
+    if (length(result_files) == 0) {
+      warning("No variants matched. Check chromosome naming and positions.")
+      return(data.frame())
+    }
+
+    # If output file specified, combine and write
+    if (!is.null(output_file)) {
+      message("Writing results to: ", output_file)
+
+      # Write header from first file
+      first_result <- data.table::fread(result_files[1], nrows = 0)
+      data.table::fwrite(first_result, output_file, sep = "\t")
+
+      # Append all results
+      for (rf in result_files) {
+        append_cmd <- sprintf("tail -n +2 '%s' >> '%s'", rf, output_file)
+        system(append_cmd)
+      }
+
+      # Compress if requested
+      if (grepl("\\.gz$", output_file)) {
+        uncompressed <- sub("\\.gz$", "", output_file)
+        file.rename(output_file, uncompressed)
+        system2("gzip", uncompressed)
+      }
+
+      message("Output: ", format(total_matched, big.mark = ","), " variants written to file")
+      return(invisible(NULL))
+    }
+
+    # Otherwise, read and combine all results
+    result <- data.table::rbindlist(lapply(result_files, data.table::fread))
+    result <- as.data.frame(result)
+
+    message("Output: ", format(nrow(result), big.mark = ","), " variants with rsID and Name")
+    return(result)
+  }
+
+  # ===== DATA.FRAME-BASED PROCESSING =====
   df <- as.data.frame(sumstats)
   n_input <- nrow(df)
   message("Input: ", format(n_input, big.mark = ","), " variants")
@@ -149,7 +292,6 @@ name_by_position <- function(sumstats,
   use_chunking <- !is.null(chunk_size) && n_input > chunk_size
 
   if (use_chunking) {
-    # Process in chunks
     n_chunks <- ceiling(n_input / chunk_size)
     message("Processing in ", n_chunks, " chunks of ~", format(chunk_size, big.mark = ","), " variants each")
 
@@ -176,12 +318,10 @@ name_by_position <- function(sumstats,
         chunk_results[[i]] <- chunk_result
       }
 
-      # Clean up to free memory
       rm(df_chunk, chunk_result)
       gc(verbose = FALSE)
     }
 
-    # Combine chunk results
     if (length(chunk_results) == 0) {
       warning("No variants matched. Check chromosome naming and positions.")
       df$.row_id <- NULL
@@ -191,7 +331,6 @@ name_by_position <- function(sumstats,
     result <- do.call(rbind, chunk_results)
 
   } else {
-    # Process all at once
     result <- .process_variants_chunk(
       df_chunk = df,
       CHR_name = CHR_name,
@@ -214,8 +353,20 @@ name_by_position <- function(sumstats,
   rownames(result) <- NULL
   result$.row_id <- NULL
 
-  message("\nOutput: ", format(nrow(result), big.mark = ","), " variants with rsID and Name")
+  # Write to file if requested
+  if (!is.null(output_file)) {
+    message("Writing results to: ", output_file)
+    data.table::fwrite(result, output_file, sep = "\t")
+    if (grepl("\\.gz$", output_file)) {
+      uncompressed <- sub("\\.gz$", "", output_file)
+      file.rename(output_file, uncompressed)
+      system2("gzip", uncompressed)
+    }
+    message("\nOutput: ", format(nrow(result), big.mark = ","), " variants written to file")
+    return(invisible(NULL))
+  }
 
+  message("\nOutput: ", format(nrow(result), big.mark = ","), " variants with rsID and Name")
   return(result)
 }
 
@@ -360,7 +511,13 @@ name_by_position <- function(sumstats,
 #' Performs genomic coordinate conversion between genome builds (e.g., hg19 to hg38)
 #' using UCSC liftOver tool, with optional variant name harmonization via dbSNP.
 #'
-#' @param sumstats A data.frame or data.table containing summary statistics with genomic coordinates
+#' @param sumstats A data.frame or data.table containing summary statistics with genomic coordinates.
+#'   Can be NULL if input_file is provided.
+#' @param input_file Character. Path to input file (supports .gz). Alternative to sumstats parameter
+#'   for memory-efficient processing of large files. When provided, chunks are read directly from
+#'   disk using bash, avoiding loading the full file into R.
+#' @param output_file Character. Path to output file. If provided, results are written to disk
+#'   instead of returned as data.frame. Recommended for large files.
 #' @param CHR_name Character. Column name for chromosome
 #' @param POS_name Character. Column name for genomic position
 #' @param A1_name Character. Column name for first allele
@@ -369,9 +526,9 @@ name_by_position <- function(sumstats,
 #' @param liftOver_chain Character. Path to liftOver chain file
 #' @param keep_lower Logical. Whether to keep lowercase alleles (default: FALSE)
 #' @param chunk_size Integer. Number of variants to process per chunk for memory efficiency.
-#'   Set to NULL to disable chunking. Default is 1000000 (1M variants).
+#'   Set to NULL to disable chunking. Default is 100000 (100K variants).
 #'
-#' @return A data.frame with lifted coordinates in new columns:
+#' @return A data.frame with lifted coordinates in new columns (or NULL if output_file is provided):
 #' \itemize{
 #'   \item \strong{CHR_hg38}: Chromosome in target build
 #'   \item \strong{POS_hg38}: Position in target build
@@ -390,6 +547,10 @@ name_by_position <- function(sumstats,
 #'   \item Handles strand flipping for negative strand variants
 #'   \item Returns cleaned data with new genomic coordinates
 #' }
+#'
+#' For very large files (>10M variants), use input_file parameter instead of loading
+#' data into R first. This enables bash-level chunking where only one chunk is ever
+#' in memory at a time.
 #'
 #' Variants that cannot be lifted over are automatically removed with a summary
 #' of the number of failed variants.
@@ -423,18 +584,7 @@ name_by_position <- function(sumstats,
 #'
 #' @examples
 #' \dontrun{
-#' # Basic liftOver from hg19 to hg38
-#'
-#' # Sample data in hg19 coordinates
-#' sumstats_hg19 <- data.frame(
-#'   CHR = c("1", "2", "3"),
-#'   POS = c(1000000, 2000000, 3000000),
-#'   A1 = c("A", "G", "T"),
-#'   A2 = c("G", "C", "C"),
-#'   PVAL = c(1e-8, 1e-6, 1e-5)
-#' )
-#'
-#' # Perform liftOver
+#' # Basic liftOver from hg19 to hg38 (data.frame mode)
 #' sumstats_hg38 <- genepi_liftover(
 #'   sumstats = sumstats_hg19,
 #'   CHR_name = "CHR",
@@ -445,13 +595,24 @@ name_by_position <- function(sumstats,
 #'   liftOver_chain = "path/to/hg19ToHg38.over.chain.gz"
 #' )
 #'
-#' # Check results
-#' print(sumstats_hg38)
+#' # File-based mode (memory efficient for large files)
+#' genepi_liftover(
+#'   input_file = "large_sumstats.tsv.gz",
+#'   output_file = "lifted_sumstats.tsv.gz",
+#'   CHR_name = "Chr",
+#'   POS_name = "Pos_b37",
+#'   A1_name = "Allele1",
+#'   A2_name = "Allele2",
+#'   liftOver_bin = "path/to/liftOver",
+#'   liftOver_chain = "path/to/hg19ToHg38.over.chain.gz"
+#' )
 #' }
 #'
-#' @importFrom data.table fread
+#' @importFrom data.table fread fwrite
 #' @export
-genepi_liftover <- function(sumstats,
+genepi_liftover <- function(sumstats = NULL,
+                            input_file = NULL,
+                            output_file = NULL,
                             CHR_name,
                             POS_name,
                             A1_name,
@@ -459,9 +620,17 @@ genepi_liftover <- function(sumstats,
                             liftOver_bin = "liftOver",
                             liftOver_chain,
                             keep_lower = FALSE,
-                            chunk_size = 1000000) {
+                            chunk_size = 100000) {
 
   message("=== Genomic Coordinate Lift Over ===")
+
+  # Validate input source
+  if (is.null(sumstats) && is.null(input_file)) {
+    stop("Must provide either sumstats or input_file")
+  }
+  if (!is.null(sumstats) && !is.null(input_file)) {
+    stop("Provide either sumstats or input_file, not both")
+  }
 
   # Validate required tools and files
   if (!file.exists(liftOver_bin) && Sys.which(liftOver_bin) == "") {
@@ -474,6 +643,166 @@ genepi_liftover <- function(sumstats,
          "\nDownload from: https://hgdownload.soe.ucsc.edu/goldenPath/")
   }
 
+  # ===== FILE-BASED PROCESSING (memory efficient) =====
+  if (!is.null(input_file)) {
+    if (!file.exists(input_file)) {
+      stop("Input file not found: ", input_file)
+    }
+
+    message("Using file-based chunking for memory efficiency")
+
+    # Determine if gzipped
+    is_gzipped <- grepl("\\.gz$", input_file)
+    cat_cmd <- if (is_gzipped) "zcat" else "cat"
+
+    # Count lines (excluding header)
+    count_cmd <- sprintf("%s '%s' | tail -n +2 | wc -l", cat_cmd, input_file)
+    total_lines <- as.integer(system(count_cmd, intern = TRUE))
+    message("Input file: ", format(total_lines, big.mark = ","), " variants")
+
+    if (total_lines == 0) {
+      warning("Input file has no data rows")
+      return(data.frame())
+    }
+
+    # Create temp directory for results
+    temp_dir <- tempfile(pattern = "liftover_")
+    dir.create(temp_dir)
+    on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+    # Calculate chunks
+    if (is.null(chunk_size)) chunk_size <- total_lines
+    n_chunks <- ceiling(total_lines / chunk_size)
+    message("Processing in ", n_chunks, " chunks of ~", format(chunk_size, big.mark = ","), " variants each")
+
+    total_lifted <- 0
+    total_unmapped <- 0
+
+    # Detect chromosome prefix from first chunk
+    header_cmd <- sprintf("%s '%s' | head -1", cat_cmd, input_file)
+    header_line <- system(header_cmd, intern = TRUE)
+
+    for (i in seq_len(n_chunks)) {
+      skip_lines <- (i - 1) * chunk_size
+      take_lines <- min(chunk_size, total_lines - skip_lines)
+
+      message("\n--- Chunk ", i, "/", n_chunks, " ---")
+
+      # Extract chunk with header using bash (memory efficient)
+      chunk_file <- file.path(temp_dir, paste0("chunk_", i, ".tsv"))
+
+      # Get header + chunk of data
+      extract_cmd <- sprintf(
+        "{ %s '%s' | head -1; %s '%s' | tail -n +2 | tail -n +%d | head -n %d; } > '%s'",
+        cat_cmd, input_file, cat_cmd, input_file, skip_lines + 1, take_lines, chunk_file
+      )
+      system(extract_cmd)
+
+      # Read chunk
+      df_chunk <- data.table::fread(chunk_file, header = TRUE)
+      df_chunk <- as.data.frame(df_chunk)
+      unlink(chunk_file)
+
+      # Add row ID
+      df_chunk$.liftover_row_id <- seq_len(nrow(df_chunk))
+
+      # Handle chromosome naming (liftOver expects 'chr' prefix)
+      chr_had_prefix <- any(grepl("^chr", df_chunk[[CHR_name]], ignore.case = TRUE))
+      if (!chr_had_prefix) {
+        df_chunk[[CHR_name]] <- paste0("chr", df_chunk[[CHR_name]])
+      }
+
+      # Handle allele case
+      if (!keep_lower) {
+        df_chunk[[A1_name]] <- toupper(df_chunk[[A1_name]])
+        df_chunk[[A2_name]] <- toupper(df_chunk[[A2_name]])
+      }
+
+      # Process chunk
+      chunk_result <- .process_liftover_chunk(
+        df_chunk = df_chunk,
+        CHR_name = CHR_name,
+        POS_name = POS_name,
+        A1_name = A1_name,
+        A2_name = A2_name,
+        liftOver_bin = liftOver_bin,
+        liftOver_chain = liftOver_chain
+      )
+
+      if (!is.null(chunk_result$result) && nrow(chunk_result$result) > 0) {
+        result_df <- chunk_result$result
+        result_df$.liftover_row_id <- NULL
+
+        # Remove 'chr' prefix from output columns
+        result_df$CHR_hg38 <- gsub("^chr", "", result_df$CHR_hg38)
+
+        # Restore original chr column if we added prefix
+        if (!chr_had_prefix) {
+          result_df[[CHR_name]] <- gsub("^chr", "", result_df[[CHR_name]])
+        }
+
+        total_lifted <- total_lifted + nrow(result_df)
+
+        # Write chunk result
+        result_file <- file.path(temp_dir, paste0("result_", i, ".tsv"))
+        data.table::fwrite(result_df, result_file, sep = "\t")
+      }
+      total_unmapped <- total_unmapped + chunk_result$n_unmapped
+
+      rm(df_chunk, chunk_result)
+      gc(verbose = FALSE)
+    }
+
+    message("\n--- Summary ---")
+    message("Lifted: ", format(total_lifted, big.mark = ","), " variants (",
+            round(100 * total_lifted / total_lines, 1), "%)")
+    if (total_unmapped > 0) {
+      message("Unmapped: ", format(total_unmapped, big.mark = ","), " variants (",
+              round(100 * total_unmapped / total_lines, 2), "%)")
+    }
+
+    # Combine results
+    result_files <- list.files(temp_dir, pattern = "^result_.*\\.tsv$", full.names = TRUE)
+
+    if (length(result_files) == 0) {
+      warning("No variants lifted. Check input coordinates.")
+      return(data.frame())
+    }
+
+    # If output file specified, combine and write
+    if (!is.null(output_file)) {
+      message("Writing results to: ", output_file)
+
+      # Write header from first file
+      first_result <- data.table::fread(result_files[1], nrows = 0)
+      data.table::fwrite(first_result, output_file, sep = "\t")
+
+      # Append all results
+      for (rf in result_files) {
+        append_cmd <- sprintf("tail -n +2 '%s' >> '%s'", rf, output_file)
+        system(append_cmd)
+      }
+
+      # Compress if requested
+      if (grepl("\\.gz$", output_file)) {
+        uncompressed <- sub("\\.gz$", "", output_file)
+        file.rename(output_file, uncompressed)
+        system2("gzip", uncompressed)
+      }
+
+      message("Output: ", format(total_lifted, big.mark = ","), " variants written to file")
+      return(invisible(NULL))
+    }
+
+    # Otherwise, read and combine all results
+    result <- data.table::rbindlist(lapply(result_files, data.table::fread))
+    result <- as.data.frame(result)
+
+    message("Output: ", format(nrow(result), big.mark = ","), " variants with hg38 coordinates")
+    return(result)
+  }
+
+  # ===== DATA.FRAME-BASED PROCESSING =====
   # Work on a copy as data.frame
   df <- as.data.frame(sumstats)
   n_input <- nrow(df)
@@ -587,6 +916,19 @@ genepi_liftover <- function(sumstats,
   # Restore original chr column if we added prefix
   if (!chr_had_prefix) {
     df_lifted[[CHR_name]] <- gsub("^chr", "", df_lifted[[CHR_name]])
+  }
+
+  # Write to file if requested
+  if (!is.null(output_file)) {
+    message("Writing results to: ", output_file)
+    data.table::fwrite(df_lifted, output_file, sep = "\t")
+    if (grepl("\\.gz$", output_file)) {
+      uncompressed <- sub("\\.gz$", "", output_file)
+      file.rename(output_file, uncompressed)
+      system2("gzip", uncompressed)
+    }
+    message("\nOutput: ", format(nrow(df_lifted), big.mark = ","), " variants written to file")
+    return(invisible(NULL))
   }
 
   message("\nOutput: ", format(nrow(df_lifted), big.mark = ","), " variants with hg38 coordinates")
