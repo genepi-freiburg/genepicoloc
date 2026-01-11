@@ -140,8 +140,8 @@ name_by_position <- function(sumstats = NULL,
 
     message("Using file-based chunking for memory efficiency")
 
-    # Determine if gzipped
-    is_gzipped <- grepl("\\.gz$", input_file)
+    # Determine if gzipped (.gz or .bgz)
+    is_gzipped <- grepl("\\.(gz|bgz)$", input_file)
     cat_cmd <- if (is_gzipped) "zcat" else "cat"
 
     # Count lines (excluding header)
@@ -651,8 +651,8 @@ genepi_liftover <- function(sumstats = NULL,
 
     message("Using file-based chunking for memory efficiency")
 
-    # Determine if gzipped
-    is_gzipped <- grepl("\\.gz$", input_file)
+    # Determine if gzipped (.gz or .bgz)
+    is_gzipped <- grepl("\\.(gz|bgz)$", input_file)
     cat_cmd <- if (is_gzipped) "zcat" else "cat"
 
     # Count lines (excluding header)
