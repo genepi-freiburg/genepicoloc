@@ -142,19 +142,19 @@ name_by_position <- function(sumstats,
 
   results_list <- list()
 
-  for (chr in chromosomes) {
-    sumstats_chr <- sumstats[get(CHR_name) == chr]
+  for (chr_val in chromosomes) {
+    sumstats_chr <- sumstats[get(CHR_name) == chr_val]
     n_chr <- nrow(sumstats_chr)
 
     # Determine dbSNP file for this chromosome
     if (use_per_chr) {
       # Build per-chromosome filename
       # Ensembl files use "1", "X", "MT" (no chr prefix)
-      chr_for_file <- gsub("^chr", "", chr)
+      chr_for_file <- gsub("^chr", "", chr_val)
       dbSNP_file_chr <- file.path(dbSNP_dir, paste0("homo_sapiens-chr", chr_for_file, ".vcf.gz"))
 
       if (!file.exists(dbSNP_file_chr)) {
-        message("  Chr ", chr, ": VCF file not found, skipping (", basename(dbSNP_file_chr), ")")
+        message("  Chr ", chr_val, ": VCF file not found, skipping (", basename(dbSNP_file_chr), ")")
         next
       }
     } else {
@@ -164,14 +164,14 @@ name_by_position <- function(sumstats,
     # Detect chromosome naming in dbSNP file (only once per file)
     dbsnp_chroms <- system2(tabix_bin, c(dbSNP_file_chr, "-l"), stdout = TRUE, stderr = FALSE)
     dbsnp_has_chr <- any(grepl("^chr", dbsnp_chroms))
-    sumstats_chr_has_chr <- grepl("^chr", chr)
+    sumstats_chr_has_chr <- grepl("^chr", chr_val)
 
     # Adjust chromosome for tabix query to match dbSNP naming
-    chr_query <- chr
+    chr_query <- chr_val
     if (dbsnp_has_chr && !sumstats_chr_has_chr) {
-      chr_query <- paste0("chr", chr)
+      chr_query <- paste0("chr", chr_val)
     } else if (!dbsnp_has_chr && sumstats_chr_has_chr) {
-      chr_query <- gsub("^chr", "", chr)
+      chr_query <- gsub("^chr", "", chr_val)
     }
 
     # Get position range for tabix query
@@ -179,7 +179,7 @@ name_by_position <- function(sumstats,
     pos_max <- max(sumstats_chr[[POS_name]])
     region <- paste0(chr_query, ":", pos_min, "-", pos_max)
 
-    message("  Chr ", chr, ": querying ", format(n_chr, big.mark = ","),
+    message("  Chr ", chr_val, ": querying ", format(n_chr, big.mark = ","),
             " variants (", format(pos_min, big.mark = ","), "-", format(pos_max, big.mark = ","), ")...")
 
     # Query dbSNP with tabix (this can take a while for large regions)
@@ -188,7 +188,7 @@ name_by_position <- function(sumstats,
     }, error = function(e) character(0))
 
     if (length(dbsnp_raw) == 0) {
-      message("  Chr ", chr, ": no dbSNP data in region")
+      message("  Chr ", chr_val, ": no dbSNP data in region")
       next
     }
 
@@ -200,7 +200,7 @@ name_by_position <- function(sumstats,
     dbsnp <- dbsnp[POS %in% sumstats_chr[[POS_name]]]
 
     if (nrow(dbsnp) == 0) {
-      message("  Chr ", chr, ": no position matches")
+      message("  Chr ", chr_val, ": no position matches")
       next
     }
 
@@ -233,10 +233,10 @@ name_by_position <- function(sumstats,
 
     n_matched <- nrow(matched)
     pct_matched <- round(100 * n_matched / n_chr, 1)
-    message("  Chr ", chr, ": matched ", format(n_matched, big.mark = ","), "/",
+    message("  Chr ", chr_val, ": matched ", format(n_matched, big.mark = ","), "/",
             format(n_chr, big.mark = ","), " variants (", pct_matched, "%)")
 
-    results_list[[chr]] <- matched
+    results_list[[chr_val]] <- matched
   }
 
   # Combine results
