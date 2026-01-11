@@ -14,6 +14,8 @@
 #' @param dbSNP_dir Character. Path to directory containing per-chromosome VCF files
 #'   named homo_sapiens-chr{CHR}.vcf.gz (optional if dbSNP_file provided)
 #' @param keep_lower Logical. Whether to keep lowercase alleles (default: FALSE)
+#' @param chunk_size Integer. Number of variants to process per chunk for memory efficiency.
+#'   Set to NULL to disable chunking. Default is 1000000 (1M variants).
 #'
 #' @return A data.frame with additional columns:
 #' \itemize{
@@ -31,6 +33,10 @@
 #'   \item Matches variants by position and allele combination
 #'   \item Returns harmonized variant names and rs identifiers
 #' }
+#'
+#' For large datasets (>1M variants), the function processes data in chunks to
+#' reduce memory usage. Each chunk is processed independently and results are
+#' combined at the end.
 #'
 #' The function handles ambiguous allele orders by trying both A1/A2 and A2/A1
 #' combinations and provides matching statistics to help assess data quality.
@@ -71,9 +77,16 @@
 #'   sumstats = sumstats,
 #'   dbSNP_dir = "/path/to/ensembl_vcf/"
 #' )
+#'
+#' # Process very large file with smaller chunks to reduce memory
+#' result <- name_by_position(
+#'   sumstats = large_sumstats,
+#'   dbSNP_dir = "/path/to/ensembl_vcf/",
+#'   chunk_size = 500000
+#' )
 #' }
 #'
-#' @importFrom data.table fread rbindlist
+#' @importFrom data.table fread
 #' @export
 name_by_position <- function(sumstats,
                              CHR_name = "CHR_hg38",
@@ -83,7 +96,8 @@ name_by_position <- function(sumstats,
                              tabix_bin = "tabix",
                              dbSNP_file = NULL,
                              dbSNP_dir = NULL,
-                             keep_lower = FALSE) {
+                             keep_lower = FALSE,
+                             chunk_size = 1000000) {
 
   message("=== Variant Name Matching ===")
 
@@ -111,7 +125,6 @@ name_by_position <- function(sumstats,
 
   # Work on a copy as data.frame
   df <- as.data.frame(sumstats)
-
   n_input <- nrow(df)
   message("Input: ", format(n_input, big.mark = ","), " variants")
 
@@ -132,22 +145,112 @@ name_by_position <- function(sumstats,
   # Add row ID for tracking
   df$.row_id <- seq_len(nrow(df))
 
-  # Process each chromosome
-  chromosomes <- unique(df[[CHR_name]])
+  # Determine if chunking is needed
+  use_chunking <- !is.null(chunk_size) && n_input > chunk_size
+
+  if (use_chunking) {
+    # Process in chunks
+    n_chunks <- ceiling(n_input / chunk_size)
+    message("Processing in ", n_chunks, " chunks of ~", format(chunk_size, big.mark = ","), " variants each")
+
+    chunk_indices <- split(seq_len(n_input), ceiling(seq_len(n_input) / chunk_size))
+    chunk_results <- list()
+
+    for (i in seq_along(chunk_indices)) {
+      message("\n--- Chunk ", i, "/", n_chunks, " ---")
+      df_chunk <- df[chunk_indices[[i]], , drop = FALSE]
+
+      chunk_result <- .process_variants_chunk(
+        df_chunk = df_chunk,
+        CHR_name = CHR_name,
+        POS_name = POS_name,
+        A1_name = A1_name,
+        A2_name = A2_name,
+        tabix_bin = tabix_bin,
+        dbSNP_file = dbSNP_file,
+        dbSNP_dir = dbSNP_dir,
+        use_per_chr = use_per_chr
+      )
+
+      if (!is.null(chunk_result) && nrow(chunk_result) > 0) {
+        chunk_results[[i]] <- chunk_result
+      }
+
+      # Clean up to free memory
+      rm(df_chunk, chunk_result)
+      gc(verbose = FALSE)
+    }
+
+    # Combine chunk results
+    if (length(chunk_results) == 0) {
+      warning("No variants matched. Check chromosome naming and positions.")
+      df$.row_id <- NULL
+      return(df[0, , drop = FALSE])
+    }
+
+    result <- do.call(rbind, chunk_results)
+
+  } else {
+    # Process all at once
+    result <- .process_variants_chunk(
+      df_chunk = df,
+      CHR_name = CHR_name,
+      POS_name = POS_name,
+      A1_name = A1_name,
+      A2_name = A2_name,
+      tabix_bin = tabix_bin,
+      dbSNP_file = dbSNP_file,
+      dbSNP_dir = dbSNP_dir,
+      use_per_chr = use_per_chr
+    )
+
+    if (is.null(result) || nrow(result) == 0) {
+      warning("No variants matched. Check chromosome naming and positions.")
+      df$.row_id <- NULL
+      return(df[0, , drop = FALSE])
+    }
+  }
+
+  rownames(result) <- NULL
+  result$.row_id <- NULL
+
+  message("\nOutput: ", format(nrow(result), big.mark = ","), " variants with rsID and Name")
+
+  return(result)
+}
+
+#' Process a chunk of variants for name matching
+#'
+#' Internal function that processes a subset of variants against dbSNP.
+#'
+#' @param df_chunk Data frame chunk to process
+#' @param CHR_name Column name for chromosome
+#' @param POS_name Column name for position
+#' @param A1_name Column name for allele 1
+#' @param A2_name Column name for allele 2
+#' @param tabix_bin Path to tabix binary
+#' @param dbSNP_file Path to single dbSNP file (or NULL)
+#' @param dbSNP_dir Path to per-chromosome dbSNP directory (or NULL)
+#' @param use_per_chr Whether to use per-chromosome files
+#'
+#' @return Data frame with matched variants, or NULL if no matches
+#' @keywords internal
+.process_variants_chunk <- function(df_chunk, CHR_name, POS_name, A1_name, A2_name,
+                                     tabix_bin, dbSNP_file, dbSNP_dir, use_per_chr) {
+
+  chromosomes <- unique(df_chunk[[CHR_name]])
   message("Processing ", length(chromosomes), " chromosome(s)...")
 
   results_list <- list()
 
   for (chr_val in chromosomes) {
     # Subset for this chromosome
-    chr_idx <- df[[CHR_name]] == chr_val
-    df_chr <- df[chr_idx, , drop = FALSE]
+    chr_idx <- df_chunk[[CHR_name]] == chr_val
+    df_chr <- df_chunk[chr_idx, , drop = FALSE]
     n_chr <- nrow(df_chr)
 
     # Determine dbSNP file for this chromosome
     if (use_per_chr) {
-      # Build per-chromosome filename
-      # Ensembl files use "1", "X", "MT" (no chr prefix)
       chr_for_file <- gsub("^chr", "", chr_val)
       dbSNP_file_chr <- file.path(dbSNP_dir, paste0("homo_sapiens-chr", chr_for_file, ".vcf.gz"))
 
@@ -164,7 +267,7 @@ name_by_position <- function(sumstats,
     dbsnp_has_chr <- any(grepl("^chr", dbsnp_chroms))
     sumstats_chr_has_chr <- grepl("^chr", chr_val)
 
-    # Adjust chromosome for tabix query to match dbSNP naming
+    # Adjust chromosome for tabix query
     chr_query <- chr_val
     if (dbsnp_has_chr && !sumstats_chr_has_chr) {
       chr_query <- paste0("chr", chr_val)
@@ -190,7 +293,7 @@ name_by_position <- function(sumstats,
       next
     }
 
-    # Parse tabix output (VCF format: CHR, POS, ID, REF, ALT, ...)
+    # Parse tabix output
     dbsnp <- data.table::fread(text = dbsnp_raw, header = FALSE, sep = "\t", select = 1:5,
                                 col.names = c("CHR", "POS", "rsID", "REF", "ALT"))
     dbsnp <- as.data.frame(dbsnp)
@@ -203,7 +306,7 @@ name_by_position <- function(sumstats,
       next
     }
 
-    # Expand multi-allelic variants (ALT contains comma-separated alleles)
+    # Expand multi-allelic variants
     if (any(grepl(",", dbsnp$ALT))) {
       expanded_list <- lapply(seq_len(nrow(dbsnp)), function(i) {
         row <- dbsnp[i, , drop = FALSE]
@@ -256,19 +359,10 @@ name_by_position <- function(sumstats,
 
   # Combine results
   if (length(results_list) == 0) {
-    warning("No variants matched. Check chromosome naming and positions.")
-    return(df[0, , drop = FALSE])
+    return(NULL)
   }
 
-  result <- do.call(rbind, results_list)
-  rownames(result) <- NULL
-
-  # Clean up row_id column
-  result$.row_id <- NULL
-
-  message("Output: ", format(nrow(result), big.mark = ","), " variants with rsID and Name")
-
-  return(result)
+  do.call(rbind, results_list)
 }
 
 #' Genomic Coordinate Lift Over with Variant Harmonization
