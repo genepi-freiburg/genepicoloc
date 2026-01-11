@@ -154,7 +154,23 @@ name_by_position <- function(sumstats = NULL,
     # Get header
     header_cmd <- sprintf("%s '%s' | head -1", cat_cmd, input_file)
     header_line <- system(header_cmd, intern = TRUE)
+
+    # Check for decompression failure (binary data in header)
+    if (length(header_line) == 0 || any(charToRaw(header_line) < 0x20 & charToRaw(header_line) != 0x09)) {
+      stop("Failed to read header. File may be corrupted or not properly decompressed.\n",
+           "Command: ", header_cmd)
+    }
+
     header <- strsplit(header_line, "\t")[[1]]
+    if (length(header) < 2) {
+      # Try space delimiter as fallback
+      header <- strsplit(header_line, "\\s+")[[1]]
+      if (length(header) < 2) {
+        stop("Header has only ", length(header), " column(s). Could not parse as tab or space-separated.\n",
+             "Header line: ", substr(header_line, 1, 100))
+      }
+      message("Note: Header parsed as space-separated (not tab-separated)")
+    }
 
     # Count lines
     count_cmd <- sprintf("%s '%s' | tail -n +2 | wc -l", cat_cmd, input_file)
@@ -664,7 +680,23 @@ genepi_liftover <- function(sumstats = NULL,
     # Get header
     header_cmd <- sprintf("%s '%s' | head -1", cat_cmd, input_file)
     header_line <- system(header_cmd, intern = TRUE)
+
+    # Check for decompression failure (binary data in header)
+    if (length(header_line) == 0 || any(charToRaw(header_line) < 0x20 & charToRaw(header_line) != 0x09)) {
+      stop("Failed to read header. File may be corrupted or not properly decompressed.\n",
+           "Command: ", header_cmd)
+    }
+
     header <- strsplit(header_line, "\t")[[1]]
+    if (length(header) < 2) {
+      # Try space delimiter as fallback
+      header <- strsplit(header_line, "\\s+")[[1]]
+      if (length(header) < 2) {
+        stop("Header has only ", length(header), " column(s). Could not parse as tab or space-separated.\n",
+             "Header line: ", substr(header_line, 1, 100))
+      }
+      message("Note: Header parsed as space-separated (not tab-separated)")
+    }
 
     # Count lines
     count_cmd <- sprintf("%s '%s' | tail -n +2 | wc -l", cat_cmd, input_file)
