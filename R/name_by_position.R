@@ -183,12 +183,21 @@ name_by_position <- function(sumstats = NULL,
       return(data.frame())
     }
 
-    # Pre-split file into chunks (one-time cost, true O(1) per chunk read)
+    # Find CHR and POS column indices for sorting
+    chr_col <- which(header == CHR_name)
+    pos_col <- which(header == POS_name)
+    if (length(chr_col) == 0 || length(pos_col) == 0) {
+      stop("Could not find CHR column '", CHR_name, "' or POS column '", POS_name, "' in header")
+    }
+
+    # Sort by CHR and POS, then split into chunks
     if (is.null(chunk_size)) chunk_size <- total_lines
-    message("Splitting file into chunks...")
-    split_cmd <- sprintf("%s '%s' | tail -n +2 | split -l %d - '%s/chunk_'",
-                         cat_cmd, input_file, chunk_size, chunk_dir)
-    system(split_cmd)
+    message("Sorting and splitting file into chunks...")
+    sort_split_cmd <- sprintf(
+      "%s '%s' | tail -n +2 | sort -t'\t' -k%d,%dV -k%d,%dn | split -l %d - '%s/chunk_'",
+      cat_cmd, input_file, chr_col, chr_col, pos_col, pos_col, chunk_size, chunk_dir
+    )
+    system(sort_split_cmd)
 
     chunk_files <- sort(list.files(chunk_dir, full.names = TRUE, pattern = "^chunk_"))
     n_chunks <- length(chunk_files)
