@@ -142,10 +142,26 @@ name_by_position <- function(sumstats = NULL,
 
     # Determine if gzipped (.gz or .bgz)
     is_gzipped <- grepl("\\.(gz|bgz)$", input_file)
-    cat_cmd <- if (is_gzipped) "zcat" else "cat"
 
-    # Count lines (excluding header)
-    count_cmd <- sprintf("%s '%s' | tail -n +2 | wc -l", cat_cmd, input_file)
+    # Create temp directory for results
+    temp_dir <- tempfile(pattern = "name_by_pos_")
+    dir.create(temp_dir)
+    on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+    # Decompress once to temp file for fast seeking (avoids O(n²) with zcat|tail)
+    if (is_gzipped) {
+      message("Decompressing input file...")
+      temp_uncompressed <- file.path(temp_dir, "input.tsv")
+      decompress_cmd <- sprintf("zcat '%s' > '%s'", input_file, temp_uncompressed)
+      system(decompress_cmd)
+      work_file <- temp_uncompressed
+    } else {
+      work_file <- input_file
+    }
+
+    # Read header and count lines
+    header <- names(data.table::fread(work_file, nrows = 0))
+    count_cmd <- sprintf("tail -n +2 '%s' | wc -l", work_file)
     total_lines <- as.integer(system(count_cmd, intern = TRUE))
     message("Input file: ", format(total_lines, big.mark = ","), " variants")
 
@@ -153,11 +169,6 @@ name_by_position <- function(sumstats = NULL,
       warning("Input file has no data rows")
       return(data.frame())
     }
-
-    # Create temp directory for results
-    temp_dir <- tempfile(pattern = "name_by_pos_")
-    dir.create(temp_dir)
-    on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
     # Calculate chunks
     if (is.null(chunk_size)) chunk_size <- total_lines
@@ -167,25 +178,20 @@ name_by_position <- function(sumstats = NULL,
     total_matched <- 0
 
     for (i in seq_len(n_chunks)) {
-      skip_lines <- (i - 1) * chunk_size
-      take_lines <- min(chunk_size, total_lines - skip_lines)
+      skip_rows <- 1 + (i - 1) * chunk_size  # +1 for header row
+      take_rows <- min(chunk_size, total_lines - (i - 1) * chunk_size)
 
       message("\n--- Chunk ", i, "/", n_chunks, " ---")
 
-      # Extract chunk with header using bash (memory efficient)
-      chunk_file <- file.path(temp_dir, paste0("chunk_", i, ".tsv"))
-
-      # Get header + chunk of data
-      extract_cmd <- sprintf(
-        "{ %s '%s' | head -1; %s '%s' | tail -n +2 | tail -n +%d | head -n %d; } > '%s'",
-        cat_cmd, input_file, cat_cmd, input_file, skip_lines + 1, take_lines, chunk_file
+      # Use fread with skip/nrows for fast seeking (O(1) per chunk)
+      df_chunk <- data.table::fread(
+        work_file,
+        header = FALSE,
+        skip = skip_rows,
+        nrows = take_rows,
+        col.names = header
       )
-      system(extract_cmd)
-
-      # Read chunk
-      df_chunk <- data.table::fread(chunk_file, header = TRUE)
       df_chunk <- as.data.frame(df_chunk)
-      unlink(chunk_file)
 
       # Add row ID
       df_chunk$.row_id <- seq_len(nrow(df_chunk))
@@ -653,10 +659,26 @@ genepi_liftover <- function(sumstats = NULL,
 
     # Determine if gzipped (.gz or .bgz)
     is_gzipped <- grepl("\\.(gz|bgz)$", input_file)
-    cat_cmd <- if (is_gzipped) "zcat" else "cat"
 
-    # Count lines (excluding header)
-    count_cmd <- sprintf("%s '%s' | tail -n +2 | wc -l", cat_cmd, input_file)
+    # Create temp directory for results
+    temp_dir <- tempfile(pattern = "liftover_")
+    dir.create(temp_dir)
+    on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+    # Decompress once to temp file for fast seeking (avoids O(n²) with zcat|tail)
+    if (is_gzipped) {
+      message("Decompressing input file...")
+      temp_uncompressed <- file.path(temp_dir, "input.tsv")
+      decompress_cmd <- sprintf("zcat '%s' > '%s'", input_file, temp_uncompressed)
+      system(decompress_cmd)
+      work_file <- temp_uncompressed
+    } else {
+      work_file <- input_file
+    }
+
+    # Read header and count lines
+    header <- names(data.table::fread(work_file, nrows = 0))
+    count_cmd <- sprintf("tail -n +2 '%s' | wc -l", work_file)
     total_lines <- as.integer(system(count_cmd, intern = TRUE))
     message("Input file: ", format(total_lines, big.mark = ","), " variants")
 
@@ -664,11 +686,6 @@ genepi_liftover <- function(sumstats = NULL,
       warning("Input file has no data rows")
       return(data.frame())
     }
-
-    # Create temp directory for results
-    temp_dir <- tempfile(pattern = "liftover_")
-    dir.create(temp_dir)
-    on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
     # Calculate chunks
     if (is.null(chunk_size)) chunk_size <- total_lines
@@ -678,30 +695,21 @@ genepi_liftover <- function(sumstats = NULL,
     total_lifted <- 0
     total_unmapped <- 0
 
-    # Detect chromosome prefix from first chunk
-    header_cmd <- sprintf("%s '%s' | head -1", cat_cmd, input_file)
-    header_line <- system(header_cmd, intern = TRUE)
-
     for (i in seq_len(n_chunks)) {
-      skip_lines <- (i - 1) * chunk_size
-      take_lines <- min(chunk_size, total_lines - skip_lines)
+      skip_rows <- 1 + (i - 1) * chunk_size  # +1 for header row
+      take_rows <- min(chunk_size, total_lines - (i - 1) * chunk_size)
 
       message("\n--- Chunk ", i, "/", n_chunks, " ---")
 
-      # Extract chunk with header using bash (memory efficient)
-      chunk_file <- file.path(temp_dir, paste0("chunk_", i, ".tsv"))
-
-      # Get header + chunk of data
-      extract_cmd <- sprintf(
-        "{ %s '%s' | head -1; %s '%s' | tail -n +2 | tail -n +%d | head -n %d; } > '%s'",
-        cat_cmd, input_file, cat_cmd, input_file, skip_lines + 1, take_lines, chunk_file
+      # Use fread with skip/nrows for fast seeking (O(1) per chunk)
+      df_chunk <- data.table::fread(
+        work_file,
+        header = FALSE,
+        skip = skip_rows,
+        nrows = take_rows,
+        col.names = header
       )
-      system(extract_cmd)
-
-      # Read chunk
-      df_chunk <- data.table::fread(chunk_file, header = TRUE)
       df_chunk <- as.data.frame(df_chunk)
-      unlink(chunk_file)
 
       # Add row ID
       df_chunk$.liftover_row_id <- seq_len(nrow(df_chunk))
