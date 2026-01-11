@@ -142,26 +142,22 @@ name_by_position <- function(sumstats = NULL,
 
     # Determine if gzipped (.gz or .bgz)
     is_gzipped <- grepl("\\.(gz|bgz)$", input_file)
+    cat_cmd <- if (is_gzipped) "zcat" else "cat"
 
-    # Create temp directory for results
+    # Create temp directory for chunks and results
     temp_dir <- tempfile(pattern = "name_by_pos_")
     dir.create(temp_dir)
+    chunk_dir <- file.path(temp_dir, "chunks")
+    dir.create(chunk_dir)
     on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-    # Decompress once to temp file for fast seeking (avoids O(n²) with zcat|tail)
-    if (is_gzipped) {
-      message("Decompressing input file...")
-      temp_uncompressed <- file.path(temp_dir, "input.tsv")
-      decompress_cmd <- sprintf("zcat '%s' > '%s'", input_file, temp_uncompressed)
-      system(decompress_cmd)
-      work_file <- temp_uncompressed
-    } else {
-      work_file <- input_file
-    }
+    # Get header
+    header_cmd <- sprintf("%s '%s' | head -1", cat_cmd, input_file)
+    header_line <- system(header_cmd, intern = TRUE)
+    header <- strsplit(header_line, "\t")[[1]]
 
-    # Read header and count lines
-    header <- names(data.table::fread(work_file, nrows = 0))
-    count_cmd <- sprintf("tail -n +2 '%s' | wc -l", work_file)
+    # Count lines
+    count_cmd <- sprintf("%s '%s' | tail -n +2 | wc -l", cat_cmd, input_file)
     total_lines <- as.integer(system(count_cmd, intern = TRUE))
     message("Input file: ", format(total_lines, big.mark = ","), " variants")
 
@@ -170,27 +166,24 @@ name_by_position <- function(sumstats = NULL,
       return(data.frame())
     }
 
-    # Calculate chunks
+    # Pre-split file into chunks (one-time cost, true O(1) per chunk read)
     if (is.null(chunk_size)) chunk_size <- total_lines
-    n_chunks <- ceiling(total_lines / chunk_size)
-    message("Processing in ", n_chunks, " chunks of ~", format(chunk_size, big.mark = ","), " variants each")
+    message("Splitting file into chunks...")
+    split_cmd <- sprintf("%s '%s' | tail -n +2 | split -l %d - '%s/chunk_'",
+                         cat_cmd, input_file, chunk_size, chunk_dir)
+    system(split_cmd)
+
+    chunk_files <- sort(list.files(chunk_dir, full.names = TRUE, pattern = "^chunk_"))
+    n_chunks <- length(chunk_files)
+    message("Processing ", n_chunks, " chunks of ~", format(chunk_size, big.mark = ","), " variants each")
 
     total_matched <- 0
 
     for (i in seq_len(n_chunks)) {
-      skip_rows <- 1 + (i - 1) * chunk_size  # +1 for header row
-      take_rows <- min(chunk_size, total_lines - (i - 1) * chunk_size)
-
       message("\n--- Chunk ", i, "/", n_chunks, " ---")
 
-      # Use fread with skip/nrows for fast seeking (O(1) per chunk)
-      df_chunk <- data.table::fread(
-        work_file,
-        header = FALSE,
-        skip = skip_rows,
-        nrows = take_rows,
-        col.names = header
-      )
+      # Read chunk file directly (constant time)
+      df_chunk <- data.table::fread(chunk_files[i], header = FALSE, col.names = header)
       df_chunk <- as.data.frame(df_chunk)
 
       # Add row ID
@@ -659,26 +652,22 @@ genepi_liftover <- function(sumstats = NULL,
 
     # Determine if gzipped (.gz or .bgz)
     is_gzipped <- grepl("\\.(gz|bgz)$", input_file)
+    cat_cmd <- if (is_gzipped) "zcat" else "cat"
 
-    # Create temp directory for results
+    # Create temp directory for chunks and results
     temp_dir <- tempfile(pattern = "liftover_")
     dir.create(temp_dir)
+    chunk_dir <- file.path(temp_dir, "chunks")
+    dir.create(chunk_dir)
     on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
-    # Decompress once to temp file for fast seeking (avoids O(n²) with zcat|tail)
-    if (is_gzipped) {
-      message("Decompressing input file...")
-      temp_uncompressed <- file.path(temp_dir, "input.tsv")
-      decompress_cmd <- sprintf("zcat '%s' > '%s'", input_file, temp_uncompressed)
-      system(decompress_cmd)
-      work_file <- temp_uncompressed
-    } else {
-      work_file <- input_file
-    }
+    # Get header
+    header_cmd <- sprintf("%s '%s' | head -1", cat_cmd, input_file)
+    header_line <- system(header_cmd, intern = TRUE)
+    header <- strsplit(header_line, "\t")[[1]]
 
-    # Read header and count lines
-    header <- names(data.table::fread(work_file, nrows = 0))
-    count_cmd <- sprintf("tail -n +2 '%s' | wc -l", work_file)
+    # Count lines
+    count_cmd <- sprintf("%s '%s' | tail -n +2 | wc -l", cat_cmd, input_file)
     total_lines <- as.integer(system(count_cmd, intern = TRUE))
     message("Input file: ", format(total_lines, big.mark = ","), " variants")
 
@@ -687,28 +676,25 @@ genepi_liftover <- function(sumstats = NULL,
       return(data.frame())
     }
 
-    # Calculate chunks
+    # Pre-split file into chunks (one-time cost, true O(1) per chunk read)
     if (is.null(chunk_size)) chunk_size <- total_lines
-    n_chunks <- ceiling(total_lines / chunk_size)
-    message("Processing in ", n_chunks, " chunks of ~", format(chunk_size, big.mark = ","), " variants each")
+    message("Splitting file into chunks...")
+    split_cmd <- sprintf("%s '%s' | tail -n +2 | split -l %d - '%s/chunk_'",
+                         cat_cmd, input_file, chunk_size, chunk_dir)
+    system(split_cmd)
+
+    chunk_files <- sort(list.files(chunk_dir, full.names = TRUE, pattern = "^chunk_"))
+    n_chunks <- length(chunk_files)
+    message("Processing ", n_chunks, " chunks of ~", format(chunk_size, big.mark = ","), " variants each")
 
     total_lifted <- 0
     total_unmapped <- 0
 
     for (i in seq_len(n_chunks)) {
-      skip_rows <- 1 + (i - 1) * chunk_size  # +1 for header row
-      take_rows <- min(chunk_size, total_lines - (i - 1) * chunk_size)
-
       message("\n--- Chunk ", i, "/", n_chunks, " ---")
 
-      # Use fread with skip/nrows for fast seeking (O(1) per chunk)
-      df_chunk <- data.table::fread(
-        work_file,
-        header = FALSE,
-        skip = skip_rows,
-        nrows = take_rows,
-        col.names = header
-      )
+      # Read chunk file directly (constant time)
+      df_chunk <- data.table::fread(chunk_files[i], header = FALSE, col.names = header)
       df_chunk <- as.data.frame(df_chunk)
 
       # Add row ID
