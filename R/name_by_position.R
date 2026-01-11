@@ -15,7 +15,7 @@
 #'   named homo_sapiens-chr{CHR}.vcf.gz (optional if dbSNP_file provided)
 #' @param keep_lower Logical. Whether to keep lowercase alleles (default: FALSE)
 #' @param chunk_size Integer. Number of variants to process per chunk for memory efficiency.
-#'   Set to NULL to disable chunking. Default is 1000000 (1M variants).
+#'   Set to NULL to disable chunking. Default is 10000 (10K variants).
 #'
 #' @return A data.frame with additional columns:
 #' \itemize{
@@ -97,7 +97,7 @@ name_by_position <- function(sumstats,
                              dbSNP_file = NULL,
                              dbSNP_dir = NULL,
                              keep_lower = FALSE,
-                             chunk_size = 1000000) {
+                             chunk_size = 10000) {
 
   message("=== Variant Name Matching ===")
 
