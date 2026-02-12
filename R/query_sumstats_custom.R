@@ -645,3 +645,56 @@ format_MVP_R4 <- function(sumstats) {
                          N="num_samples")
   return(sumstats)
 }
+
+#' Query UKB kidney volume summary statistics via tabix
+#'
+#' @description Retrieves UK Biobank kidney volume summary statistics from
+#' REGENIE output files using tabix indexing.
+#'
+#' @param sumstats_file Path to tabix-indexed summary statistics file
+#' @param coloc_regions_PASS Data frame with colocalization regions
+#' @return Data frame with formatted summary statistics
+#' @keywords internal
+tabix_UKB_kidney_vol <- function(sumstats_file, coloc_regions_PASS) {
+  # change X to 23 (REGENIE convention)
+  coloc_regions_PASS$CHR_var[coloc_regions_PASS$CHR_var == "X"] <- "23"
+  sumstats <- retrieve_sumstats_tabix(sumstats_file=sumstats_file,
+                             coloc_regions_PASS=coloc_regions_PASS)
+  if (attr(sumstats, "tabix") != "tabix_failed") {
+    sumstats <- format_UKB_kidney_vol(sumstats=sumstats)
+  }
+  return(sumstats)
+}
+
+#' Format UKB kidney volume summary statistics
+#'
+#' @description Formats UK Biobank kidney volume summary statistics to standard
+#' column names. Expects pre-formatted columns matching the standard naming
+#' convention (Name, rsID, CHR, POS, A1, A2, BETA, SE, nlog10P, AF, N).
+#'
+#' @param sumstats Data frame with UKB kidney volume summary statistics
+#' @return Data frame with standardized column names
+#' @keywords internal
+format_UKB_kidney_vol <- function(sumstats) {
+  # check
+  cols_from <- c("Name", "rsID", "CHR", "POS", "A1", "A2", "BETA", "SE", "nlog10P", "AF", "N")
+  if (!all(cols_from %in% colnames(sumstats))) {
+    stop("Column mismatch when reading ", attr(sumstats, "sumstats_file"))
+  }
+  # format: convert REGENIE chr23 back to X
+  sumstats$CHR[sumstats$CHR == "23"] <- "X"
+  # colnames
+  sumstats <- match_cols(sumstats=sumstats,
+                         Name="Name",
+                         rsID="rsID",
+                         CHR="CHR",
+                         POS="POS",
+                         A1="A1",
+                         A2="A2",
+                         BETA="BETA",
+                         SE="SE",
+                         nlog10P="nlog10P",
+                         AF="AF",
+                         N="N")
+  return(sumstats)
+}

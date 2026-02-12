@@ -1,0 +1,79 @@
+# Example genepicoloc study configuration
+#
+# Each top-level key is a study name used in args_df$sumstats_2_study.
+# Required fields: query_function, type, and one file source mode.
+#
+# File source modes (choose one):
+#   files:          - explicit list of file paths
+#   path: + pattern: - directory listing with glob pattern
+#   metadata_file:  - TSV with per-file metadata (columns: file, type, sdY)
+#
+# See ?create_args_df_from_config for full documentation.
+
+# --- Example: eQTL dataset with explicit file list ---
+# eQTLGen:
+#   description: "eQTLGen blood eQTL (Vosa et al. 2021)"
+#   query_function: retrieve_sumstats_tabix
+#   type: quant
+#   sdY: 1
+#   files:
+#     - /path/to/eQTLGen/cis_eQTLs_gene1.txt.gz
+#     - /path/to/eQTLGen/cis_eQTLs_gene2.txt.gz
+
+# --- Example: dataset from a directory with glob pattern ---
+# GTEx_eQTL:
+#   description: "GTEx v8 eQTL (all tissues)"
+#   query_function: retrieve_sumstats_tabix
+#   type: quant
+#   sdY: 1
+#   path: /path/to/GTEx/
+#   pattern: "*.allpairs.txt.gz"
+#   exclude_pattern: "\.log$"           # optional: regex to exclude files
+#   expected_count: 49                   # optional: validation check
+
+# --- Example: REGENIE-format GWAS with chr X -> 23 handling ---
+# UKB_kidney_vol:
+#   description: "UK Biobank kidney volumes (REGENIE)"
+#   query_function: tabix_UKB_kidney_vol
+#   type: quant
+#   sdY: 1
+#   path: /path/to/UKB_kidney_vol/
+#   pattern: "*.regenie.gz"
+#   expected_count: 4
+
+# --- Example: case-control study ---
+# FinnGen_r9:
+#   description: "FinnGen release 9"
+#   query_function: tabix_FinnGen_r9
+#   type: cc
+#   path: /path/to/FinnGen_r9/
+#   pattern: "*.gz"
+
+# --- Example: mixed quant/cc with type_rules ---
+# CKDGen_r4:
+#   description: "CKDGen consortium round 4"
+#   query_function: retrieve_sumstats_tabix
+#   type: quant
+#   sdY: 1
+#   path: /path/to/CKDGen_r4/
+#   pattern: "*.gz"
+#   type_rules:
+#     cc: "gout_|MA_overall"            # files matching this regex are case-control
+
+# --- Example: MVP-style metadata file ---
+# MVP_R4:
+#   description: "Million Veteran Program release 4"
+#   query_function: tabix_MVP_R4
+#   type: quant
+#   metadata_file: /path/to/mvp_metadata.tsv
+#   # The TSV must have a 'file' column, and optionally 'type' and 'sdY' columns.
+
+# --- Example: cluster-only study (hidden by default) ---
+# Icelanders_pGWAS:
+#   description: "Icelanders plasma proteomics (deCODE)"
+#   query_function: tabix_Icelanders_pGWAS
+#   type: quant
+#   sdY: 1
+#   path: /cluster/path/to/icelanders/
+#   pattern: "*.gz"
+#   internal: true                       # only visible with internal=TRUE
