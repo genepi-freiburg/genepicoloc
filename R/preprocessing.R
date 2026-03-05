@@ -207,6 +207,21 @@ retrieve_sumstats_tabix <- function(sumstats_file,
   } else {
     tabix_attr <- if (nrow(sumstats) == 0) "tabix_ok_no_data" else "tabix_ok"
   }
+
+  # Recover column names if tabix didn't return the header
+  # (happens when the file was indexed without matching -c flag)
+  if (tabix_attr == "tabix_ok" && ncol(sumstats) > 0 &&
+      all(grepl("^V[0-9]+$", colnames(sumstats)))) {
+    header <- tryCatch({
+      scan(text = system(paste0("zcat ", shQuote(sumstats_file),
+                                " 2>/dev/null | head -1"),
+                         intern = TRUE),
+           what = character(), quiet = TRUE)
+    }, error = function(e) NULL)
+    if (!is.null(header) && length(header) == ncol(sumstats)) {
+      data.table::setnames(sumstats, header)
+    }
+  }
   
   # Set attributes
   attr(sumstats, "tabix") <- tabix_attr

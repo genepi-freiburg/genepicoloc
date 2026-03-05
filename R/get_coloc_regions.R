@@ -305,7 +305,7 @@ write_regions <- function(coloc_regions_list, sumstats_name) {
 #' @param out_name Suffix to add to the base name (default: "_subset")
 #' @param CHR Column name for chromosome (default: "CHR")
 #' @param POS Column name for position (default: "POS")
-#' @param SKIP_name Value for tabix's -c parameter (comment character or column to skip) (default: "Name")
+#' @param SKIP_name Value for tabix's -c parameter to skip the header line. If NULL (default), uses the first column name.
 #' @param order_sumstats Whether to sort the data by chromosome and position (default: FALSE)
 #' @param bgzip_bin Path to bgzip executable (default: "bgzip")
 #' @param tabix_bin Path to tabix executable (default: "tabix")
@@ -317,7 +317,7 @@ gc_bgzip_tabix <- function(sumstats,
                            out_name = "_subset",
                            CHR = "CHR", 
                            POS = "POS",
-                           SKIP_name = "Name", 
+                           SKIP_name = NULL,
                            order_sumstats = FALSE,
                            bgzip_bin = "bgzip", 
                            tabix_bin = "tabix") {
@@ -333,11 +333,16 @@ gc_bgzip_tabix <- function(sumstats,
     stop("POS column '", POS, "' not found in sumstats")
   }
   
+  # Auto-detect SKIP_name from the first column if not provided
+  if (is.null(SKIP_name)) {
+    SKIP_name <- colnames(sumstats)[1]
+  }
+
   # Get column positions (needed for tabix)
   CHR_place <- which(colnames(sumstats) == CHR)
   POS_place <- which(colnames(sumstats) == POS)
-  
-  message("CHR column found at position ", CHR_place, 
+
+  message("CHR column found at position ", CHR_place,
           ". POS column found at position ", POS_place)
   
   # Order data if requested
