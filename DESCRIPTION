@@ -1,5 +1,5 @@
 Package: genepicoloc
-Title: R Package to Facilitate Genetic (olocalization Analyses
+Title: R Package to Facilitate Genetic Colocalization Analyses
 Version: 0.9.3.2
 Date: 2025-09-27
 Authors@R: 
@@ -10,8 +10,8 @@ Description: Provides tools for efficient genetic colocalization analysis
     Features scalable pipeline architecture with tar-based storage for
     handling large-scale analyses.
 License: MIT + file LICENSE
-URL: https://github.com/username/genepicoloc
-BugReports: https://github.com/username/genepicoloc/issues
+URL: https://github.com/genepi-freiburg/genepicoloc
+BugReports: https://github.com/genepi-freiburg/genepicoloc/issues
 Imports:
     RCurl,
     coloc,
@@ -25,5 +25,6 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 SystemRequirements: bgzip, tabix, tar
 Suggests:
+    susieR,
     testthat,
     yaml

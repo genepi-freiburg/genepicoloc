@@ -22,7 +22,7 @@ launch_coloc_viewer <- function(port = 3838,
   # Define color palette for studies
   study_colors <- c(
     "CKDGen_r5" = "#1f77b4",
-    "FinnGen_r9" = "#ff7f0e", 
+    "FinnGen_r9" = "#ff7f0e",
     "GCKD_mGWAS_plasma" = "#2ca02c",
     "GCKD_mGWAS_urine" = "#d62728",
     "Icelanders_pGWAS" = "#9467bd",

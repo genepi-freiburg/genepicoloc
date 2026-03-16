@@ -45,8 +45,6 @@
 #' @seealso
 #' \code{\link{susie_rss}} for details on the underlying algorithm.
 #'
-#' @importFrom susieR susie_rss
-#'
 #' @export
 genepicoloc_susie_rss <- function(
     sumstats_data,
@@ -64,6 +62,11 @@ genepicoloc_susie_rss <- function(
     tol = 0.001,
     ...
 ) {
+    if (!requireNamespace("susieR", quietly = TRUE)) {
+      stop("Package 'susieR' is required for SuSiE fine-mapping. ",
+           "Install it with: install.packages('susieR')")
+    }
+
     # Check that SNP names match between sumstats_data and R
     stopifnot(all(sumstats_data[[snp_col_name]] == colnames(R)))
     stopifnot(all(sumstats_data[[snp_col_name]] == rownames(R)))
@@ -77,7 +80,7 @@ genepicoloc_susie_rss <- function(
     }
 
     # Run SuSiE-RSS
-    fitted_rss <- susie_rss(
+    fitted_rss <- susieR::susie_rss(
         bhat = sumstats_data[[bhat_col_name]],
         shat = sumstats_data[[shat_col_name]],
         n = n,

@@ -28,7 +28,7 @@
 #'     \item sumstats_2_type: 'quant' or 'cc'
 #'     \item sumstats_2_sdY: Standard deviation (NA for cc)
 #'   }
-#' @param mc_cores Integer. Cores for parallel processing (default: 10).
+#' @param mc_cores Integer. Cores for parallel processing (default: 2).
 #' @param verbose Logical. Print progress messages (default: TRUE).
 #' @param debug_mode Logical. Run sequentially for debugging (default: FALSE).
 #' @param max_regions_per_job Integer. Maximum regions per job (default: 10).
@@ -403,9 +403,9 @@ genepicoloc_job <- function(sumstats_1_form,
                             verbose = TRUE,
                             debug_mode = FALSE,
                             save_sumstats = FALSE,
-                            p_filt = 0.05,
+                            p_filt = 1,
                             p_min_save = 5e-8) {
-  
+
   # Create temp directories
   temp_coloc_dir <- tempfile(pattern = "coloc_", tmpdir = tempdir())
   dir.create(temp_coloc_dir, recursive = TRUE, showWarnings = FALSE)
@@ -554,9 +554,9 @@ genepicoloc_run <- function(temp_sumstats_dir,
                             sumstats_2_study,
                             verbose = TRUE,
                             save_sumstats = FALSE,
-                            p_filt = 0.05,
+                            p_filt = 1,
                             p_min_save = 5e-8) {
-  
+
   # Extract regions from primary dataset
   # NOTE: This will be a subset of the original regions when processing jobs
   if (is.null(attr(sumstats_1_form, "coloc_regions_PASS"))) {
@@ -1537,13 +1537,15 @@ prepare_coloc_dataset <- function(sumstats, sumstats_type, sumstats_sdY) {
       }
     }
   }
-  # For case-control traits
-  # Note: coloc.abf can handle cc traits with just beta/varbeta/type
-  # but additional parameters like s (case proportion) can improve accuracy
-  # TODO: Add case/control counts if available
-  # if (all(c("N_cases", "N_controls") %in% colnames(sumstats))) {
-  #   dataset$s <- sumstats$N_cases / (sumstats$N_cases + sumstats$N_controls)
-  # }
+  # For case-control traits, add case proportion if available
+  if (sumstats_type == "cc") {
+    if (all(c("N_cases", "N_controls") %in% colnames(sumstats))) {
+      s <- sumstats$N_cases[1] / (sumstats$N_cases[1] + sumstats$N_controls[1])
+      if (is.finite(s) && s > 0 && s < 1) {
+        dataset$s <- s
+      }
+    }
+  }
   
   # Validate output
   if (any(is.infinite(dataset$varbeta))) {
