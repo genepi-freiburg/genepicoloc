@@ -1,0 +1,333 @@
+---
+title: "Getting Started with genepicoloc"
+format: html
+vignette: >
+  %\VignetteIndexEntry{Getting Started with genepicoloc}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  eval = FALSE,
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Overview
+
+**genepicoloc** provides a scalable pipeline for genetic colocalization analysis
+across multiple QTL and PheWAS datasets. It wraps the
+[coloc](https://chr1swallace.github.io/coloc/) package with infrastructure for
+handling thousands of dataset comparisons efficiently.
+
+The typical workflow has five steps:
+
+1. **Format** your primary GWAS summary statistics (sumstats_1)
+2. **Identify** significant genomic regions
+3. **Define** secondary datasets (sumstats_2) via YAML configuration
+4. **Run** colocalization across all region-dataset combinations
+5. **Consolidate** and annotate results
+
+## Installation
+
+```{r}
+# Install from GitHub
+remotes::install_github("genepi-freiburg/genepicoloc")
+```
+
+**System requirements:** `bgzip`, `tabix` (from htslib), and `tar` must be
+available on your `PATH`.
+
+## Step 1: Load and Format Primary Summary Statistics
+
+Your primary GWAS (sumstats_1) needs standard column names. Use `match_cols()`
+to rename columns to the expected format.
+
+```{r}
+library(genepicoloc)
+library(data.table)
+
+# Load your GWAS summary statistics
+sumstats_1 <- fread("my_gwas.txt.gz")
+
+# Rename columns to standard format
+sumstats_1 <- match_cols(
+  sumstats = sumstats_1,
+  Name = "variant_id",    # chr:pos:ref:alt format
+  rsID = "rsid",
+  CHR  = "chromosome",
+  POS  = "position",
+  A1   = "effect_allele",
+  A2   = "other_allele",
+  BETA = "beta",
+  SE   = "se",
+  P    = "pvalue",
+  AF   = "eaf",
+  N    = "n"
+)
+
+# Calculate -log10(P) with underflow handling
+sumstats_1[, nlog10P := handle_underflow(P, return_nlog10P = TRUE)]
+
+# Basic QC
+sumstats_1 <- sumstats_1[is.finite(nlog10P) & !is.na(BETA) & !is.na(SE) & SE > 0]
+```
+
+### Required columns
+
+| Column | Description |
+|--------|-------------|
+| `Name` | Variant ID in chr:pos:ref:alt format (e.g., `chr16:17906244:T:C`) |
+| `CHR` | Chromosome (1-22, X) |
+| `POS` | Genomic position (GRCh38) |
+| `A1` | Effect allele |
+| `A2` | Other allele |
+| `BETA` | Effect size |
+| `SE` | Standard error |
+| `nlog10P` | -log10(p-value) |
+| `AF` | Allele frequency |
+| `N` | Sample size |
+
+### Preprocessing: LiftOver and rsID annotation
+
+If your GWAS is on hg19, use `genepi_liftover()` to convert coordinates:
+
+```{r}
+sumstats_hg38 <- genepi_liftover(
+  sumstats = sumstats_1,
+  CHR_name = "CHR", POS_name = "POS",
+  A1_name = "A1", A2_name = "A2",
+  liftOver_bin = "liftOver",
+  liftOver_chain = "hg19ToHg38.over.chain.gz"
+)
+```
+
+To add rsIDs from Ensembl VCF files:
+
+```{r}
+sumstats_named <- name_by_position(
+  sumstats = sumstats_hg38,
+  CHR_name = "CHR_hg38", POS_name = "POS_hg38",
+  A1_name = "A1_hg38", A2_name = "A2_hg38",
+  dbSNP_dir = "/path/to/ensembl_vcf/"
+)
+```
+
+## Step 2: Identify Significant Regions
+
+`get_coloc_regions()` finds genome-wide significant loci and defines windows
+around them:
+
+```{r}
+coloc_regions_list <- get_coloc_regions(
+  sumstats = sumstats_1,
+  CHR_name = "CHR",
+  POS_name = "POS",
+  nlog10p_value_name = "nlog10P",
+  nlogP_threshold = 7.30103,   # p = 5e-8
+  halfwindow = 500000           # 500 kb each side
+)
+
+# Check how many regions were found
+coloc_regions_list$coloc_regions_PASS
+```
+
+Then write the regions to indexed files for fast retrieval:
+
+```{r}
+sumstats_1_subset_file <- write_regions(
+  coloc_regions_list,
+  sumstats_name = "output/my_gwas"
+)
+```
+
+## Step 3: Define Secondary Datasets via YAML
+
+Create a YAML configuration file listing your target datasets. This is the
+recommended way to define sumstats_2 sources:
+
+```yaml
+# studies.yaml
+
+eQTLGen:
+  description: "eQTLGen blood eQTL (Vosa et al. 2021)"
+  query_function: retrieve_sumstats_tabix
+  type: quant
+  sdY: 1
+  files:
+    - /path/to/eQTLGen/cis_full_chr1.txt.gz
+    - /path/to/eQTLGen/cis_full_chr2.txt.gz
+
+GTEx_eQTL:
+  description: "GTEx v8 eQTL (all tissues)"
+  query_function: retrieve_sumstats_tabix
+  type: quant
+  sdY: 1
+  path: /path/to/GTEx/
+  pattern: "*.allpairs.txt.gz"
+  expected_count: 49
+
+FinnGen:
+  description: "FinnGen release 9"
+  query_function: retrieve_sumstats_tabix
+  type: cc
+  path: /path/to/FinnGen/
+  pattern: "*.gz"
+```
+
+Three file source modes are supported:
+
+- **`files:`** - explicit list of file paths
+- **`path:` + `pattern:`** - directory listing with glob pattern
+- **`metadata_file:`** - TSV with per-file metadata (columns: `file`, `type`, `sdY`)
+
+Browse and validate your config:
+
+```{r}
+# List available studies
+list_available_studies("studies.yaml")
+
+# Build the args_df for the pipeline
+args_df <- create_args_df_from_config("studies.yaml")
+
+# Or select specific studies
+args_df <- create_args_df_from_config(
+  "studies.yaml",
+  selected_studies = c("eQTLGen", "GTEx_eQTL")
+)
+```
+
+See `system.file("extdata", "example_studies.yaml", package = "genepicoloc")`
+for more examples.
+
+## Step 4: Run Colocalization
+
+Assemble the sumstats_1 arguments and run:
+
+```{r}
+sumstats_1_args <- list(
+  coloc_regions_PASS = coloc_regions_list$coloc_regions_PASS,
+  sumstats_1_function = "retrieve_sumstats_tabix",
+  sumstats_1_file = sumstats_1_subset_file,
+  sumstats_1_type = "quant",   # or "cc" for case-control
+  sumstats_1_sdY = NA           # NA for case-control, or provide sdY
+)
+
+genepicoloc_wrapper(
+  dir_out = "output/coloc_results",
+  sumstats_1_args = sumstats_1_args,
+  args_df = args_df,
+  mc_cores = 4,
+  save_sumstats = FALSE  # set TRUE to keep sumstats for regional plots
+)
+```
+
+Key parameters:
+
+- `mc_cores` - number of parallel cores
+- `save_sumstats` - save filtered sumstats for downstream use (regional plots,
+  fine-mapping). Increases disk usage substantially.
+- `max_regions_per_job` - regions per batch (default 10; increase for single-phenotype studies)
+- `debug_mode` - run sequentially for troubleshooting
+
+## Step 5: Consolidate and Annotate Results
+
+After the pipeline completes, consolidate results from all jobs:
+
+```{r}
+results <- consolidate_coloc_results(
+  dir_out = "output/coloc_results",
+  verbose = TRUE
+)
+```
+
+Add gene annotations:
+
+```{r}
+results <- add_gene_annotations(results, verbose = TRUE)
+```
+
+The output data.table contains one row per region-dataset pair with coloc
+posterior probabilities:
+
+| Column | Description |
+|--------|-------------|
+| `PP.H0.abf` | P(no association in either) |
+| `PP.H1.abf` | P(association in sumstats_1 only) |
+| `PP.H2.abf` | P(association in sumstats_2 only) |
+| `PP.H3.abf` | P(both associated, different causal variants) |
+| `PP.H4.abf` | P(both associated, shared causal variant) |
+| `nsnps` | Number of shared SNPs in the region |
+
+**PP.H4 > 0.8** is commonly used as a threshold for evidence of colocalization.
+
+## Data Sources
+
+### tabix-indexed files
+
+Most datasets use `retrieve_sumstats_tabix()` as the query function. Your
+sumstats_2 files need to be bgzip-compressed and tabix-indexed:
+```bash
+bgzip my_sumstats.txt
+tabix -s 1 -b 2 -e 2 -S 1 my_sumstats.txt.gz
+```
+
+The files must have standard columns (Name, CHR, POS, A1, A2, BETA, SE, AF, N)
+or columns recognized by `format_sumstats()`.
+
+### eQTL Catalogue
+
+genepicoloc has built-in support for the
+[eQTL Catalogue](https://www.ebi.ac.uk/eqtl/) API:
+
+```{r}
+# Browse available datasets
+datasets <- get_datasets_eQTL_Catalogue()
+
+# Create args_df for a specific dataset
+args_df_eqtl <- make_eQTL_Catalogue_args(
+  QTS = "QTS000015",      # dataset ID
+  quant_method = "ge"      # gene expression
+)
+```
+
+### Custom query functions
+
+For non-standard file formats, write a custom query function that accepts
+`sumstats_file`, `CHR`, `BP_START`, `BP_STOP` parameters and returns a
+data.table with standard columns. Set `query_function` in YAML to your
+function's name.
+
+## Output Structure
+
+```
+output/coloc_results/
+  jobs/
+    job_0001/
+      coloc.tar         # colocalization results (RDS per dataset)
+      sumstats.tar      # sumstats if save_sumstats=TRUE
+      sumstats_1.RDS    # primary dataset for this job's regions
+    job_0002/
+      ...
+  unfilt/
+    coloc_results.RDS   # consolidated results (after consolidate)
+  metadata files
+```
+
+## Sumstats Concepts
+
+- **sumstats_1** (primary): Your GWAS of interest - the "query" study
+- **sumstats_2** (secondary): External datasets to colocalize against - the
+  "targets" (eQTL, pQTL, PheWAS, other GWAS)
+
+The pipeline tests each sumstats_2 dataset against sumstats_1 in every
+significant region, producing PP.H4 posterior probabilities for shared causal
+variants.
+
+## Session Info
+
+```{r, eval=TRUE}
+sessionInfo()
+```
