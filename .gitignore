@@ -3,4 +3,7 @@
 .Rproj.user
 .Rhistory
 tmp/
+tmp_*
+liftOver/
+data/
 CLAUDE.md

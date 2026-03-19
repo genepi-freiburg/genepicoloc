@@ -599,101 +599,101 @@ process_GCST <- function(file_in, test_mode = FALSE) {
 #' @export
 query_eQTL_Catalogue <- function(sumstats_file,
                                  CHR_var, BP_START_var, BP_STOP_var,
-                                 start = 0, size = 1000) {
-  
+                                 start = 0, size = 1000,
+                                 max_retries = 3, timeout_sec = 120,
+                                 rate_limit_sec = 1) {
+
   # Input validation
   if (!is.numeric(size) || size < 1 || size > 1000) {
     stop("size must be between 1 and 1000")
   }
-  
+
   # Format position string
   pos <- paste0(CHR_var, ":", BP_START_var, "-", BP_STOP_var)
-  message("Querying eQTL Catalog for dataset: ", sumstats_file, ", region: ", pos)
-  
-  # Initialize results
-  all_results <- list()
-  
-  # Pagination loop
+  message("Querying eQTL Catalogue: ", sumstats_file, " region ", pos)
+
+  # Helper: single API request with retries
+  api_get <- function(url, retries = max_retries) {
+    for (attempt in seq_len(retries)) {
+      response <- tryCatch({
+        httr::GET(url, httr::accept_json(), httr::timeout(timeout_sec))
+      }, error = function(e) {
+        if (attempt < retries) {
+          message("  Request error (attempt ", attempt, "/", retries, "): ", e$message)
+          Sys.sleep(rate_limit_sec * attempt)
+        }
+        return(NULL)
+      })
+
+      if (!is.null(response)) {
+        if (httr::status_code(response) == 200) return(response)
+        if (httr::status_code(response) == 429) {
+          # Rate limited - back off
+          wait <- rate_limit_sec * 2^attempt
+          message("  Rate limited, waiting ", wait, "s...")
+          Sys.sleep(wait)
+          next
+        }
+        # Other non-200 status
+        return(response)
+      }
+    }
+    return(NULL)
+  }
+
+  # Pagination loop - collect chunks in a list
+  chunks <- list()
+  page <- 0L
+
   repeat {
-    # Construct API URL
-    sumstats_URL <- paste0(
+    url <- paste0(
       "https://www.ebi.ac.uk/eqtl/api/v2/datasets/",
       sumstats_file, "/associations?",
-      "size=", size, 
-      "&start=", start,
-      "&pos=", pos
+      "size=", size, "&start=", start, "&pos=", pos
     )
-    
-    message("Fetching records: ", start, "-", start + size, "... ", appendLF = FALSE)
-    
-    # Make API request
-    response <- tryCatch({
-      httr::GET(sumstats_URL, httr::accept_json(), httr::timeout(60))
-    }, error = function(e) {
-      warning("API request failed: ", e$message)
-      return(NULL)
-    })
-    
-    # Rate limiting - wait before next request
-    Sys.sleep(2)
-    
-    # Check response
+
+    response <- api_get(url)
+
     if (is.null(response)) {
-      message("Failed")
+      message("  Failed after ", max_retries, " retries")
       break
     }
-    
-    if (httr::status_code(response) == 200) {
-      message("Success")
-      
-      # Parse JSON response
-      content_text <- httr::content(response, "text", encoding = "UTF-8")
-      sumstats_chunk <- jsonlite::fromJSON(content_text, simplifyVector = TRUE)
-      
-      # Check if we got data
-      if (is.null(sumstats_chunk) || length(sumstats_chunk) == 0) {
-        message("No more data available")
-        break
+
+    if (httr::status_code(response) != 200) {
+      if (page == 0) {
+        message("  No data available (HTTP ", httr::status_code(response), ")")
+        return(list())
       }
-      
-      # Accumulate results
-      if (start == 0) {
-        sumstats <- sumstats_chunk
-      } else {
-        sumstats <- rbind(sumstats, sumstats_chunk)
-      }
-      
-      # Check if we got fewer results than requested (last page)
-      if (nrow(sumstats_chunk) < size) {
-        message("Reached end of results")
-        break
-      }
-      
-      # Move to next page
-      start <- start + size
-      
-    } else {
-      # Handle different status codes
-      if (start == 0) {
-        message("No data available for this region")
-        return(data.frame())
-      } else {
-        message("Reached end of available data")
-        break
-      }
+      break
     }
+
+    chunk <- tryCatch(
+      jsonlite::fromJSON(httr::content(response, "text", encoding = "UTF-8"),
+                         simplifyVector = TRUE),
+      error = function(e) { message("  JSON parse error: ", e$message); NULL }
+    )
+
+    if (is.null(chunk) || !is.data.frame(chunk) || nrow(chunk) == 0) {
+      if (page == 0) message("  No associations in this region")
+      break
+    }
+
+    page <- page + 1L
+    chunks[[page]] <- chunk
+    message("  Page ", page, ": ", nrow(chunk), " records")
+
+    if (nrow(chunk) < size) break
+    start <- start + size
+    Sys.sleep(rate_limit_sec)
   }
-  
-  # Format results if we have any
-  if (exists("sumstats") && nrow(sumstats) > 0) {
-    message("Retrieved ", nrow(sumstats), " associations")
-    sumstats <- format_eQTL_Catalogue(sumstats)
-  } else {
-    message("No associations found")
-    return(list())
-  }
-  
-  return(sumstats)
+
+  if (length(chunks) == 0) return(list())
+
+  sumstats <- do.call(rbind, chunks)
+  message("  Total: ", nrow(sumstats), " associations, ",
+          length(unique(sumstats$gene_id)), " genes")
+
+  format_eQTL_Catalogue(sumstats)
 }
 
 
