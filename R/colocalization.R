@@ -1047,7 +1047,7 @@ run_single_phenotype <- function(sumstats_1, sumstats_2, coloc_regions_PASS) {
 #'   \item Valid summary statistics in the region
 #' }
 #' 
-#' @importFrom coloc coloc.abf
+#'
 #' @export
 run_region <- function(sumstats_1, sumstats_2,
                        CHR_var, BP_START_var, BP_STOP_var,
@@ -1207,7 +1207,7 @@ run_region <- function(sumstats_1, sumstats_2,
 #'   \item H4: Association with both traits, same variant
 #' }
 #'
-#' @importFrom coloc coloc.abf
+#'
 #' @seealso 
 #' \code{\link{prepare_coloc_dataset}} for data preparation
 #' \code{\link[coloc]{coloc.abf}} for the underlying method
@@ -1244,26 +1244,10 @@ run_coloc <- function(sumstats_1, sumstats_2, silent = TRUE) {
   # Prepare datasets for coloc.abf
   dataset_1 <- prepare_coloc_dataset(sumstats_1, sumstats_1_type, sumstats_1_sdY)
   dataset_2 <- prepare_coloc_dataset(sumstats_2, sumstats_2_type, sumstats_2_sdY)
-  
-  # Run colocalization
-  if (silent) {
-    # Suppress output by redirecting to temporary file
-    tmp_file <- tempfile()
-    sink(tmp_file, type = "output")
-    on.exit({
-      sink()  # Restore output
-      unlink(tmp_file)  # Clean up
-    }, add = TRUE)
-    
-    # Run with warnings suppressed
-    coloc_output <- suppressWarnings(
-      coloc::coloc.abf(dataset1 = dataset_1, dataset2 = dataset_2)
-    )
-  } else {
-    # Run normally with output
-    coloc_output <- coloc::coloc.abf(dataset1 = dataset_1, dataset2 = dataset_2)
-  }
-  
+
+  # Run colocalization using built-in implementation (no external dependency)
+  coloc_output <- coloc_abf(dataset1 = dataset_1, dataset2 = dataset_2)
+
   return(coloc_output)
 }
 
