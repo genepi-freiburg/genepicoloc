@@ -264,7 +264,7 @@ create_args_df_from_config <- function(config_file,
 
   # List-only mode: return summary
   if (list_studies_only) {
-    summary_dt <- data.table::data.table(
+    summary_dt <- data.frame(
       study = names(config),
       description = vapply(config, function(x) x$description, character(1)),
       n_files = vapply(config, function(x) length(x$sumstats_2_file), integer(1)),
@@ -272,7 +272,8 @@ create_args_df_from_config <- function(config_file,
       type = vapply(config, function(x) {
         types <- unique(x$sumstats_2_type)
         paste(types, collapse = "/")
-      }, character(1))
+      }, character(1)),
+      stringsAsFactors = FALSE
     )
     return(summary_dt)
   }
@@ -291,16 +292,17 @@ create_args_df_from_config <- function(config_file,
       sdYs <- sdYs[1:15]
     }
 
-    data.table::data.table(
+    data.frame(
       sumstats_2_study = study_name,
       sumstats_2_file = files,
       sumstats_2_function = entry$sumstats_2_function,
       sumstats_2_type = types,
-      sumstats_2_sdY = sdYs
+      sumstats_2_sdY = sdYs,
+      stringsAsFactors = FALSE
     )
   })
 
-  args_df <- data.table::rbindlist(rows)
+  args_df <- do.call(rbind, rows)
 
   message(sprintf("Created args_df: %d datasets across %d studies",
                   nrow(args_df), length(config)))

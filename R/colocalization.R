@@ -614,7 +614,7 @@ genepicoloc_run <- function(temp_sumstats_dir,
     if (length(sumstats_2_form) == 0 || 
         all(sapply(sumstats_2_form, function(x) nrow(x) == 0))) {
       # Handle empty multi-phenotype case
-      coloc_results <- data.table::data.table()
+      coloc_results <- data.frame()
     } else {
       coloc_results <- lapply(sumstats_2_form, function(sumstats_2) {
         if (nrow(sumstats_2) == 0) return(NULL) # Skip empty phenotypes
@@ -648,7 +648,7 @@ genepicoloc_run <- function(temp_sumstats_dir,
       if (length(coloc_results) > 0) {
         coloc_results <- data.table::rbindlist(coloc_results, fill = TRUE)
       } else {
-        coloc_results <- data.table::data.table()
+        coloc_results <- data.frame()
       }
     }
   } else {

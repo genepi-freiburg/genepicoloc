@@ -108,7 +108,7 @@ retrieve_sumstats_raw <- function(sumstats_function = "retrieve_sumstats_tabix",
 #'   \item "tabix_failed": Query failed (file not found, not indexed, etc.)
 #' }
 #'
-#' @importFrom data.table fread data.table
+#' @importFrom data.table fread
 #' @export
 retrieve_sumstats_tabix <- function(sumstats_file, 
                                     coloc_regions_PASS,
@@ -130,7 +130,7 @@ retrieve_sumstats_tabix <- function(sumstats_file,
   if (!file.exists(sumstats_file)) {
     warning("Summary statistics file not found: ", sumstats_file)
     # Return empty sumstats with failed status
-    sumstats <- data.table::data.table()
+    sumstats <- data.frame()
     attr(sumstats, "tabix") <- "tabix_failed"
     attr(sumstats, "sumstats_file") <- sumstats_file
     attr(sumstats, "coloc_regions_PASS") <- coloc_regions_PASS_attr
@@ -203,7 +203,7 @@ retrieve_sumstats_tabix <- function(sumstats_file,
   # Determine status
   if (is.null(sumstats) || (nrow(sumstats) == 0 && ncol(sumstats) == 0)) {
     tabix_attr <- "tabix_failed"
-    sumstats <- data.table::data.table()
+    sumstats <- data.frame()
   } else {
     tabix_attr <- if (nrow(sumstats) == 0) "tabix_ok_no_data" else "tabix_ok"
   }
@@ -219,7 +219,7 @@ retrieve_sumstats_tabix <- function(sumstats_file,
            what = character(), quiet = TRUE)
     }, error = function(e) NULL)
     if (!is.null(header) && length(header) == ncol(sumstats)) {
-      data.table::setnames(sumstats, header)
+      names(sumstats) <- header
     }
   }
   
@@ -636,8 +636,7 @@ get_cols_to <- function() {
 #'   \item Optionally includes a Phenotype column for multi-trait data
 #' }
 #'
-#' @importFrom data.table is.data.table
-#' @importFrom data.table copy
+#'
 #' @export
 #'
 #' @examples
@@ -662,8 +661,8 @@ match_cols <- function(sumstats, Name, rsID, CHR, POS, A1, A2,
                        BETA, SE, nlog10P, AF, N, Phenotype = NULL) {
   
   # Input validation
-  if (!data.table::is.data.table(sumstats)) {
-    stop("Input must be a data.table object")
+  if (!is.data.frame(sumstats)) {
+    stop("Input must be a data.frame or data.table object")
   }
   
   # Create list of input columns
@@ -704,13 +703,14 @@ match_cols <- function(sumstats, Name, rsID, CHR, POS, A1, A2,
   }
   
   # Make a copy to avoid modifying the original
-  sumstats_copy <- data.table::copy(sumstats)
-  
-  # Rename columns using setnames for efficiency
+  sumstats_copy <- sumstats
+
+  # Rename columns
   for (std_name in names(col_mapping)) {
     old_name <- col_mapping[std_name]
-    if (old_name != std_name) {  # Only rename if different
-      data.table::setnames(sumstats_copy, old = old_name, new = std_name)
+    if (old_name != std_name) {
+      idx <- which(names(sumstats_copy) == old_name)
+      if (length(idx) > 0) names(sumstats_copy)[idx[1]] <- std_name
     }
   }
   

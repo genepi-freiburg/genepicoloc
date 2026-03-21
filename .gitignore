@@ -7,3 +7,6 @@ tmp_*
 liftOver/
 data/
 CLAUDE.md
+..Rcheck/
+.claude/
+*.tbi

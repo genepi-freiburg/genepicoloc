@@ -24,7 +24,7 @@ tabix_GTEXv8 <- function(sumstats_file, coloc_regions_PASS) {
   file.remove(attr(tabix_cmd, "file_regions"))
   if (identical(sys_out, 0L) && nrow(sumstats) == 0) {
     attr(sumstats, "tabix") <- "tabix_ok_no_data"
-    sumstats_fixed <- data.table::data.table(matrix(ncol = 19, nrow=0))
+    sumstats_fixed <- as.data.frame(matrix(ncol = 19, nrow=0))
     class(sumstats_fixed) <- c("sumstats", class(sumstats_fixed))
     for (i in c("tabix", "sumstats_file", "coloc_regions_PASS", "sumstats_pheno")) {
       attr(sumstats_fixed, i) <- attr(sumstats, i)

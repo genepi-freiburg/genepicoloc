@@ -555,13 +555,11 @@ process_GCST <- function(file_in, test_mode = FALSE) {
   }
   
   # Select and reorder columns
-  sumstats <- sumstats[, ..required_cols]
-  
+  sumstats <- as.data.frame(sumstats)[, required_cols]
+
   # Standardize column names
-  data.table::setnames(sumstats, 
-                       old = required_cols,
-                       new = c("CHR", "POS", "A1", "A2", "BETA", "SE", 
-                               "P", "AF", "N"))
+  names(sumstats) <- c("CHR", "POS", "A1", "A2", "BETA", "SE",
+                        "P", "AF", "N")
   
   return(sumstats)
 }
