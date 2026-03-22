@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.25">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>claude – genepicoloc</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-5cfdd26d682773e737ef25c756b344ef.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+</head>
+
+<body class="nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="./index.html" class="navbar-brand navbar-brand-logo">
+    </a>
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">genepicoloc</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./vignettes/genepicoloc-workflow.html"> 
+<span class="menu-text">Getting Started</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./atlas.html"> 
+<span class="menu-text">Kidney Atlas</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="https://github.com/genepi-freiburg/genepicoloc"> 
+<span class="menu-text">GitHub</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#claude.md---genepicoloc-package-development" id="toc-claude.md---genepicoloc-package-development" class="nav-link active" data-scroll-target="#claude.md---genepicoloc-package-development">CLAUDE.md - genepicoloc Package Development</a>
+  <ul class="collapse">
+  <li><a href="#project-overview" id="toc-project-overview" class="nav-link" data-scroll-target="#project-overview">Project Overview</a></li>
+  <li><a href="#production-use-case-ckdgen-consortium" id="toc-production-use-case-ckdgen-consortium" class="nav-link" data-scroll-target="#production-use-case-ckdgen-consortium">Production Use Case: CKDGen Consortium</a>
+  <ul class="collapse">
+  <li><a href="#scale" id="toc-scale" class="nav-link" data-scroll-target="#scale">Scale</a></li>
+  <li><a href="#shiny-visualization-app" id="toc-shiny-visualization-app" class="nav-link" data-scroll-target="#shiny-visualization-app">Shiny Visualization App</a></li>
+  <li><a href="#regional-association-plots-raps" id="toc-regional-association-plots-raps" class="nav-link" data-scroll-target="#regional-association-plots-raps">Regional Association Plots (RAPs)</a></li>
+  </ul></li>
+  <li><a href="#gckd-vae-analysis" id="toc-gckd-vae-analysis" class="nav-link" data-scroll-target="#gckd-vae-analysis">GCKD VAE Analysis</a>
+  <ul class="collapse">
+  <li><a href="#input" id="toc-input" class="nav-link" data-scroll-target="#input">Input</a></li>
+  <li><a href="#preprocessing-pipeline" id="toc-preprocessing-pipeline" class="nav-link" data-scroll-target="#preprocessing-pipeline">Preprocessing Pipeline</a></li>
+  <li><a href="#results-mvp-eur-only" id="toc-results-mvp-eur-only" class="nav-link" data-scroll-target="#results-mvp-eur-only">Results (MVP EUR only)</a></li>
+  <li><a href="#files" id="toc-files" class="nav-link" data-scroll-target="#files">Files</a></li>
+  </ul></li>
+  <li><a href="#package-structure" id="toc-package-structure" class="nav-link" data-scroll-target="#package-structure">Package Structure</a></li>
+  <li><a href="#key-functions" id="toc-key-functions" class="nav-link" data-scroll-target="#key-functions">Key Functions</a>
+  <ul class="collapse">
+  <li><a href="#core-workflow" id="toc-core-workflow" class="nav-link" data-scroll-target="#core-workflow">Core Workflow</a></li>
+  <li><a href="#data-sources" id="toc-data-sources" class="nav-link" data-scroll-target="#data-sources">Data Sources</a></li>
+  <li><a href="#yaml-study-configuration-rconfig.r" id="toc-yaml-study-configuration-rconfig.r" class="nav-link" data-scroll-target="#yaml-study-configuration-rconfig.r">YAML Study Configuration (R/config.R)</a></li>
+  </ul></li>
+  <li><a href="#cluster-environment" id="toc-cluster-environment" class="nav-link" data-scroll-target="#cluster-environment">Cluster Environment</a>
+  <ul class="collapse">
+  <li><a href="#storage-paths" id="toc-storage-paths" class="nav-link" data-scroll-target="#storage-paths">Storage Paths</a></li>
+  <li><a href="#ukb-kidney-volume-files" id="toc-ukb-kidney-volume-files" class="nav-link" data-scroll-target="#ukb-kidney-volume-files">UKB Kidney Volume Files</a></li>
+  <li><a href="#internal-repo-genepicoloc_internal" id="toc-internal-repo-genepicoloc_internal" class="nav-link" data-scroll-target="#internal-repo-genepicoloc_internal">Internal Repo (genepicoloc_internal)</a></li>
+  <li><a href="#liftover-tools" id="toc-liftover-tools" class="nav-link" data-scroll-target="#liftover-tools">LiftOver Tools</a></li>
+  </ul></li>
+  <li><a href="#hpc-architecture-decisions" id="toc-hpc-architecture-decisions" class="nav-link" data-scroll-target="#hpc-architecture-decisions">HPC Architecture Decisions</a>
+  <ul class="collapse">
+  <li><a href="#parallelization-strategy-slurm-array-jobs" id="toc-parallelization-strategy-slurm-array-jobs" class="nav-link" data-scroll-target="#parallelization-strategy-slurm-array-jobs">Parallelization Strategy: SLURM Array Jobs</a></li>
+  <li><a href="#future-io-optimizations-lower-priority" id="toc-future-io-optimizations-lower-priority" class="nav-link" data-scroll-target="#future-io-optimizations-lower-priority">Future I/O Optimizations (lower priority)</a></li>
+  </ul></li>
+  <li><a href="#roadmap-for-publication" id="toc-roadmap-for-publication" class="nav-link" data-scroll-target="#roadmap-for-publication">Roadmap for Publication</a>
+  <ul class="collapse">
+  <li><a href="#documentation-examples" id="toc-documentation-examples" class="nav-link" data-scroll-target="#documentation-examples">1. Documentation &amp; Examples</a></li>
+  <li><a href="#code-fixes-done" id="toc-code-fixes-done" class="nav-link" data-scroll-target="#code-fixes-done">2. Code Fixes (Done)</a></li>
+  <li><a href="#demo-dataset" id="toc-demo-dataset" class="nav-link" data-scroll-target="#demo-dataset">3. Demo Dataset</a></li>
+  <li><a href="#shiny-app-integration" id="toc-shiny-app-integration" class="nav-link" data-scroll-target="#shiny-app-integration">4. Shiny App Integration</a></li>
+  <li><a href="#docker-support-primary-deployment" id="toc-docker-support-primary-deployment" class="nav-link" data-scroll-target="#docker-support-primary-deployment">5. Docker Support (Primary Deployment)</a></li>
+  <li><a href="#publication-assets" id="toc-publication-assets" class="nav-link" data-scroll-target="#publication-assets">6. Publication Assets</a></li>
+  </ul></li>
+  <li><a href="#demo-dataset-plan-in-progress" id="toc-demo-dataset-plan-in-progress" class="nav-link" data-scroll-target="#demo-dataset-plan-in-progress">Demo Dataset Plan (In Progress)</a>
+  <ul class="collapse">
+  <li><a href="#selected-demo-regions" id="toc-selected-demo-regions" class="nav-link" data-scroll-target="#selected-demo-regions">Selected Demo Regions</a></li>
+  <li><a href="#sumstats_1-query-gwas" id="toc-sumstats_1-query-gwas" class="nav-link" data-scroll-target="#sumstats_1-query-gwas">sumstats_1 (Query GWAS)</a></li>
+  <li><a href="#preprocessing-script" id="toc-preprocessing-script" class="nav-link" data-scroll-target="#preprocessing-script">Preprocessing Script</a></li>
+  <li><a href="#sumstats_2-target-datasets" id="toc-sumstats_2-target-datasets" class="nav-link" data-scroll-target="#sumstats_2-target-datasets">sumstats_2 (Target Datasets)</a></li>
+  <li><a href="#region-selection-criteria" id="toc-region-selection-criteria" class="nav-link" data-scroll-target="#region-selection-criteria">Region Selection Criteria</a></li>
+  <li><a href="#gwas-catalog-search-terms" id="toc-gwas-catalog-search-terms" class="nav-link" data-scroll-target="#gwas-catalog-search-terms">GWAS Catalog Search Terms</a></li>
+  <li><a href="#workflow" id="toc-workflow" class="nav-link" data-scroll-target="#workflow">Workflow</a></li>
+  <li><a href="#data-size-estimates" id="toc-data-size-estimates" class="nav-link" data-scroll-target="#data-size-estimates">Data Size Estimates</a></li>
+  </ul></li>
+  <li><a href="#shiny-app-architecture-planned" id="toc-shiny-app-architecture-planned" class="nav-link" data-scroll-target="#shiny-app-architecture-planned">Shiny App Architecture (Planned)</a>
+  <ul class="collapse">
+  <li><a href="#directory-structure" id="toc-directory-structure" class="nav-link" data-scroll-target="#directory-structure">Directory Structure</a></li>
+  <li><a href="#configuration-config.yaml" id="toc-configuration-config.yaml" class="nav-link" data-scroll-target="#configuration-config.yaml">Configuration (config.yaml)</a></li>
+  <li><a href="#gene-annotation-data" id="toc-gene-annotation-data" class="nav-link" data-scroll-target="#gene-annotation-data">Gene Annotation Data</a></li>
+  </ul></li>
+  <li><a href="#preprocessing-functions" id="toc-preprocessing-functions" class="nav-link" data-scroll-target="#preprocessing-functions">Preprocessing Functions</a>
+  <ul class="collapse">
+  <li><a href="#genepi_liftover" id="toc-genepi_liftover" class="nav-link" data-scroll-target="#genepi_liftover">genepi_liftover()</a></li>
+  <li><a href="#name_by_position" id="toc-name_by_position" class="nav-link" data-scroll-target="#name_by_position">name_by_position()</a></li>
+  <li><a href="#complete-preprocessing-workflow" id="toc-complete-preprocessing-workflow" class="nav-link" data-scroll-target="#complete-preprocessing-workflow">Complete Preprocessing Workflow</a></li>
+  </ul></li>
+  <li><a href="#technical-notes" id="toc-technical-notes" class="nav-link" data-scroll-target="#technical-notes">Technical Notes</a>
+  <ul class="collapse">
+  <li><a href="#tar-based-storage" id="toc-tar-based-storage" class="nav-link" data-scroll-target="#tar-based-storage">Tar-based Storage</a></li>
+  <li><a href="#annotation-pipeline" id="toc-annotation-pipeline" class="nav-link" data-scroll-target="#annotation-pipeline">Annotation Pipeline</a></li>
+  <li><a href="#known-issues-solutions" id="toc-known-issues-solutions" class="nav-link" data-scroll-target="#known-issues-solutions">Known Issues &amp; Solutions</a></li>
+  </ul></li>
+  <li><a href="#shiny-app-features-ckdgen-coloc-app" id="toc-shiny-app-features-ckdgen-coloc-app" class="nav-link" data-scroll-target="#shiny-app-features-ckdgen-coloc-app">Shiny App Features (ckdgen-coloc-app)</a>
+  <ul class="collapse">
+  <li><a href="#network-visualization" id="toc-network-visualization" class="nav-link" data-scroll-target="#network-visualization">Network Visualization</a></li>
+  <li><a href="#regional-association-plots" id="toc-regional-association-plots" class="nav-link" data-scroll-target="#regional-association-plots">Regional Association Plots</a></li>
+  <li><a href="#gene-info-panel" id="toc-gene-info-panel" class="nav-link" data-scroll-target="#gene-info-panel">Gene Info Panel</a></li>
+  <li><a href="#gene-annotation-data-1" id="toc-gene-annotation-data-1" class="nav-link" data-scroll-target="#gene-annotation-data-1">Gene Annotation Data</a></li>
+  <li><a href="#study-metadata" id="toc-study-metadata" class="nav-link" data-scroll-target="#study-metadata">Study Metadata</a></li>
+  </ul></li>
+  <li><a href="#data-concepts" id="toc-data-concepts" class="nav-link" data-scroll-target="#data-concepts">Data Concepts</a>
+  <ul class="collapse">
+  <li><a href="#sumstats_1-vs-sumstats_2" id="toc-sumstats_1-vs-sumstats_2" class="nav-link" data-scroll-target="#sumstats_1-vs-sumstats_2">sumstats_1 vs sumstats_2</a></li>
+  <li><a href="#required-columns" id="toc-required-columns" class="nav-link" data-scroll-target="#required-columns">Required Columns</a></li>
+  </ul></li>
+  <li><a href="#rerunvalidation-workflow" id="toc-rerunvalidation-workflow" class="nav-link" data-scroll-target="#rerunvalidation-workflow">Rerun/Validation Workflow</a></li>
+  <li><a href="#coloc.susie-notes-advanced-fine-mapping" id="toc-coloc.susie-notes-advanced-fine-mapping" class="nav-link" data-scroll-target="#coloc.susie-notes-advanced-fine-mapping">coloc.susie Notes (Advanced Fine-mapping)</a>
+  <ul class="collapse">
+  <li><a href="#eur-vs-all-ancestry" id="toc-eur-vs-all-ancestry" class="nav-link" data-scroll-target="#eur-vs-all-ancestry">EUR vs ALL Ancestry</a></li>
+  <li><a href="#direction-filtering" id="toc-direction-filtering" class="nav-link" data-scroll-target="#direction-filtering">Direction Filtering</a></li>
+  <li><a href="#reference-allele-alignment" id="toc-reference-allele-alignment" class="nav-link" data-scroll-target="#reference-allele-alignment">Reference Allele Alignment</a></li>
+  </ul></li>
+  <li><a href="#docker-deployment" id="toc-docker-deployment" class="nav-link" data-scroll-target="#docker-deployment">Docker Deployment</a></li>
+  <li><a href="#code-style" id="toc-code-style" class="nav-link" data-scroll-target="#code-style">Code Style</a></li>
+  <li><a href="#commit-messages" id="toc-commit-messages" class="nav-link" data-scroll-target="#commit-messages">Commit Messages</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"></header>
+
+
+
+
+<section id="claude.md---genepicoloc-package-development" class="level1">
+<h1>CLAUDE.md - genepicoloc Package Development</h1>
+<section id="project-overview" class="level2">
+<h2 class="anchored" data-anchor-id="project-overview">Project Overview</h2>
+<p><strong>genepicoloc</strong> is an R package for genetic colocalization analysis across multiple QTL and PheWAS datasets. It wraps the <code>coloc</code> package with scalable infrastructure for large-scale analyses.</p>
+<p><strong>Repository:</strong> https://github.com/genepi-freiburg/genepicoloc</p>
+</section>
+<section id="production-use-case-ckdgen-consortium" class="level2">
+<h2 class="anchored" data-anchor-id="production-use-case-ckdgen-consortium">Production Use Case: CKDGen Consortium</h2>
+<p>The package powers a large-scale colocalization analysis for the CKDGen Consortium (kidney function GWAS). Key achievements:</p>
+<section id="scale" class="level3">
+<h3 class="anchored" data-anchor-id="scale">Scale</h3>
+<ul>
+<li><strong>7 CKDGen traits</strong>: eGFRcr, eGFRcys, UACR, Calcium, Phosphate, Albumin, Urate</li>
+<li><strong>9 external data sources</strong>: GTEx eQTL, eQTLGen, UKB_PPP (proteomics), Icelanders pGWAS, FinnGen, MVP, UKB_TOPMed, GCKD metabolomics, CKDGen internal</li>
+<li><strong>~200,000+ colocalization tests</strong> per study</li>
+<li>Results stored efficiently in tar archives with job-based parallelization</li>
+</ul>
+</section>
+<section id="shiny-visualization-app" class="level3">
+<h3 class="anchored" data-anchor-id="shiny-visualization-app">Shiny Visualization App</h3>
+<p>A production-ready Shiny app was developed: <code>ckdgen-coloc-app/</code></p>
+<p><strong>Features:</strong> - Network visualization (region-centered and trait-centered views) - Interactive filtering by PP.H4 threshold and study - Regional Association Plots (LocusZoom-style) with interactive plotly - Gene Info Panel with annotations from NCBI, Reactome, HPO, HGNC - AI-powered insights (Claude API integration) - Docker deployment ready</p>
+<p><strong>Key files to reference:</strong> - <code>/home/oleg/Work/bioinfo/ckdgen/git/followup/genepicoloc/ckdgen-coloc-app/</code> - Full Shiny app - <code>/home/oleg/Work/bioinfo/ckdgen/git/followup/genepicoloc/ckdgen_genepicoloc_functions.R</code> - CKDGen-specific helper functions</p>
+</section>
+<section id="regional-association-plots-raps" class="level3">
+<h3 class="anchored" data-anchor-id="regional-association-plots-raps">Regional Association Plots (RAPs)</h3>
+<p>Successfully implemented regional plot data extraction:</p>
+<p><strong>Workflow:</strong> 1. Run genepicoloc with <code>save_sumstats=TRUE</code> to save sumstats_2 RDS files in tar archives 2. Extract regional data using optimized job-grouped extraction (5-10x faster) 3. Serve in Shiny app with interactive LocusZoom-style plots</p>
+<p><strong>Key optimizations discovered:</strong> - Group regions by job, extract tar once per job (not per region) - Deduplicate trait names before processing - Use filename for Icelanders_pGWAS (short name annotation has errors)</p>
+</section>
+</section>
+<section id="gckd-vae-analysis" class="level2">
+<h2 class="anchored" data-anchor-id="gckd-vae-analysis">GCKD VAE Analysis</h2>
+<p>Second use case: colocalization for GCKD multi-biomarker GWAS (VAE-derived modules).</p>
+<section id="input" class="level3">
+<h3 class="anchored" data-anchor-id="input">Input</h3>
+<ul>
+<li>ME19 and ME30 modules, SNPTEST format (.gwas), hg19, N=4,850</li>
+<li>Severe p-value underflow: lead SNPs have p ~ 1e-1762 (z ~ 90)</li>
+<li><code>pvalue_precise_normal</code> column preserves full precision as text</li>
+</ul>
+</section>
+<section id="preprocessing-pipeline" class="level3">
+<h3 class="anchored" data-anchor-id="preprocessing-pipeline">Preprocessing Pipeline</h3>
+<ol type="1">
+<li>Load <code>.gwas</code> file with <code>fread()</code></li>
+<li>Handle underflow: <code>handle_underflow(pvalue_precise_normal, return_nlog10P = TRUE)</code></li>
+<li>LiftOver hg19 -&gt; hg38: <code>genepi_liftover()</code> + <code>setDT()</code> on result</li>
+<li>Column mapping: SNP-&gt;rsID, coded_all-&gt;A1, noncoded_all-&gt;A2, AF_coded_all-&gt;AF, n_total-&gt;N</li>
+<li>Build Name: <code>chr:pos:ref:alt</code> format</li>
+</ol>
+</section>
+<section id="results-mvp-eur-only" class="level3">
+<h3 class="anchored" data-anchor-id="results-mvp-eur-only">Results (MVP EUR only)</h3>
+<ul>
+<li>ME19: 1 region (chr2/NAT8), 7 high-confidence colocalizations (creatinine, eGFR, Mg, CKD, BUN, AST)</li>
+<li>ME30: 2 regions (chr10/HPSE2 lead signal nlog10P=3274.8, chr2/NAT8 secondary), 12 high-confidence colocalizations</li>
+<li>All colocalizations at chr2/NAT8 locus - kidney function signal</li>
+<li>chr10/HPSE2 region: no MVP colocalizations (may colocalize with eQTL/pQTL)</li>
+</ul>
+</section>
+<section id="files" class="level3">
+<h3 class="anchored" data-anchor-id="files">Files</h3>
+<ul>
+<li>Analysis script: <code>genepicoloc_internal/analyses/GCKD_VAE/run_GCKD_VAE_coloc.R</code></li>
+<li>Output: <code>/g/epi/data/studies/00_GCKD/01_analyses/gwas/multi_biomarker_GWAS/common_chip/21_VAE/02_output/genepicoloc/</code></li>
+<li>Summary: <code>~/Work/bioinfo/genepicoloc/VAE/genepicoloc/email.md</code></li>
+</ul>
+</section>
+</section>
+<section id="package-structure" class="level2">
+<h2 class="anchored" data-anchor-id="package-structure">Package Structure</h2>
+<pre><code>R/
+├── colocalization.R      # Core coloc wrapper, map_over_args(), genepicoloc_wrapper()
+├── config.R              # YAML-based study configuration system
+├── preprocessing.R       # Sumstats formatting, match_cols()
+├── get_coloc_regions.R   # Identify significant regions
+├── gene_annotation.R     # Gene annotation utilities
+├── query_sumstats_custom.R # Data retrieval functions (incl. UKB kidney volumes)
+├── ebi_interface.R       # eQTL Catalogue API
+├── name_by_position.R    # Variant naming utilities
+├── genepicoloc_susie.R   # SuSiE/coloc.susie integration (experimental)
+├── shiny.R               # Built-in Shiny viewer
+├── utils.R               # Utility functions
+└── zzz.R                 # Package loading</code></pre>
+</section>
+<section id="key-functions" class="level2">
+<h2 class="anchored" data-anchor-id="key-functions">Key Functions</h2>
+<section id="core-workflow" class="level3">
+<h3 class="anchored" data-anchor-id="core-workflow">Core Workflow</h3>
+<ol type="1">
+<li><code>match_cols()</code> - Format input sumstats</li>
+<li><code>get_coloc_regions()</code> - Identify significant genomic regions</li>
+<li><code>write_regions()</code> - Save and index preprocessed data</li>
+<li><code>create_args_df()</code> - Create arguments for colocalization</li>
+<li><code>map_over_args()</code> / <code>genepicoloc_wrapper()</code> - Run colocalization</li>
+<li><code>coloc_out_annotate()</code> - Annotate results with gene info</li>
+</ol>
+</section>
+<section id="data-sources" class="level3">
+<h3 class="anchored" data-anchor-id="data-sources">Data Sources</h3>
+<ul>
+<li><code>make_eQTL_Catalogue_args()</code> - eQTL Catalogue datasets</li>
+<li><code>query_eQTL_Catalogue()</code> - Query eQTL Catalogue API</li>
+<li>Custom functions for each data source (tabix-based retrieval)</li>
+<li><code>tabix_UKB_kidney_vol()</code> / <code>format_UKB_kidney_vol()</code> - UKB kidney volumes (REGENIE format, handles chr23/X conversion)</li>
+</ul>
+</section>
+<section id="yaml-study-configuration-rconfig.r" class="level3">
+<h3 class="anchored" data-anchor-id="yaml-study-configuration-rconfig.r">YAML Study Configuration (R/config.R)</h3>
+<ul>
+<li><code>create_args_df_from_config(config_file)</code> - Main entry point: reads YAML, builds <code>args_df</code> data.table for <code>genepicoloc_wrapper()</code></li>
+<li><code>load_studies_config(config_file)</code> - Loads and validates YAML config</li>
+<li><code>list_available_studies(config_file)</code> - Quick summary of available studies</li>
+<li>Three file source modes: explicit <code>files:</code> list, <code>path:</code> + <code>pattern:</code> directory listing, or <code>metadata_file:</code> TSV</li>
+<li>Supports <code>type_rules:</code> for mixed quant/cc studies, <code>expected_count:</code> validation, <code>internal: true</code> for cluster-only studies</li>
+<li>Example config: <code>inst/extdata/example_studies.yaml</code></li>
+</ul>
+</section>
+</section>
+<section id="cluster-environment" class="level2">
+<h2 class="anchored" data-anchor-id="cluster-environment">Cluster Environment</h2>
+<section id="storage-paths" class="level3">
+<h3 class="anchored" data-anchor-id="storage-paths">Storage Paths</h3>
+<ul>
+<li><strong>Real NFS mount:</strong> <code>/dsk/gedata</code> (NFS from 10.239.7.58:/GenEpiData216/data)</li>
+<li><strong>Current symlink:</strong> <code>/g/epi/data</code> -&gt; <code>/dsk/gedata</code></li>
+<li><strong>Old path (dead):</strong> <code>/data/</code> - no longer exists after cluster migration</li>
+<li>Paths may change again; YAML config system decouples file paths from R code</li>
+</ul>
+</section>
+<section id="ukb-kidney-volume-files" class="level3">
+<h3 class="anchored" data-anchor-id="ukb-kidney-volume-files">UKB Kidney Volume Files</h3>
+<pre><code>/g/epi/data/studies/06_UKBB/02_Projects/14_MRI-kidney/02_output/regenie_output/step2/10Feb2024_final_volumes/maf001/
+  model1_qnorm_tkv.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz
+  model1_qnorm_cortex.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz
+  model1_qnorm_medulla.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz
+  model1_qnorm_hilus.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz</code></pre>
+</section>
+<section id="internal-repo-genepicoloc_internal" class="level3">
+<h3 class="anchored" data-anchor-id="internal-repo-genepicoloc_internal">Internal Repo (genepicoloc_internal)</h3>
+<p>Cluster-specific study definitions live in a separate repo: <code>genepicoloc_internal</code> - <strong>Local:</strong> <code>/home/oleg/Work/bioinfo/genepicoloc/genepicoloc_internal/</code> - <strong>Cluster:</strong> <code>/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/internal_genepicoloc_dev</code> - <strong>GitHub:</strong> <code>github.com/genepi-freiburg/genepicoloc_internal</code></p>
+<p>Structure:</p>
+<pre><code>genepicoloc_internal/
+├── R/                    # Study definitions, annotation pipeline
+│   ├── arguments_custom.R      # create_args_df() with all study file paths
+│   ├── annotation.R            # coloc_out_annotate() dispatching
+│   ├── annotation_database.R   # Centralized annotation DB (RDS)
+│   └── preprocessing_internal.R # Helper functions
+├── analyses/             # Self-contained analysis projects
+│   └── GCKD_VAE/               # VAE modules ME19/ME30
+└── scripts/              # Standalone scripts
+    └── run_eGFR_demo_coloc.R</code></pre>
+<p><strong>Worktree workflow:</strong> Use <code>git worktree add</code> for side branches to avoid disrupting main for other users.</p>
+</section>
+<section id="liftover-tools" class="level3">
+<h3 class="anchored" data-anchor-id="liftover-tools">LiftOver Tools</h3>
+<pre><code>/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/liftOver
+/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/hg19ToHg38.over.chain.gz</code></pre>
+</section>
+</section>
+<section id="hpc-architecture-decisions" class="level2">
+<h2 class="anchored" data-anchor-id="hpc-architecture-decisions">HPC Architecture Decisions</h2>
+<section id="parallelization-strategy-slurm-array-jobs" class="level3">
+<h3 class="anchored" data-anchor-id="parallelization-strategy-slurm-array-jobs">Parallelization Strategy: SLURM Array Jobs</h3>
+<ul>
+<li><strong>Decision:</strong> Use SLURM array jobs for multi-node parallelization (not Nextflow/Snakemake)</li>
+<li><strong>Rationale:</strong> Workload is embarrassingly parallel (no inter-job dependencies), SLURM is already available, zero new dependencies</li>
+<li><strong>Approach (Option B - cleaner separation):</strong>
+<ol type="1">
+<li><code>genepicoloc_prepare()</code> - new function to save inputs and return job count</li>
+<li><code>sbatch --array=1-N</code> - SLURM submits jobs in parallel</li>
+<li><code>genepicoloc_job_standalone(dir_out, job_idx)</code> - each array task runs one job</li>
+<li><code>consolidate_coloc_results()</code> - unchanged, runs after all jobs complete</li>
+</ol></li>
+<li><strong>Status:</strong> Not yet implemented, planned as next major improvement</li>
+</ul>
+</section>
+<section id="future-io-optimizations-lower-priority" class="level3">
+<h3 class="anchored" data-anchor-id="future-io-optimizations-lower-priority">Future I/O Optimizations (lower priority)</h3>
+<ul>
+<li>Batch tabix queries (1 call for all regions per file instead of per-region) - ~2-5x speedup</li>
+<li>Pre-filter empty datasets before main run - variable speedup</li>
+</ul>
+</section>
+</section>
+<section id="roadmap-for-publication" class="level2">
+<h2 class="anchored" data-anchor-id="roadmap-for-publication">Roadmap for Publication</h2>
+<section id="documentation-examples" class="level3">
+<h3 class="anchored" data-anchor-id="documentation-examples">1. Documentation &amp; Examples</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="">Vignette skeleton: <code>vignettes/genepicoloc-workflow.qmd</code></label></li>
+<li><label><input type="checkbox">Fill in vignette with demo data examples</label></li>
+<li><label><input type="checkbox">Document all exported functions</label></li>
+<li><label><input type="checkbox">Create quick-start guide</label></li>
+</ul>
+</section>
+<section id="code-fixes-done" class="level3">
+<h3 class="anchored" data-anchor-id="code-fixes-done">2. Code Fixes (Done)</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="">Implement case/control <code>s</code> parameter in colocalization.R</label></li>
+<li><label><input type="checkbox" checked="">Fix susieR dependency (requireNamespace instead of <span class="citation" data-cites="importFrom">@importFrom</span>)</label></li>
+<li><label><input type="checkbox" checked="">Align p_filt defaults across functions</label></li>
+<li><label><input type="checkbox" checked="">Fix DESCRIPTION typo and URLs</label></li>
+</ul>
+</section>
+<section id="demo-dataset" class="level3">
+<h3 class="anchored" data-anchor-id="demo-dataset">3. Demo Dataset</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="">Run full eGFR pipeline (259 regions x 21,405 datasets)</label></li>
+<li><label><input type="checkbox" checked="">Select 3 demo regions (GATM, SLC34A1, UMOD)</label></li>
+<li><label><input type="checkbox">Extract demo data from cluster results</label></li>
+<li><label><input type="checkbox">Bundle in inst/extdata/</label></li>
+</ul>
+</section>
+<section id="shiny-app-integration" class="level3">
+<h3 class="anchored" data-anchor-id="shiny-app-integration">4. Shiny App Integration</h3>
+<ul class="task-list">
+<li><label><input type="checkbox">Port ckdgen-coloc-app (~3600 lines) to <code>inst/shiny/</code></label></li>
+<li><label><input type="checkbox">Modularize: config.R, network.R, regional_plots.R, gene_info.R</label></li>
+<li><label><input type="checkbox">Add YAML-based configuration (user provides config.yaml)</label></li>
+<li><label><input type="checkbox">Regional plots as standard feature (requires <code>save_sumstats=TRUE</code>)</label></li>
+<li><label><input type="checkbox">Remove hardcoded CKDGen-specific study metadata</label></li>
+</ul>
+</section>
+<section id="docker-support-primary-deployment" class="level3">
+<h3 class="anchored" data-anchor-id="docker-support-primary-deployment">5. Docker Support (Primary Deployment)</h3>
+<ul class="task-list">
+<li><label><input type="checkbox">Create Dockerfile in <code>inst/shiny/</code></label></li>
+<li><label><input type="checkbox">Mount data volume pattern (user provides data + config.yaml)</label></li>
+<li><label><input type="checkbox">Include demo data for testing</label></li>
+<li><label><input type="checkbox">Document deployment: <code>docker run -v /path/to/data:/app/data genepicoloc-shiny</code></label></li>
+</ul>
+</section>
+<section id="publication-assets" class="level3">
+<h3 class="anchored" data-anchor-id="publication-assets">6. Publication Assets</h3>
+<ul class="task-list">
+<li><label><input type="checkbox">Benchmark performance metrics</label></li>
+<li><label><input type="checkbox">Comparison with other tools</label></li>
+<li><label><input type="checkbox">Use case examples with public data</label></li>
+</ul>
+</section>
+</section>
+<section id="demo-dataset-plan-in-progress" class="level2">
+<h2 class="anchored" data-anchor-id="demo-dataset-plan-in-progress">Demo Dataset Plan (In Progress)</h2>
+<p>Creating a demo dataset using published public data to showcase the full genepicoloc + Shiny app functionality.</p>
+<p><strong>Status:</strong> Full pipeline run complete (259 regions x 21,405 datasets). 3 demo regions selected. Next: extract demo data.</p>
+<section id="selected-demo-regions" class="level3">
+<h3 class="anchored" data-anchor-id="selected-demo-regions">Selected Demo Regions</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 19%">
+<col style="width: 14%">
+<col style="width: 53%">
+<col style="width: 12%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Region</th>
+<th>Gene</th>
+<th>Chr:Start-Stop (hg38)</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>GATM</td>
+<td>chr15:45,583,326-46,583,326</td>
+<td>eQTL + pQTL + PheWAS</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>SLC34A1</td>
+<td>chr4:103,514,576-105,348,007</td>
+<td>Multi-omics, kidney phosphate</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>UMOD</td>
+<td>chr16:19,850,119-20,850,119</td>
+<td>Classic kidney gene, strong network</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="sumstats_1-query-gwas" class="level3">
+<h3 class="anchored" data-anchor-id="sumstats_1-query-gwas">sumstats_1 (Query GWAS)</h3>
+<p><strong>CKDGen Round 4 eGFR</strong> (Wuttke et al.&nbsp;2019) - PMID: <a href="https://pubmed.ncbi.nlm.nih.gov/31152163/">31152163</a> - Data: https://ckdgen.imbi.uni-freiburg.de/datasets/Wuttke_2019 - File (hg38, harmonized): <code>/g/epi/data/public_resources/CKDGen/preprocessing/Wuttke2019/20171016_MW_eGFR_overall_ALL_nstud61.dbgap.txt_hg38.gz</code> - Full run output: <code>eGFR_demo_coloc_output/</code> on cluster</p>
+<p><strong>Column mapping</strong> (applied in run_eGFR_demo_coloc.R): | Original | Standard | Description | |———-|———-|————-| | CHR_hg38 | CHR | Chromosome (1-22, X) | | POS_hg38 | POS | Position (GRCh38) | | A1_hg38 | A1 | Effect allele | | A2_hg38 | A2 | Other allele | | Name_hg38 | Name | chr:pos:ref:alt format | | RSID | rsID | dbSNP ID | | Freq1 | AF | Allele frequency | | Effect | BETA | Effect size | | StdErr | SE | Standard error | | P-value | P | P-value (converted to nlog10P) | | n_total_sum | N | Sample size |</p>
+</section>
+<section id="preprocessing-script" class="level3">
+<h3 class="anchored" data-anchor-id="preprocessing-script">Preprocessing Script</h3>
+<p><strong>Location:</strong> <code>inst/scripts/preprocess_CKDGen_eGFR.R</code></p>
+<p><strong>Workflow:</strong> 1. Download from https://ckdgen.imbi.uni-freiburg.de/files/Wuttke2019/ 2. LiftOver hg19 → hg38 using <code>genepi_liftover()</code> 3. Calculate <code>nlog10P</code> with <code>handle_underflow()</code> 4. Harmonize columns to standard format 5. Output: <code>*_hg38.gz</code> + <code>preprocessing_log.txt</code></p>
+<p><strong>Required tools (cluster paths):</strong></p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="va">liftOver_bin</span><span class="op">=</span><span class="st">"/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/liftOver"</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="va">liftOver_chain</span><span class="op">=</span><span class="st">"/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/hg19ToHg38.over.chain.gz"</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="va">dbSNP_file</span><span class="op">=</span><span class="st">"/g/epi/data/public_resources/Ensembl_human_variation_b38_v109/dbSNP_v156_b38p14_rsid.vcf.gz"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><strong>Run:</strong></p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> inst/scripts/preprocess_CKDGen_eGFR.R /path/to/output/</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="sumstats_2-target-datasets" class="level3">
+<h3 class="anchored" data-anchor-id="sumstats_2-target-datasets">sumstats_2 (Target Datasets)</h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Category</th>
+<th>Source</th>
+<th>Description</th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>eQTL</strong></td>
+<td>eQTL Catalogue</td>
+<td>eQTLGen (blood), GTEx tissues, kidney</td>
+<td>https://www.ebi.ac.uk/eqtl/Data_access/</td>
+</tr>
+<tr class="even">
+<td><strong>pQTL</strong></td>
+<td>eQTL Catalogue</td>
+<td>Sun et al.&nbsp;plasma proteomics</td>
+<td>https://www.ebi.ac.uk/eqtl/Studies/</td>
+</tr>
+<tr class="odd">
+<td><strong>mGWAS</strong></td>
+<td>GWAS Catalog</td>
+<td>GCKD metabolomics (our publication)</td>
+<td>PMID: <a href="https://pubmed.ncbi.nlm.nih.gov/37277652/">37277652</a></td>
+</tr>
+<tr class="even">
+<td><strong>PheWAS</strong></td>
+<td>GWAS Catalog</td>
+<td>CKD, kidney volumes (our publication)</td>
+<td>GCST90667997</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="region-selection-criteria" class="level3">
+<h3 class="anchored" data-anchor-id="region-selection-criteria">Region Selection Criteria</h3>
+<p>Select 3 regions that demonstrate: - Multi-omics signals (eQTL + pQTL + PheWAS colocalization) - Known kidney genes (e.g., UMOD, SLC34A1, SHROOM3) - High PP.H4 values (&gt;0.8) - Network complexity (multiple colocalized traits)</p>
+</section>
+<section id="gwas-catalog-search-terms" class="level3">
+<h3 class="anchored" data-anchor-id="gwas-catalog-search-terms">GWAS Catalog Search Terms</h3>
+<p>For kidney-related phenotypes: - <code>chronic kidney disease</code>, <code>CKD</code>, <code>eGFR</code> - <code>proteinuria</code>, <code>albuminuria</code>, <code>UACR</code> - <code>kidney volume</code>, <code>renal volume</code> - <code>serum creatinine</code>, <code>cystatin C</code> - <code>uric acid</code>, <code>urate</code></p>
+</section>
+<section id="workflow" class="level3">
+<h3 class="anchored" data-anchor-id="workflow">Workflow</h3>
+<ol type="1">
+<li><strong>Run initial colocalization</strong> (script: <code>~/Work/bioinfo/genepicoloc/scripts/run_eGFR_demo_coloc.R</code>)
+<ul>
+<li>Uses all available sumstats_2 on cluster</li>
+<li>Generates region_summary_for_demo.tsv for selection</li>
+</ul></li>
+<li><strong>Select 3 demo regions</strong> based on multi-omics signals</li>
+<li><strong>Download public sumstats_2</strong> from eQTL Catalogue and GWAS Catalog</li>
+<li><strong>Harmonize</strong> to standard column format</li>
+<li><strong>Run demo colocalization</strong> with <code>save_sumstats=TRUE</code></li>
+<li><strong>Package demo data</strong> in inst/extdata/</li>
+</ol>
+</section>
+<section id="data-size-estimates" class="level3">
+<h3 class="anchored" data-anchor-id="data-size-estimates">Data Size Estimates</h3>
+<ul>
+<li>Colocalization results (annot_filt.RDS): &lt;1MB</li>
+<li>Regional plot sumstats: ~5-10MB for 3 regions</li>
+<li>Gene annotation: ~3.9MB (separate, in inst/extdata/)</li>
+</ul>
+</section>
+</section>
+<section id="shiny-app-architecture-planned" class="level2">
+<h2 class="anchored" data-anchor-id="shiny-app-architecture-planned">Shiny App Architecture (Planned)</h2>
+<section id="directory-structure" class="level3">
+<h3 class="anchored" data-anchor-id="directory-structure">Directory Structure</h3>
+<pre><code>inst/
+├── shiny/
+│   ├── app.R                    # Main entry point
+│   ├── R/
+│   │   ├── config.R             # Load config.yaml
+│   │   ├── study_metadata.R     # Process study metadata
+│   │   ├── regional_plots.R     # RAP plotting functions
+│   │   ├── network.R            # Network visualization
+│   │   └── gene_info.R          # Gene info panel
+│   ├── www/                     # CSS/assets
+│   └── Dockerfile
+├── extdata/
+│   ├── demo_data/               # Demo colocalization results
+│   └── gene_annotation.tsv.gz   # Gene annotations (~3.9MB)
+└── scripts/
+    ├── create_gene_annotation.R # Regenerate gene annotations
+    └── example_config.yaml      # Template configuration</code></pre>
+</section>
+<section id="configuration-config.yaml" class="level3">
+<h3 class="anchored" data-anchor-id="configuration-config.yaml">Configuration (config.yaml)</h3>
+<p>User provides configuration in mounted data volume:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data_path</span><span class="kw">:</span><span class="at"> </span><span class="st">"/app/data"</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="fu">studies</span><span class="kw">:</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">eGFRcr</span><span class="kw">:</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">folder</span><span class="kw">:</span><span class="at"> </span><span class="st">"eGFRcr"</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">display_name</span><span class="kw">:</span><span class="at"> </span><span class="st">"eGFR (creatinine)"</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">description</span><span class="kw">:</span><span class="at"> </span><span class="st">"Estimated GFR from creatinine"</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">pmid</span><span class="kw">:</span><span class="at"> </span><span class="st">"31152163"</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">ancestry</span><span class="kw">:</span><span class="at"> </span><span class="st">"EUR"</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">has_regional_plots</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="fu">study_colors</span><span class="kw">:</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">GTEx_eQTL</span><span class="kw">:</span><span class="at"> </span><span class="st">"#1f77b4"</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">eQTLGen</span><span class="kw">:</span><span class="at"> </span><span class="st">"#ff7f0e"</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="co">  # ...</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="fu">gene_annotation_path</span><span class="kw">:</span><span class="at"> </span><span class="st">"/app/data/gene_annotation.tsv.gz"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="gene-annotation-data" class="level3">
+<h3 class="anchored" data-anchor-id="gene-annotation-data">Gene Annotation Data</h3>
+<p><strong>Processed file</strong> (ready to use): <code>/home/oleg/Work/bioinfo/ckdgen/git/followup/genepicoloc/ckdgen-coloc-app/data/gene_annotation_hg38_full.tsv</code> ~3.9MB, contains: Gencode v49 + HGNC + NCBI descriptions + Reactome pathways + HPO phenotypes</p>
+<p><strong>Scripts to regenerate</strong> (in <code>scripts/</code>): 1. <code>download_gene_annotation_sources.R</code> - Downloads gene_info.gz, NCBI2Reactome.txt 2. <code>create_gene_annotation_extended.R</code> - Creates base annotation with HPO 3. <code>process_gene_annotation_full.R</code> - Adds NCBI descriptions + Reactome pathways</p>
+<p><strong>Regeneration workflow:</strong></p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> inst/extdata</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> ../../scripts/download_gene_annotation_sources.R</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> ../../scripts/create_gene_annotation_extended.R</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> ../../scripts/process_gene_annotation_full.R</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span> gene_info.gz NCBI2Reactome.txt gene_annotation_hg38_extended.tsv  <span class="co"># cleanup</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
+<section id="preprocessing-functions" class="level2">
+<h2 class="anchored" data-anchor-id="preprocessing-functions">Preprocessing Functions</h2>
+<section id="genepi_liftover" class="level3">
+<h3 class="anchored" data-anchor-id="genepi_liftover">genepi_liftover()</h3>
+<p>Converts genomic coordinates from hg19 to hg38 using UCSC liftOver.</p>
+<p><strong>Location:</strong> <code>R/name_by_position.R</code></p>
+<p><strong>Usage:</strong></p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>sumstats_hg38 <span class="ot">&lt;-</span> <span class="fu">genepi_liftover</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">sumstats =</span> sumstats,</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">CHR_name =</span> <span class="st">"Chr"</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">POS_name =</span> <span class="st">"Pos_b37"</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">A1_name =</span> <span class="st">"Allele1"</span>,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">A2_name =</span> <span class="st">"Allele2"</span>,</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">liftOver_bin =</span> <span class="st">"/path/to/liftOver"</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">liftOver_chain =</span> <span class="st">"/path/to/hg19ToHg38.over.chain.gz"</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><strong>Output columns:</strong> <code>CHR_hg38</code>, <code>POS_hg38</code>, <code>A1_hg38</code>, <code>A2_hg38</code></p>
+<p><strong>Features:</strong> - Works on a copy (doesn’t modify input) - Proper temp file handling with on.exit() cleanup - Auto-detects chr prefix format - Handles strand flipping during liftOver</p>
+<p><strong>Required tools:</strong> - UCSC liftOver binary: https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver - Chain file: https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz</p>
+</section>
+<section id="name_by_position" class="level3">
+<h3 class="anchored" data-anchor-id="name_by_position">name_by_position()</h3>
+<p>Adds rsID and standardized variant names by querying Ensembl VCF files.</p>
+<p><strong>Location:</strong> <code>R/name_by_position.R</code></p>
+<p><strong>Usage:</strong></p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Option 1: Single VCF file (e.g., chr21 only for testing)</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>sumstats_named <span class="ot">&lt;-</span> <span class="fu">name_by_position</span>(</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">sumstats =</span> sumstats_hg38,</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">CHR_name =</span> <span class="st">"CHR_hg38"</span>,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">POS_name =</span> <span class="st">"POS_hg38"</span>,</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">A1_name =</span> <span class="st">"A1_hg38"</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">A2_name =</span> <span class="st">"A2_hg38"</span>,</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">dbSNP_file =</span> <span class="st">"/path/to/homo_sapiens-chr21.vcf.gz"</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Option 2: Per-chromosome VCF directory (recommended for production)</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>sumstats_named <span class="ot">&lt;-</span> <span class="fu">name_by_position</span>(</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">sumstats =</span> sumstats_hg38,</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">CHR_name =</span> <span class="st">"CHR_hg38"</span>,</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">POS_name =</span> <span class="st">"POS_hg38"</span>,</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">A1_name =</span> <span class="st">"A1_hg38"</span>,</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">A2_name =</span> <span class="st">"A2_hg38"</span>,</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">dbSNP_dir =</span> <span class="st">"/path/to/ensembl_vcf/"</span>  <span class="co"># contains homo_sapiens-chr{1..22,X,Y,MT}.vcf.gz</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><strong>Parameters:</strong> - <code>dbSNP_file</code>: Path to single tabix-indexed VCF file - <code>dbSNP_dir</code>: Path to directory with per-chromosome files (homo_sapiens-chr{CHR}.vcf.gz)</p>
+<p><strong>Output columns:</strong> <code>rs</code> (rsID), <code>Name_hg38</code> (chr:pos:ref:alt format)</p>
+<p><strong>Features:</strong> - Works directly with Ensembl VCF files (no preprocessing needed) - Supports both single-file and per-chromosome directory modes - Auto-detects chromosome naming convention (chr21 vs 21) per file - Handles multi-allelic variants (splits comma-separated ALT alleles) - Matches alleles accounting for strand flipping - Skips chromosomes without corresponding VCF file (warns user) - No external dependencies (uses system2 + tabix)</p>
+<p><strong>Ensembl VCF source:</strong></p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># For testing (chr21 only, ~165MB):</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">wget</span> https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr21.vcf.gz</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="fu">wget</span> https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr21.vcf.gz.csi</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="co"># For production (all chromosomes, ~15GB total):</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> chr <span class="kw">in</span> <span class="dt">{</span><span class="dv">1</span><span class="dt">..</span><span class="dv">22</span><span class="dt">}</span> X Y MT<span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wget</span> https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr<span class="va">${chr}</span>.vcf.gz</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wget</span> https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr<span class="va">${chr}</span>.vcf.gz.csi</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><strong>Performance (chr21):</strong> - Input: 112,722 variants - Matched: 112,722 variants (100%) - Processing time: ~2 minutes</p>
+</section>
+<section id="complete-preprocessing-workflow" class="level3">
+<h3 class="anchored" data-anchor-id="complete-preprocessing-workflow">Complete Preprocessing Workflow</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(data.table)</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(genepicoloc)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Load hg19 summary statistics</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>sumstats <span class="ot">&lt;-</span> <span class="fu">fread</span>(<span class="st">"gwas_hg19.txt.gz"</span>)</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. LiftOver to hg38</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>sumstats_hg38 <span class="ot">&lt;-</span> <span class="fu">genepi_liftover</span>(</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">sumstats =</span> sumstats,</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">CHR_name =</span> <span class="st">"Chr"</span>,</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">POS_name =</span> <span class="st">"Pos_b37"</span>,</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">A1_name =</span> <span class="st">"Allele1"</span>,</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">A2_name =</span> <span class="st">"Allele2"</span>,</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">liftOver_bin =</span> <span class="st">"liftOver"</span>,</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">liftOver_chain =</span> <span class="st">"hg19ToHg38.over.chain.gz"</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Add rsID and Name (optional, for display)</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>sumstats_named <span class="ot">&lt;-</span> <span class="fu">name_by_position</span>(</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">sumstats =</span> sumstats_hg38,</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">CHR_name =</span> <span class="st">"CHR_hg38"</span>,</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">POS_name =</span> <span class="st">"POS_hg38"</span>,</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">A1_name =</span> <span class="st">"A1_hg38"</span>,</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>  <span class="at">A2_name =</span> <span class="st">"A2_hg38"</span>,</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>  <span class="at">dbSNP_file =</span> <span class="st">"homo_sapiens-chr21.vcf.gz"</span></span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Calculate -log10(P) with underflow handling</span></span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>sumstats_named[, nlog10P <span class="sc">:</span><span class="er">=</span> <span class="sc">-</span><span class="fu">log10</span>(P)]</span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>sumstats_named[<span class="sc">!</span><span class="fu">is.finite</span>(nlog10P), nlog10P <span class="sc">:</span><span class="er">=</span> <span class="fu">max</span>(nlog10P[<span class="fu">is.finite</span>(nlog10P)]) <span class="sc">+</span> <span class="dv">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
+<section id="technical-notes" class="level2">
+<h2 class="anchored" data-anchor-id="technical-notes">Technical Notes</h2>
+<section id="tar-based-storage" class="level3">
+<h3 class="anchored" data-anchor-id="tar-based-storage">Tar-based Storage</h3>
+<p>Results are stored in tar archives per job: - <code>jobs/job_XXX/coloc_results.tar</code> - Colocalization results - <code>jobs/job_XXX/sumstats.tar</code> - Sumstats for regional plots (if save_sumstats=TRUE) - <code>jobs/job_XXX/sumstats_1.RDS</code> - Source study sumstats</p>
+</section>
+<section id="annotation-pipeline" class="level3">
+<h3 class="anchored" data-anchor-id="annotation-pipeline">Annotation Pipeline</h3>
+<p>After colocalization, <code>coloc_out_annotate()</code> in genepicoloc_internal: 1. Reads consolidated results from <code>dir_out/unfilt/</code> 2. Dispatches to study-specific annotator: - <code>annotate_eQTL()</code> - GTEx, eQTLGen, Kidney_eQTL (uses gencode_v26 for gene mapping) - <code>annotate_pQTL()</code> - UKB_PPP, Icelanders, GCKD_pGWAS (uses olink protein map) - <code>annotation_std()</code> - GWAS/PheWAS studies (uses annotation DB for phenotype names) 3. Writes <code>annot/study_annot_unfilt.RDS</code> 4. Filters in 3 tiers: coloc_done -&gt; PP.H4 &gt; 0.8 -&gt; sumstats_2 genome-wide sig 5. Final: <code>annot/annot_filt.RDS</code> (also <code>.xlsx</code>)</p>
+</section>
+<section id="known-issues-solutions" class="level3">
+<h3 class="anchored" data-anchor-id="known-issues-solutions">Known Issues &amp; Solutions</h3>
+<p><strong>genepi_liftover() returns data.frame</strong> - Returns base R data.frame, not data.table - Must call <code>setDT()</code> on result before using data.table syntax (<code>:=</code>, bare column names in <code>[</code>)</p>
+<p><strong>MVP annotation DB has old /data/ paths</strong> - <code>annotation_db.RDS</code> was created with old <code>/data/</code> mount paths - Fix in <code>arguments_custom.R</code>: <code>sub("^/data/", "/g/epi/data/", ...)</code> on file paths from DB - Proper fix: regenerate annotation DB with <code>create_annotation_db()</code></p>
+<p><strong>MVP ancestry-split annotation</strong> - MVP_R4_AFR/AMR/EAS/EUR/META studies share the MVP_R4 annotation DB entry - <code>annotation_std()</code> maps <code>grepl("^MVP_R4_", study)</code> to “MVP_R4” for DB lookup</p>
+<p><strong>P-value underflow handling</strong> - Some GWAS have p-values far beyond R’s numeric range (e.g., 1e-1762 for GCKD VAE) - <code>handle_underflow()</code> parses scientific notation text strings directly - Fallback from z-scores: <code>nlog10P = -log10(2) - pnorm(abs(z), lower.tail=FALSE, log.p=TRUE) / log(10)</code> - Always check for text-format p-value columns (e.g., <code>pvalue_precise_normal</code> in SNPTEST output)</p>
+<p><strong>MVP variant naming bug (historical)</strong> - Old MVP data had mismatched variant names - Solution: Always verify nsnps is reasonable (~6000, not ~20)</p>
+<p><strong>Non-positive definite LD matrices (coloc.susie)</strong> - Reference panel mismatch causes negative eigenvalues - Solution: Eigenvalue shift method in <code>shift_eigenvalues_minimal()</code></p>
+<p><strong>Icelanders_pGWAS protein naming</strong> - Short name annotation has errors (wrong proteins labeled) - Solution: Use filename (contains SeqId + protein name)</p>
+<p><strong>UKB_PPP protein complex duplicates</strong> - Multi-protein assays (e.g., FUT3_FUT5) create duplicate entries - Expected behavior for comparison functions</p>
+</section>
+</section>
+<section id="shiny-app-features-ckdgen-coloc-app" class="level2">
+<h2 class="anchored" data-anchor-id="shiny-app-features-ckdgen-coloc-app">Shiny App Features (ckdgen-coloc-app)</h2>
+<section id="network-visualization" class="level3">
+<h3 class="anchored" data-anchor-id="network-visualization">Network Visualization</h3>
+<ul>
+<li><strong>Region-centered view</strong>: Genomic region (star) → colocalized traits (circles)</li>
+<li><strong>Trait-centered view (MVP)</strong>: Selected trait (diamond) → genomic regions</li>
+<li><strong>Trait-centered view (pQTL)</strong>: Protein (diamond) → genomic regions</li>
+<li>Edge colors: orange (positive direction), blue (negative), gray (unknown)</li>
+<li>Node size by PP.H4 value</li>
+</ul>
+</section>
+<section id="regional-association-plots" class="level3">
+<h3 class="anchored" data-anchor-id="regional-association-plots">Regional Association Plots</h3>
+<ul>
+<li>LocusZoom-style plots with plotly interactivity</li>
+<li>Two panels: base study + colocalized trait</li>
+<li>Lead SNP highlighted with purple diamond</li>
+<li>Gene track with clickable genes</li>
+<li>Hover tooltips with variant details (Name, rsID, position, -log10P, beta, SE, AF)</li>
+</ul>
+</section>
+<section id="gene-info-panel" class="level3">
+<h3 class="anchored" data-anchor-id="gene-info-panel">Gene Info Panel</h3>
+<p>Click gene in track to show: - Description (NCBI Gene) - Pathways (Reactome, top 5) - Phenotypes (HPO, top 5) - External links (GeneCards, HGNC, NCBI)</p>
+</section>
+<section id="gene-annotation-data-1" class="level3">
+<h3 class="anchored" data-anchor-id="gene-annotation-data-1">Gene Annotation Data</h3>
+<p>Combined from multiple sources (~3.9MB TSV): - <strong>Gencode v49</strong>: coordinates, strand - <strong>HGNC</strong>: gene names, families - <strong>NCBI Gene</strong>: descriptions - <strong>Reactome</strong>: biological pathways - <strong>HPO</strong>: phenotype associations</p>
+<p>Scripts: <code>scripts/create_gene_annotation_extended.R</code>, <code>scripts/process_gene_annotation_full.R</code></p>
+</section>
+<section id="study-metadata" class="level3">
+<h3 class="anchored" data-anchor-id="study-metadata">Study Metadata</h3>
+<p>Each study has: - Display name (user-friendly) - Description - PMID (PubMed link) - Ancestry badge - Regional plot availability</p>
+</section>
+</section>
+<section id="data-concepts" class="level2">
+<h2 class="anchored" data-anchor-id="data-concepts">Data Concepts</h2>
+<section id="sumstats_1-vs-sumstats_2" class="level3">
+<h3 class="anchored" data-anchor-id="sumstats_1-vs-sumstats_2">sumstats_1 vs sumstats_2</h3>
+<ul>
+<li><strong>sumstats_1</strong>: Your GWAS of interest (e.g., eGFR, UACR) - the “query”</li>
+<li><strong>sumstats_2</strong>: External datasets to colocalize against (eQTL, pQTL, PheWAS) - the “targets”</li>
+</ul>
+</section>
+<section id="required-columns" class="level3">
+<h3 class="anchored" data-anchor-id="required-columns">Required Columns</h3>
+<ul>
+<li><code>Name</code>: CHR:POS:REF:ALT format (e.g., chr16:17906244:T:C)</li>
+<li><code>CHR</code>, <code>POS</code>: Genomic coordinates (GRCh38)</li>
+<li><code>A1</code>, <code>A2</code>: Effect and other allele</li>
+<li><code>BETA</code>, <code>SE</code>: Effect size and standard error</li>
+<li><code>nlog10P</code>: -log10(p-value) to avoid underflow</li>
+<li><code>AF</code>: Allele frequency</li>
+<li><code>N</code>: Sample size</li>
+</ul>
+</section>
+</section>
+<section id="rerunvalidation-workflow" class="level2">
+<h2 class="anchored" data-anchor-id="rerunvalidation-workflow">Rerun/Validation Workflow</h2>
+<p>For updating existing results while preserving regional plot data:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Run with save_sumstats=TRUE to new folder</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">run_genepicoloc_for_studies</span>(</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">study_names =</span> <span class="st">"study.multi"</span>,</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">output_base_dir =</span> <span class="st">"all_sumstats_rerun"</span>,</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">save_sumstats =</span> <span class="cn">TRUE</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Compare old vs new (expect differences for bug fixes)</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="fu">run_rerun_comparison</span>(<span class="st">"study.multi"</span>, <span class="at">exclude_studies =</span> <span class="st">"CKDGen_r4"</span>)</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Check "lost" results aren't false positives</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="co"># (MVP with nsnps ~20 = false positive, should be ~6000)</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Merge validated results</span></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a><span class="fu">merge_rerun_results</span>(<span class="st">"study.multi"</span>, <span class="at">dry_run =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Export and extract regional plots</span></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a><span class="fu">prepare_shiny_export</span>(<span class="at">studies =</span> <span class="st">"study.multi"</span>, ...)</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a><span class="fu">run_regional_extraction</span>(<span class="at">studies =</span> <span class="fu">list</span>(<span class="st">"Study"</span> <span class="ot">=</span> <span class="st">"study.multi"</span>), ...)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="coloc.susie-notes-advanced-fine-mapping" class="level2">
+<h2 class="anchored" data-anchor-id="coloc.susie-notes-advanced-fine-mapping">coloc.susie Notes (Advanced Fine-mapping)</h2>
+<p>For studies needing SuSiE-based fine-mapping:</p>
+<section id="eur-vs-all-ancestry" class="level3">
+<h3 class="anchored" data-anchor-id="eur-vs-all-ancestry">EUR vs ALL Ancestry</h3>
+<ul>
+<li><strong>EUR ancestry recommended</strong> for predominantly European GWAS</li>
+<li>ALL ancestry suffers from LD heterogeneity → weak/scattered credible sets</li>
+<li>EUR shows strong colocalization (PP.H4 ~0.97) where ALL shows none (~0.001)</li>
+</ul>
+</section>
+<section id="direction-filtering" class="level3">
+<h3 class="anchored" data-anchor-id="direction-filtering">Direction Filtering</h3>
+<ul>
+<li>Filter variants by “Direction” column (from meta-analysis)</li>
+<li>Keep variants present in most studies (≤2 “?” allowed)</li>
+<li>Dramatically improves LD matrix eigenvalues</li>
+</ul>
+</section>
+<section id="reference-allele-alignment" class="level3">
+<h3 class="anchored" data-anchor-id="reference-allele-alignment">Reference Allele Alignment</h3>
+<ul>
+<li>Critical: use <code>fixref=TRUE</code> in LD matrix creation</li>
+<li>Aligns effect allele from sumstats to LD reference panel</li>
+<li>Without this, SuSiE fails to converge</li>
+</ul>
+</section>
+</section>
+<section id="docker-deployment" class="level2">
+<h2 class="anchored" data-anchor-id="docker-deployment">Docker Deployment</h2>
+<p>Based on ckdgen-coloc-app pattern:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> rocker/shiny:4.3.0</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Install R packages...</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Copy app files...</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="kw">EXPOSE</span> 3838</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="kw">CMD</span> [<span class="st">"R"</span>, <span class="st">"-e"</span>, <span class="st">"shiny::runApp('/app', host='0.0.0.0', port=3838)"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Mount data volumes for flexibility:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> run <span class="at">-d</span> <span class="at">-p</span> 3838:3838 <span class="dt">\</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-v</span> /path/to/data:/app/data <span class="dt">\</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  genepicoloc-shiny</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="code-style" class="level2">
+<h2 class="anchored" data-anchor-id="code-style">Code Style</h2>
+<ul>
+<li>Use <code>data.table</code> for all data manipulation</li>
+<li>Check column existence before use: <code>if ("col" %in% names(dt))</code></li>
+<li>Wrap external calls in tryCatch for robustness</li>
+<li>Log progress for long-running operations</li>
+<li>Prefer simple solutions over complex refactoring (KISS principle)</li>
+</ul>
+</section>
+<section id="commit-messages" class="level2">
+<h2 class="anchored" data-anchor-id="commit-messages">Commit Messages</h2>
+<p>No Claude footer required. Keep messages concise and descriptive.</p>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
