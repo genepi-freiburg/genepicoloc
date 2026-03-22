@@ -18,17 +18,26 @@ knitr::opts_chunk$set(
 ## Overview
 
 **genepicoloc** provides a scalable pipeline for genetic colocalization analysis
-across multiple QTL and PheWAS datasets. It wraps the
-[coloc](https://chr1swallace.github.io/coloc/) package with infrastructure for
-handling thousands of dataset comparisons efficiently.
+across molecular and clinical trait datasets. It includes a standalone
+implementation of the approximate Bayes factor (ABF) colocalization method,
+preprocessing tools (liftOver, variant naming), and integration with public
+resources (eQTL Catalogue, GWAS Catalog).
 
-The typical workflow has five steps:
+The typical workflow:
 
-1. **Format** your primary GWAS summary statistics (sumstats_1)
+1. **Preprocess** your GWAS summary statistics (liftOver, variant naming)
 2. **Identify** significant genomic regions
-3. **Define** secondary datasets (sumstats_2) via YAML configuration
+3. **Define** target datasets (eQTL, pQTL, PheWAS)
 4. **Run** colocalization across all region-dataset combinations
-5. **Consolidate** and annotate results
+5. **Annotate** and explore results
+
+### Example: CKDGen eGFR Kidney Atlas
+
+Throughout this vignette, we use the CKDGen round 4 eGFR GWAS
+(Wuttke et al. 2019, PMID: 31152163) as a running example. This analysis
+identified 259 genome-wide significant loci and tested colocalization against
+11 molecular and clinical datasets (~16,000 phenotypes), producing 6,439
+high-confidence colocalizations.
 
 ## Installation
 
@@ -40,85 +49,117 @@ remotes::install_github("genepi-freiburg/genepicoloc")
 **System requirements:** `bgzip`, `tabix` (from htslib), and `tar` must be
 available on your `PATH`.
 
-## Step 1: Load and Format Primary Summary Statistics
+For preprocessing (optional): UCSC `liftOver` binary and chain file.
 
-Your primary GWAS (sumstats_1) needs standard column names. Use `match_cols()`
-to rename columns to the expected format.
+## Step 1: Preprocess Summary Statistics
+
+### If your GWAS is already in GRCh38
+
+Load and format directly:
 
 ```{r}
 library(genepicoloc)
 library(data.table)
 
-# Load your GWAS summary statistics
-sumstats_1 <- fread("my_gwas.txt.gz")
+sumstats_1 <- fread("my_gwas_hg38.txt.gz")
 
-# Rename columns to standard format
+# Rename to standard columns
 sumstats_1 <- match_cols(
   sumstats = sumstats_1,
   Name = "variant_id",    # chr:pos:ref:alt format
-  rsID = "rsid",
+  rsID = "rsid",          # optional, can be NA
   CHR  = "chromosome",
   POS  = "position",
   A1   = "effect_allele",
   A2   = "other_allele",
   BETA = "beta",
   SE   = "se",
-  P    = "pvalue",
-  AF   = "eaf",
-  N    = "n"
+  nlog10P = "nlog10p",    # -log10(p-value)
+  AF   = "eaf",           # needed for quantitative traits
+  N    = "n"              # needed for quantitative traits
 )
-
-# Calculate -log10(P) with underflow handling
-sumstats_1[, nlog10P := handle_underflow(P, return_nlog10P = TRUE)]
-
-# Basic QC
-sumstats_1 <- sumstats_1[is.finite(nlog10P) & !is.na(BETA) & !is.na(SE) & SE > 0]
 ```
 
-### Required columns
+### If your GWAS is in hg19
 
-| Column | Description |
-|--------|-------------|
-| `Name` | Variant ID in chr:pos:ref:alt format (e.g., `chr16:17906244:T:C`) |
-| `CHR` | Chromosome (1-22, X) |
-| `POS` | Genomic position (GRCh38) |
-| `A1` | Effect allele |
-| `A2` | Other allele |
-| `BETA` | Effect size |
-| `SE` | Standard error |
-| `nlog10P` | -log10(p-value) |
-| `AF` | Allele frequency |
-| `N` | Sample size |
-
-### Preprocessing: LiftOver and rsID annotation
-
-If your GWAS is on hg19, use `genepi_liftover()` to convert coordinates:
+Most published GWAS use GRCh37/hg19 coordinates. Use `genepi_liftover()` to
+convert:
 
 ```{r}
+# CKDGen eGFR example (hg19 -> hg38)
+sumstats_raw <- fread("20171016_MW_eGFR_overall_ALL_nstud61.dbgap.txt.gz")
+
 sumstats_hg38 <- genepi_liftover(
-  sumstats = sumstats_1,
-  CHR_name = "CHR", POS_name = "POS",
-  A1_name = "A1", A2_name = "A2",
-  liftOver_bin = "liftOver",
+  sumstats = sumstats_raw,
+  CHR_name = "Chr",
+  POS_name = "Pos_b37",
+  A1_name  = "Allele1",
+  A2_name  = "Allele2",
+  liftOver_bin   = "liftOver",
   liftOver_chain = "hg19ToHg38.over.chain.gz"
 )
+
+# IMPORTANT: genepi_liftover() returns a data.frame
+# Convert back if you need data.table syntax
+setDT(sumstats_hg38)
 ```
 
-To add rsIDs from Ensembl VCF files:
+The function adds `CHR_hg38`, `POS_hg38`, `A1_hg38`, `A2_hg38` columns.
+
+**Where to get liftOver:**
+
+- Binary: <https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver>
+- Chain: <https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz>
+
+### Add variant names and rsIDs
+
+To standardize variant naming (chr:pos:ref:alt) and add rsIDs:
 
 ```{r}
 sumstats_named <- name_by_position(
   sumstats = sumstats_hg38,
-  CHR_name = "CHR_hg38", POS_name = "POS_hg38",
-  A1_name = "A1_hg38", A2_name = "A2_hg38",
+  CHR_name = "CHR_hg38",
+  POS_name = "POS_hg38",
+  A1_name  = "A1_hg38",
+  A2_name  = "A2_hg38",
   dbSNP_dir = "/path/to/ensembl_vcf/"
 )
 ```
 
-## Step 2: Identify Significant Regions
+Per-chromosome Ensembl VCF files can be downloaded from:
+<https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/>
 
-`get_coloc_regions()` finds genome-wide significant loci and defines windows
-around them:
+### Calculate -log10(P)
+
+```{r}
+# Standard case
+sumstats_hg38$nlog10P <- -log10(sumstats_hg38[["P-value"]])
+
+# For extreme p-values (e.g., p < 1e-324)
+sumstats_hg38$nlog10P <- handle_underflow(
+  sumstats_hg38[["P-value"]],
+  return_nlog10P = TRUE
+)
+```
+
+### Required columns
+
+| Column | Description | Required |
+|--------|-------------|----------|
+| `Name` | chr:pos:ref:alt (e.g., chr16:20350000:A:G) | yes |
+| `rsID` | dbSNP identifier | optional (can be NA) |
+| `CHR` | Chromosome (1-22, X) | yes |
+| `POS` | Position (GRCh38) | yes |
+| `A1`, `A2` | Effect and other allele | yes |
+| `BETA`, `SE` | Effect size and standard error | yes |
+| `nlog10P` | -log10(p-value) | yes |
+| `AF` | Allele frequency | quantitative traits only* |
+| `N` | Sample size | quantitative traits only* |
+
+*AF and N are needed when `sdY` is not provided (the usual case).
+For case-control traits, only BETA and SE are required.
+
+## Step 2: Identify Significant Regions
 
 ```{r}
 coloc_regions_list <- get_coloc_regions(
@@ -130,201 +171,190 @@ coloc_regions_list <- get_coloc_regions(
   halfwindow = 500000           # 500 kb each side
 )
 
-# Check how many regions were found
-coloc_regions_list$coloc_regions_PASS
+# CKDGen eGFR: 259 significant regions across 22 chromosomes
+nrow(coloc_regions_list$coloc_regions_PASS)
 ```
 
-Then write the regions to indexed files for fast retrieval:
+Write regions to indexed files for fast retrieval:
 
 ```{r}
-sumstats_1_subset_file <- write_regions(
+sumstats_1_file <- write_regions(
   coloc_regions_list,
-  sumstats_name = "output/my_gwas"
+  sumstats_name = "output/eGFR"
 )
 ```
 
-## Step 3: Define Secondary Datasets via YAML
+## Step 3: Define Target Datasets
 
-Create a YAML configuration file listing your target datasets. This is the
-recommended way to define sumstats_2 sources:
+### Option A: YAML configuration (recommended for custom analyses)
 
 ```yaml
 # studies.yaml
-
 eQTLGen:
-  description: "eQTLGen blood eQTL (Vosa et al. 2021)"
+  description: "eQTLGen blood eQTL"
   query_function: retrieve_sumstats_tabix
   type: quant
   sdY: 1
   files:
-    - /path/to/eQTLGen/cis_full_chr1.txt.gz
-    - /path/to/eQTLGen/cis_full_chr2.txt.gz
+    - /path/to/eQTLGen/cis_eQTLs_hg38.tsv.gz
 
-GTEx_eQTL:
-  description: "GTEx v8 eQTL (all tissues)"
+UKB_PPP:
+  description: "UK Biobank plasma proteomics"
   query_function: retrieve_sumstats_tabix
   type: quant
   sdY: 1
-  path: /path/to/GTEx/
-  pattern: "*.allpairs.txt.gz"
-  expected_count: 49
-
-FinnGen:
-  description: "FinnGen release 9"
-  query_function: retrieve_sumstats_tabix
-  type: cc
-  path: /path/to/FinnGen/
-  pattern: "*.gz"
+  path: /path/to/UKB_PPP/
+  pattern: "*.txt.gz"
 ```
 
-Three file source modes are supported:
-
-- **`files:`** - explicit list of file paths
-- **`path:` + `pattern:`** - directory listing with glob pattern
-- **`metadata_file:`** - TSV with per-file metadata (columns: `file`, `type`, `sdY`)
-
-Browse and validate your config:
-
 ```{r}
-# List available studies
-list_available_studies("studies.yaml")
-
-# Build the args_df for the pipeline
 args_df <- create_args_df_from_config("studies.yaml")
-
-# Or select specific studies
-args_df <- create_args_df_from_config(
-  "studies.yaml",
-  selected_studies = c("eQTLGen", "GTEx_eQTL")
-)
 ```
 
-See `system.file("extdata", "example_studies.yaml", package = "genepicoloc")`
-for more examples.
-
-## Step 4: Run Colocalization
-
-Assemble the sumstats_1 arguments and run:
-
-```{r}
-sumstats_1_args <- list(
-  coloc_regions_PASS = coloc_regions_list$coloc_regions_PASS,
-  sumstats_1_function = "retrieve_sumstats_tabix",
-  sumstats_1_file = sumstats_1_subset_file,
-  sumstats_1_type = "quant",   # or "cc" for case-control
-  sumstats_1_sdY = NA           # NA for case-control, or provide sdY
-)
-
-genepicoloc_wrapper(
-  dir_out = "output/coloc_results",
-  sumstats_1_args = sumstats_1_args,
-  args_df = args_df,
-  mc_cores = 4,
-  save_sumstats = FALSE  # set TRUE to keep sumstats for regional plots
-)
-```
-
-Key parameters:
-
-- `mc_cores` - number of parallel cores
-- `save_sumstats` - save filtered sumstats for downstream use (regional plots,
-  fine-mapping). Increases disk usage substantially.
-- `max_regions_per_job` - regions per batch (default 10; increase for single-phenotype studies)
-- `debug_mode` - run sequentially for troubleshooting
-
-## Step 5: Consolidate and Annotate Results
-
-After the pipeline completes, consolidate results from all jobs:
-
-```{r}
-results <- consolidate_coloc_results(
-  dir_out = "output/coloc_results",
-  verbose = TRUE
-)
-```
-
-Add gene annotations:
-
-```{r}
-results <- add_gene_annotations(results, verbose = TRUE)
-```
-
-The output data.table contains one row per region-dataset pair with coloc
-posterior probabilities:
-
-| Column | Description |
-|--------|-------------|
-| `PP.H0.abf` | P(no association in either) |
-| `PP.H1.abf` | P(association in sumstats_1 only) |
-| `PP.H2.abf` | P(association in sumstats_2 only) |
-| `PP.H3.abf` | P(both associated, different causal variants) |
-| `PP.H4.abf` | P(both associated, shared causal variant) |
-| `nsnps` | Number of shared SNPs in the region |
-
-**PP.H4 > 0.8** is commonly used as a threshold for evidence of colocalization.
-
-## Data Sources
-
-### tabix-indexed files
-
-Most datasets use `retrieve_sumstats_tabix()` as the query function. Your
-sumstats_2 files need to be bgzip-compressed and tabix-indexed:
-```bash
-bgzip my_sumstats.txt
-tabix -s 1 -b 2 -e 2 -S 1 my_sumstats.txt.gz
-```
-
-The files must have standard columns (Name, CHR, POS, A1, A2, BETA, SE, AF, N)
-or columns recognized by `format_sumstats()`.
-
-### eQTL Catalogue
-
-genepicoloc has built-in support for the
-[eQTL Catalogue](https://www.ebi.ac.uk/eqtl/) API:
+### Option B: eQTL Catalogue API
 
 ```{r}
 # Browse available datasets
 datasets <- get_datasets_eQTL_Catalogue()
 
-# Create args_df for a specific dataset
-args_df_eqtl <- make_eQTL_Catalogue_args(
-  QTS = "QTS000015",      # dataset ID
-  quant_method = "ge"      # gene expression
+# Create args for GTEx kidney cortex
+eqtl_args <- make_eQTL_Catalogue_args(
+  QTS = "QTS000015",
+  quant_method = "ge"
 )
 ```
 
-### Custom query functions
+## Step 4: Run Colocalization
 
-For non-standard file formats, write a custom query function that accepts
-`sumstats_file`, `CHR`, `BP_START`, `BP_STOP` parameters and returns a
-data.table with standard columns. Set `query_function` in YAML to your
-function's name.
+```{r}
+sumstats_1_args <- list(
+  coloc_regions_PASS = coloc_regions_list$coloc_regions_PASS,
+  sumstats_1_function = "retrieve_sumstats_tabix",
+  sumstats_1_file = sumstats_1_file,
+  sumstats_1_type = "quant",   # or "cc" for case-control
+  sumstats_1_sdY = NA
+)
 
-## Output Structure
-
-```
-output/coloc_results/
-  jobs/
-    job_0001/
-      coloc.tar         # colocalization results (RDS per dataset)
-      sumstats.tar      # sumstats if save_sumstats=TRUE
-      sumstats_1.RDS    # primary dataset for this job's regions
-    job_0002/
-      ...
-  unfilt/
-    coloc_results.RDS   # consolidated results (after consolidate)
-  metadata files
+genepicoloc_wrapper(
+  dir_out = "output/eGFR_coloc",
+  sumstats_1_args = sumstats_1_args,
+  args_df = args_df,
+  mc_cores = 10
+)
 ```
 
-## Sumstats Concepts
+The CKDGen eGFR atlas ran 259 regions x 15,930 datasets = 4.1 million
+colocalization tests in ~17 hours on 20 cores.
 
-- **sumstats_1** (primary): Your GWAS of interest - the "query" study
-- **sumstats_2** (secondary): External datasets to colocalize against - the
-  "targets" (eQTL, pQTL, PheWAS, other GWAS)
+### Saving regional summary statistics
 
-The pipeline tests each sumstats_2 dataset against sumstats_1 in every
-significant region, producing PP.H4 posterior probabilities for shared causal
-variants.
+By default, only colocalization results (posterior probabilities) are saved.
+To also save the underlying summary statistics for each region-dataset pair
+(needed for regional association plots), use `save_sumstats = TRUE`:
+
+```{r}
+genepicoloc_wrapper(
+  ...,
+  save_sumstats = TRUE,
+  force_save_sumstats = TRUE  # skip interactive confirmation
+)
+```
+
+**Warning:** This generates substantial disk usage (tens of GB for large runs).
+Use only when you need regional plots or downstream fine-mapping.
+
+### Standalone colocalization
+
+For simple pairwise tests without the full pipeline:
+
+```{r}
+# Prepare datasets
+d1 <- list(
+  beta = sumstats_1$BETA,
+  varbeta = sumstats_1$SE^2,
+  snp = sumstats_1$Name,
+  type = "quant",
+  sdY = 1
+)
+
+d2 <- list(
+  beta = sumstats_2$BETA,
+  varbeta = sumstats_2$SE^2,
+  snp = sumstats_2$Name,
+  type = "quant",
+  sdY = 1
+)
+
+# Run colocalization (no external dependencies)
+result <- coloc_abf(d1, d2)
+
+# Posterior probabilities
+result$summary
+#>     nsnps PP.H0.abf PP.H1.abf PP.H2.abf PP.H3.abf PP.H4.abf
+#>      1500     0.000     0.000     0.000     0.015     0.985
+```
+
+## Step 5: Annotate Results
+
+After the pipeline completes:
+
+```{r}
+# Results are automatically consolidated into per-study files
+# in output/eGFR_coloc/unfilt/
+
+# Load combined filtered results
+results <- readRDS("output/eGFR_coloc/annot/annot_filt.RDS")
+```
+
+### CKDGen eGFR Atlas Results
+
+The eGFR analysis produced 6,439 high-confidence colocalizations (PP.H4 > 0.8)
+across 11 studies:
+
+| Study | Colocalizations | Description |
+|-------|-----------------|-------------|
+| MVP_R4_EUR | 2,504 | PheWAS (creatinine, eGFR, CKD, hypertension) |
+| UKB_PPP_EUR | 1,639 | Plasma proteomics (2,940 proteins) |
+| Icelanders_pGWAS | 787 | Plasma proteomics (4,907 proteins) |
+| Kidney_eQTL | 498 | Kidney-specific gene expression |
+| CKDGen_r4 | 333 | Other kidney traits (BUN, urate, UACR) |
+| FinnGen_r9 | 281 | Clinical endpoints (2,272 diseases) |
+| GCKD_mGWAS_urine | 103 | Urine metabolomics |
+| eQTLGen | 89 | Blood eQTL |
+| GCKD_mGWAS_plasma | 70 | Plasma metabolomics |
+| UKB_TOPMed | 69 | UK Biobank clinical phenotypes |
+| UKB_kidney_vol | 66 | Kidney MRI volumes |
+
+Top regions by number of colocalizing studies (out of 11):
+
+| Region | Gene | Studies | Colocalizations |
+|--------|------|---------|-----------------|
+| chr12 | ACAD10 | 9 | 745 |
+| chr2 | GCKR | 9 | 727 |
+| chr16 | PDILT/UMOD | 8 | 292 |
+| chr6 | HLA | 8 | 172 |
+| chr2 | CPS1 | 8 | 140 |
+| chr4 | SHROOM3 | 6 | 105 |
+| chr4 | FGF5 | 6 | 81 |
+
+## Key Concepts
+
+### Hypotheses
+
+Colocalization tests 5 hypotheses:
+
+- **H0**: No association with either trait
+- **H1**: Association with trait 1 only
+- **H2**: Association with trait 2 only
+- **H3**: Both associated, different causal variants
+- **H4**: Both associated, **shared causal variant** (colocalization)
+
+**PP.H4 > 0.8** is the standard threshold for evidence of colocalization.
+
+### sumstats_1 vs sumstats_2
+
+- **sumstats_1** (primary): your GWAS of interest - the "query"
+- **sumstats_2** (secondary): datasets to colocalize against - the "targets"
 
 ## Session Info
 

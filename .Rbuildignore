@@ -3,3 +3,7 @@
 ^\.claude$
 ^README\.html$
 ^dev$
+^docs$
+^_quarto\.yml$
+^index\.qmd$
+^atlas\.qmd$

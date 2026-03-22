@@ -1,14 +1,16 @@
 Package: genepicoloc
 Title: R Package to Facilitate Genetic Colocalization Analyses
-Version: 0.9.3.2
-Date: 2025-09-27
-Authors@R: 
+Version: 0.9.4
+Date: 2026-03-22
+Authors@R:
     person("Oleg", "Borisov", , "oleg.borisov@uniklinik-freiburg.de", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-8700-4335"))
-Description: Provides tools for efficient genetic colocalization analysis
-    across multiple QTL (eQTL, pQTL, mQTL) and PheWAS datasets (clinical traits).
-    Features scalable pipeline architecture with tar-based storage for
-    handling large-scale analyses.
+Description: Scalable genetic colocalization analysis across molecular and
+    clinical trait datasets. Includes standalone implementation of the
+    approximate Bayes factor (ABF) colocalization method, preprocessing
+    tools (liftOver, variant naming, allele harmonization), and integration
+    with public resources (eQTL Catalogue, GWAS Catalog). Designed for
+    large-scale analyses with tar-based storage and parallel processing.
 License: MIT + file LICENSE
 URL: https://github.com/genepi-freiburg/genepicoloc
 BugReports: https://github.com/genepi-freiburg/genepicoloc/issues

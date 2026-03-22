@@ -10,3 +10,6 @@ CLAUDE.md
 ..Rcheck/
 .claude/
 *.tbi
+vignettes/*.html
+vignettes/*_files/
+docs/

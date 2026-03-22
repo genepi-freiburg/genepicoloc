@@ -1,0 +1,45 @@
+---
+title: "genepicoloc"
+subtitle: "Scalable genetic colocalization for kidney genomics"
+---
+
+## Overview
+
+**genepicoloc** provides a scalable pipeline for genetic colocalization analysis across molecular and clinical trait datasets, with a focus on kidney disease genetics.
+
+### Key Features
+
+- **Standalone coloc** - built-in ABF colocalization, no external dependencies
+- **Preprocessing** - liftOver, variant naming, p-value underflow handling
+- **Scalable pipeline** - parallel processing for millions of tests
+- **Public data integration** - eQTL Catalogue, GWAS Catalog
+
+## Kidney Genomics Atlas
+
+Using CKDGen round 4 eGFR GWAS against 11 molecular and clinical datasets:
+
+| Metric | Value |
+|--------|-------|
+| Genomic regions | 259 |
+| Datasets tested | 15,930 |
+| Total tests | 4.1 million |
+| High-confidence colocalizations | 6,439 |
+
+See the [Kidney Atlas](atlas.qmd) for interactive exploration.
+
+## Installation
+
+```r
+remotes::install_github("genepi-freiburg/genepicoloc")
+```
+
+See [Getting Started](vignettes/genepicoloc-workflow.qmd) for the full tutorial.
+
+## Citation
+
+Borisov et al. (2026) genepicoloc: Scalable genetic colocalization analysis for kidney genomics. *In preparation.*
+
+## Contact
+
+Institute of Epidemiology and Prevention, Faculty of Medicine and Medical Center, University of Freiburg, Germany
+Hugstetter Straße 49, 79106 Freiburg

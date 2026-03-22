@@ -99,7 +99,8 @@ name_by_position <- function(sumstats = NULL,
                              dbSNP_file = NULL,
                              dbSNP_dir = NULL,
                              keep_lower = FALSE,
-                             chunk_size = 10000) {
+                             chunk_size = 10000,
+                             tmpdir = tempdir()) {
 
   message("=== Variant Name Matching ===")
 
@@ -146,7 +147,7 @@ name_by_position <- function(sumstats = NULL,
     cat_cmd <- if (is_gzipped) "zcat" else "cat"
 
     # Create temp directory for chunks and results
-    temp_dir <- tempfile(pattern = "name_by_pos_")
+    temp_dir <- tempfile(pattern = "name_by_pos_", tmpdir = tmpdir)
     dir.create(temp_dir)
     chunk_dir <- file.path(temp_dir, "chunks")
     dir.create(chunk_dir)
@@ -478,7 +479,7 @@ name_by_position <- function(sumstats = NULL,
     } else {
       # Positions file query (efficient for sparse/large regions)
       positions <- unique(df_chr[[POS_name]])
-      pos_file <- tempfile(fileext = ".bed")
+      pos_file <- tempfile(fileext = ".bed", tmpdir = tmpdir)
       pos_bed <- data.frame(chr = chr_query, start = positions - 1L, end = positions)
       write.table(pos_bed, pos_file, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
 
@@ -672,7 +673,8 @@ genepi_liftover <- function(sumstats = NULL,
                             liftOver_bin = "liftOver",
                             liftOver_chain,
                             keep_lower = FALSE,
-                            chunk_size = 100000) {
+                            chunk_size = 100000,
+                            tmpdir = tempdir()) {
 
   message("=== Genomic Coordinate Lift Over ===")
 
@@ -708,7 +710,7 @@ genepi_liftover <- function(sumstats = NULL,
     cat_cmd <- if (is_gzipped) "zcat" else "cat"
 
     # Create temp directory for chunks and results
-    temp_dir <- tempfile(pattern = "liftover_")
+    temp_dir <- tempfile(pattern = "liftover_", tmpdir = tmpdir)
     dir.create(temp_dir)
     chunk_dir <- file.path(temp_dir, "chunks")
     dir.create(chunk_dir)
@@ -789,7 +791,8 @@ genepi_liftover <- function(sumstats = NULL,
         A1_name = A1_name,
         A2_name = A2_name,
         liftOver_bin = liftOver_bin,
-        liftOver_chain = liftOver_chain
+        liftOver_chain = liftOver_chain,
+        tmpdir = tmpdir
       )
 
       if (!is.null(chunk_result$result) && nrow(chunk_result$result) > 0) {
@@ -923,7 +926,8 @@ genepi_liftover <- function(sumstats = NULL,
         A1_name = A1_name,
         A2_name = A2_name,
         liftOver_bin = liftOver_bin,
-        liftOver_chain = liftOver_chain
+        liftOver_chain = liftOver_chain,
+        tmpdir = tmpdir
       )
 
       if (!is.null(chunk_result$result) && nrow(chunk_result$result) > 0) {
@@ -963,7 +967,8 @@ genepi_liftover <- function(sumstats = NULL,
       A1_name = A1_name,
       A2_name = A2_name,
       liftOver_bin = liftOver_bin,
-      liftOver_chain = liftOver_chain
+      liftOver_chain = liftOver_chain,
+      tmpdir = tmpdir
     )
 
     if (is.null(result$result) || nrow(result$result) == 0) {
@@ -1022,14 +1027,14 @@ genepi_liftover <- function(sumstats = NULL,
 #' @return List with 'result' (data frame) and 'n_unmapped' (integer)
 #' @keywords internal
 .process_liftover_chunk <- function(df_chunk, CHR_name, POS_name, A1_name, A2_name,
-                                     liftOver_bin, liftOver_chain) {
+                                     liftOver_bin, liftOver_chain, tmpdir = tempdir()) {
 
   n_chunk <- nrow(df_chunk)
 
   # Create temp files
-  bed_file <- tempfile(pattern = "liftover_input_", fileext = ".bed")
-  output_file <- tempfile(pattern = "liftover_output_", fileext = ".bed")
-  unmapped_file <- tempfile(pattern = "liftover_unmapped_", fileext = ".bed")
+  bed_file <- tempfile(pattern = "liftover_input_", fileext = ".bed", tmpdir = tmpdir)
+  output_file <- tempfile(pattern = "liftover_output_", fileext = ".bed", tmpdir = tmpdir)
+  unmapped_file <- tempfile(pattern = "liftover_unmapped_", fileext = ".bed", tmpdir = tmpdir)
 
   on.exit({
     unlink(c(bed_file, output_file, unmapped_file), force = TRUE)

@@ -721,7 +721,7 @@ match_cols <- function(sumstats, Name, rsID, CHR, POS, A1, A2,
   }
   
   # Select and reorder columns
-  sumstats_copy <- sumstats_copy[, ..std_cols]
+  sumstats_copy <- sumstats_copy[, std_cols]
   
   return(sumstats_copy)
 }

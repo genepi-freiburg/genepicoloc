@@ -1,0 +1,23 @@
+---
+title: "Kidney Genomics Colocalization Atlas"
+subtitle: "CKDGen eGFR x 11 molecular and clinical datasets"
+---
+
+*This page will contain interactive atlas visualizations. Under construction.*
+
+## Overview
+
+The kidney atlas integrates colocalization results from CKDGen round 4 eGFR GWAS (Wuttke et al. 2019) against:
+
+- **Proteomics**: UKB PPP (2,940 proteins), Icelanders pGWAS (4,907 proteins)
+- **Metabolomics**: GCKD plasma (1,297) and urine (1,409) metabolites
+- **Transcriptomics**: Kidney eQTL, eQTLGen (blood)
+- **PheWAS**: MVP EUR (1,669 traits), FinnGen (2,272 endpoints), UKB TOPMed (1,419 phenotypes)
+- **Imaging**: UKB kidney MRI volumes (4 phenotypes)
+- **Kidney traits**: CKDGen r4 (eGFR, BUN, UACR, urate, gout, MA)
+
+## Results Summary
+
+6,439 high-confidence colocalizations (PP.H4 > 0.8) across 259 eGFR-associated regions.
+
+*Interactive visualizations coming soon.*

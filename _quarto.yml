@@ -1,0 +1,25 @@
+project:
+  type: website
+  output-dir: docs
+  render:
+    - index.qmd
+    - atlas.qmd
+    - vignettes/genepicoloc-workflow.qmd
+
+website:
+  title: "genepicoloc"
+  navbar:
+    left:
+      - text: "Home"
+        href: index.qmd
+      - text: "Getting Started"
+        href: vignettes/genepicoloc-workflow.qmd
+      - text: "Kidney Atlas"
+        href: atlas.qmd
+      - text: "GitHub"
+        href: https://github.com/genepi-freiburg/genepicoloc
+
+format:
+  html:
+    theme: cosmo
+    toc: true

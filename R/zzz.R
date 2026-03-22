@@ -33,13 +33,10 @@
 # Suppress R CMD check NOTEs about undefined global variables
 # These are typically column names used with data.table syntax
 utils::globalVariables(c(
-  "..required_cols",
-  "..std_cols",
   "CHR",
   "Name",
   "POS",
   "Phenotype",
-  "copy",
   "effectAlleleFreq",
   "region",
   "study_id",
