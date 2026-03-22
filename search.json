@@ -1,124 +1,5 @@
 [
   {
-    "objectID": "index.html",
-    "href": "index.html",
-    "title": "genepicoloc",
-    "section": "",
-    "text": "genepicoloc provides a scalable pipeline for genetic colocalization analysis across molecular and clinical trait datasets, with a focus on kidney disease genetics.\n\n\n\nStandalone coloc - built-in ABF colocalization, no external dependencies\nPreprocessing - liftOver, variant naming, p-value underflow handling\nScalable pipeline - parallel processing for millions of tests\nPublic data integration - eQTL Catalogue, GWAS Catalog"
-  },
-  {
-    "objectID": "index.html#overview",
-    "href": "index.html#overview",
-    "title": "genepicoloc",
-    "section": "",
-    "text": "genepicoloc provides a scalable pipeline for genetic colocalization analysis across molecular and clinical trait datasets, with a focus on kidney disease genetics.\n\n\n\nStandalone coloc - built-in ABF colocalization, no external dependencies\nPreprocessing - liftOver, variant naming, p-value underflow handling\nScalable pipeline - parallel processing for millions of tests\nPublic data integration - eQTL Catalogue, GWAS Catalog"
-  },
-  {
-    "objectID": "index.html#kidney-genomics-atlas",
-    "href": "index.html#kidney-genomics-atlas",
-    "title": "genepicoloc",
-    "section": "Kidney Genomics Atlas",
-    "text": "Kidney Genomics Atlas\nUsing CKDGen round 4 eGFR GWAS against 11 molecular and clinical datasets:\n\n\n\nMetric\nValue\n\n\n\n\nGenomic regions\n259\n\n\nDatasets tested\n15,930\n\n\nTotal tests\n4.1 million\n\n\nHigh-confidence colocalizations\n6,439\n\n\n\nSee the Kidney Atlas for interactive exploration."
-  },
-  {
-    "objectID": "index.html#installation",
-    "href": "index.html#installation",
-    "title": "genepicoloc",
-    "section": "Installation",
-    "text": "Installation\nremotes::install_github(\"genepi-freiburg/genepicoloc\")\nSee Getting Started for the full tutorial."
-  },
-  {
-    "objectID": "index.html#citation",
-    "href": "index.html#citation",
-    "title": "genepicoloc",
-    "section": "Citation",
-    "text": "Citation\nBorisov et al. (2026) genepicoloc: Scalable genetic colocalization analysis for kidney genomics. In preparation."
-  },
-  {
-    "objectID": "index.html#contact",
-    "href": "index.html#contact",
-    "title": "genepicoloc",
-    "section": "Contact",
-    "text": "Contact\nInstitute of Epidemiology and Prevention, Faculty of Medicine and Medical Center, University of Freiburg, Germany Hugstetter Straße 49, 79106 Freiburg"
-  },
-  {
-    "objectID": "NEWS.html",
-    "href": "NEWS.html",
-    "title": "genepicoloc 0.9.3",
-    "section": "",
-    "text": "Restructuring of pipeline architecture for improved scalability\n\nIntroduced three-level hierarchy: genepicoloc_wrapper() → genepicoloc_job() → genepicoloc_run()\nImplemented two-level parallelization strategy (regions × datasets)\nAdded job-based processing with configurable max_regions_per_job parameter\nImproved memory efficiency: each job needs &lt;1Gb when setting &lt;100 regions (flexible)\n\n\n\n\n\n\nAdded tar archive storage for efficient file management\n\nSummary statistics saved to sumstats.tar\nColocalization results saved to coloc.tar\n\nAdded save_sumstats parameter (default: FALSE) to save processed summary statistcs\nAdded p_min_save parameter for saving only significant summary statistics\nAdded p_filt parameter for additional p-value filtering\nAdded batch_size parameter for controlling Level 2 parallelization\nNew filter_significant_regions() function to reduce storage requirements\nNew consolidate_coloc_results() function for study-wise result aggregation\nEnhanced gene annotation with configurable nearest parameter\nUpdated documentation for pipeline functions\nRemoved dependency on writexl package for core functionality"
-  },
-  {
-    "objectID": "NEWS.html#major-changes",
-    "href": "NEWS.html#major-changes",
-    "title": "genepicoloc 0.9.3",
-    "section": "",
-    "text": "Restructuring of pipeline architecture for improved scalability\n\nIntroduced three-level hierarchy: genepicoloc_wrapper() → genepicoloc_job() → genepicoloc_run()\nImplemented two-level parallelization strategy (regions × datasets)\nAdded job-based processing with configurable max_regions_per_job parameter\nImproved memory efficiency: each job needs &lt;1Gb when setting &lt;100 regions (flexible)"
-  },
-  {
-    "objectID": "NEWS.html#new-features",
-    "href": "NEWS.html#new-features",
-    "title": "genepicoloc 0.9.3",
-    "section": "",
-    "text": "Added tar archive storage for efficient file management\n\nSummary statistics saved to sumstats.tar\nColocalization results saved to coloc.tar\n\nAdded save_sumstats parameter (default: FALSE) to save processed summary statistcs\nAdded p_min_save parameter for saving only significant summary statistics\nAdded p_filt parameter for additional p-value filtering\nAdded batch_size parameter for controlling Level 2 parallelization\nNew filter_significant_regions() function to reduce storage requirements\nNew consolidate_coloc_results() function for study-wise result aggregation\nEnhanced gene annotation with configurable nearest parameter\nUpdated documentation for pipeline functions\nRemoved dependency on writexl package for core functionality"
-  },
-  {
-    "objectID": "NEWS.html#documentation-improvements",
-    "href": "NEWS.html#documentation-improvements",
-    "title": "genepicoloc 0.9.3",
-    "section": "Documentation improvements",
-    "text": "Documentation improvements\n\nRemoved progress bar with processx\nAdded progress report using base R\nAdded name_by_position function"
-  },
-  {
-    "objectID": "NEWS.html#bug-fixes",
-    "href": "NEWS.html#bug-fixes",
-    "title": "genepicoloc 0.9.3",
-    "section": "Bug fixes",
-    "text": "Bug fixes\n\nAdded proper call of data.table::copy"
-  },
-  {
-    "objectID": "NEWS.html#documentation-improvements-1",
-    "href": "NEWS.html#documentation-improvements-1",
-    "title": "genepicoloc 0.9.3",
-    "section": "Documentation improvements",
-    "text": "Documentation improvements\n\nEnhanced documentation for all exported functions\nAdded comprehensive parameter descriptions\nAdded examples where appropriate\nMarked internal functions with @keywords internal"
-  },
-  {
-    "objectID": "NEWS.html#bug-fixes-1",
-    "href": "NEWS.html#bug-fixes-1",
-    "title": "genepicoloc 0.9.3",
-    "section": "Bug fixes",
-    "text": "Bug fixes\n\nRemoved debug print statement in get_coloc_regions()\nFixed duplicate function definitions in query_sumstats_custom.R"
-  },
-  {
-    "objectID": "NEWS.html#minor-improvements",
-    "href": "NEWS.html#minor-improvements",
-    "title": "genepicoloc 0.9.3",
-    "section": "Minor improvements",
-    "text": "Minor improvements\n\nCleaned up code comments\nImproved function descriptions\nAdded proper S3 method documentation"
-  },
-  {
-    "objectID": "atlas.html",
-    "href": "atlas.html",
-    "title": "Kidney Genomics Colocalization Atlas",
-    "section": "",
-    "text": "This page will contain interactive atlas visualizations. Under construction."
-  },
-  {
-    "objectID": "atlas.html#overview",
-    "href": "atlas.html#overview",
-    "title": "Kidney Genomics Colocalization Atlas",
-    "section": "Overview",
-    "text": "Overview\nThe kidney atlas integrates colocalization results from CKDGen round 4 eGFR GWAS (Wuttke et al. 2019) against:\n\nProteomics: UKB PPP (2,940 proteins), Icelanders pGWAS (4,907 proteins)\nMetabolomics: GCKD plasma (1,297) and urine (1,409) metabolites\nTranscriptomics: Kidney eQTL, eQTLGen (blood)\nPheWAS: MVP EUR (1,669 traits), FinnGen (2,272 endpoints), UKB TOPMed (1,419 phenotypes)\nImaging: UKB kidney MRI volumes (4 phenotypes)\nKidney traits: CKDGen r4 (eGFR, BUN, UACR, urate, gout, MA)"
-  },
-  {
-    "objectID": "atlas.html#results-summary",
-    "href": "atlas.html#results-summary",
-    "title": "Kidney Genomics Colocalization Atlas",
-    "section": "Results Summary",
-    "text": "Results Summary\n6,439 high-confidence colocalizations (PP.H4 &gt; 0.8) across 259 eGFR-associated regions.\nInteractive visualizations coming soon."
-  },
-  {
     "objectID": "vignettes/genepicoloc-workflow.html",
     "href": "vignettes/genepicoloc-workflow.html",
     "title": "Getting Started with genepicoloc",
@@ -189,199 +70,66 @@
     "text": "Session Info\n\nsessionInfo()\n#&gt; R version 4.3.3 (2024-02-29)\n#&gt; Platform: x86_64-pc-linux-gnu (64-bit)\n#&gt; Running under: Ubuntu 24.04.4 LTS\n#&gt; \n#&gt; Matrix products: default\n#&gt; BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 \n#&gt; LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0\n#&gt; \n#&gt; locale:\n#&gt;  [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              \n#&gt;  [3] LC_TIME=en_GB.UTF-8        LC_COLLATE=en_US.UTF-8    \n#&gt;  [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   \n#&gt;  [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 \n#&gt;  [9] LC_ADDRESS=C               LC_TELEPHONE=C            \n#&gt; [11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       \n#&gt; \n#&gt; time zone: Europe/Berlin\n#&gt; tzcode source: system (glibc)\n#&gt; \n#&gt; attached base packages:\n#&gt; [1] stats     graphics  grDevices utils     datasets  methods   base     \n#&gt; \n#&gt; loaded via a namespace (and not attached):\n#&gt;  [1] htmlwidgets_1.6.4 compiler_4.3.3    fastmap_1.2.0     cli_3.6.5        \n#&gt;  [5] tools_4.3.3       htmltools_0.5.9   parallel_4.3.3    otel_0.2.0       \n#&gt;  [9] yaml_2.3.12       rmarkdown_2.30    knitr_1.51        jsonlite_2.0.0   \n#&gt; [13] xfun_0.55         digest_0.6.39     rlang_1.1.7       evaluate_1.0.5"
   },
   {
-    "objectID": "tmp_project_direction.html",
-    "href": "tmp_project_direction.html",
-    "title": "GWAS Colocalization Project - Technical Direction",
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "genepicoloc",
     "section": "",
-    "text": "Public-facing showcase for an R package for GWAS colocalization analysis, deployed on personal VPS infrastructure.\n\n\n\nyourname.de        → Astro static site (landing page, docs, project info)\napp.yourname.de    → Shiny app (interactive colocalization analysis)\nBoth served via Nginx, SSL via Let’s Encrypt, admin access via WireGuard VPN.\n\n\n\nConsidered adding TypeScript/Astro directly into Shiny but decided against it. Shiny is a data exploration tool, not a website builder - mixing frameworks creates unnecessary complexity. Clean separation is the right approach.\n\n\n\n\n\n\nStatic site generation - fast, minimal JS sent to browser\nTypeScript for any interactive elements\nProject description, method explanation, links to Shiny app and R package\nImpressum + Datenschutz (use personal work/institute address)\n\n\n\n\n\nCore colocalization analysis and results\nInteractive plots via LocusZoom.js for regional association plots\nScrollable genome-wide Manhattan via GenomeSpy\nBoth embedded via htmlwidgets or direct JS integration\nAI interpretation of coloc results via Claude API (server-side, key never exposed to frontend)\n\n\n\n\n\nShiny passes coloc statistics to Claude API\nClaude returns plain-language interpretation of results\ne.g. “Strong evidence of shared causal variant between trait A and B at locus X…”\nGoal: publication-style results paragraph output\nConsider letting users supply their own API key for public deployment\n\n\n\n\n\nTypeScript basics (1-2 weeks)\n  → Astro (build the landing page as first real project)\n    → JS visualization libraries (LocusZoom.js / GenomeSpy)\n      → Docker cleanup of full deployment\n\n\n\n\nPersonal domain + multiple VPS machines (already running)\nWireGuard VPN connecting VPS + home GPU server\nHome GPU server available for heavy compute if needed\nAvoid university hospital IT (too restrictive for public-facing projects)\n\n\n\n\n\n\n\nLibrary\nPurpose\n\n\n\n\nLocusZoom.js\nRegional association plots, colocalization display\n\n\nGenomeSpy\nScrollable genome-wide Manhattan, GPU accelerated\n\n\nAstro\nStatic site / landing page\n\n\nClaude API\nAI interpretation of coloc results"
+    "text": "genepicoloc provides a scalable pipeline for genetic colocalization analysis across molecular and clinical trait datasets, with a focus on kidney disease genetics.\n\n\n\nStandalone coloc - built-in ABF colocalization, no external dependencies\nPreprocessing - liftOver, variant naming, p-value underflow handling\nScalable pipeline - parallel processing for millions of tests\nPublic data integration - eQTL Catalogue, GWAS Catalog"
   },
   {
-    "objectID": "tmp_project_direction.html#project-goal",
-    "href": "tmp_project_direction.html#project-goal",
-    "title": "GWAS Colocalization Project - Technical Direction",
+    "objectID": "index.html#overview",
+    "href": "index.html#overview",
+    "title": "genepicoloc",
     "section": "",
-    "text": "Public-facing showcase for an R package for GWAS colocalization analysis, deployed on personal VPS infrastructure."
+    "text": "genepicoloc provides a scalable pipeline for genetic colocalization analysis across molecular and clinical trait datasets, with a focus on kidney disease genetics.\n\n\n\nStandalone coloc - built-in ABF colocalization, no external dependencies\nPreprocessing - liftOver, variant naming, p-value underflow handling\nScalable pipeline - parallel processing for millions of tests\nPublic data integration - eQTL Catalogue, GWAS Catalog"
   },
   {
-    "objectID": "tmp_project_direction.html#architecture",
-    "href": "tmp_project_direction.html#architecture",
-    "title": "GWAS Colocalization Project - Technical Direction",
-    "section": "",
-    "text": "yourname.de        → Astro static site (landing page, docs, project info)\napp.yourname.de    → Shiny app (interactive colocalization analysis)\nBoth served via Nginx, SSL via Let’s Encrypt, admin access via WireGuard VPN."
+    "objectID": "index.html#kidney-genomics-atlas",
+    "href": "index.html#kidney-genomics-atlas",
+    "title": "genepicoloc",
+    "section": "Kidney Genomics Atlas",
+    "text": "Kidney Genomics Atlas\nUsing CKDGen round 4 eGFR GWAS against 11 molecular and clinical datasets:\n\n\n\nMetric\nValue\n\n\n\n\nGenomic regions\n259\n\n\nDatasets tested\n15,930\n\n\nTotal tests\n4.1 million\n\n\nHigh-confidence colocalizations\n6,439\n\n\n\nSee the Kidney Atlas for interactive exploration."
   },
   {
-    "objectID": "tmp_project_direction.html#decision-no-frontend-framework-inside-shiny",
-    "href": "tmp_project_direction.html#decision-no-frontend-framework-inside-shiny",
-    "title": "GWAS Colocalization Project - Technical Direction",
-    "section": "",
-    "text": "Considered adding TypeScript/Astro directly into Shiny but decided against it. Shiny is a data exploration tool, not a website builder - mixing frameworks creates unnecessary complexity. Clean separation is the right approach."
+    "objectID": "index.html#installation",
+    "href": "index.html#installation",
+    "title": "genepicoloc",
+    "section": "Installation",
+    "text": "Installation\nremotes::install_github(\"genepi-freiburg/genepicoloc\")\nSee Getting Started for the full tutorial."
   },
   {
-    "objectID": "tmp_project_direction.html#stack-by-layer",
-    "href": "tmp_project_direction.html#stack-by-layer",
-    "title": "GWAS Colocalization Project - Technical Direction",
-    "section": "",
-    "text": "Static site generation - fast, minimal JS sent to browser\nTypeScript for any interactive elements\nProject description, method explanation, links to Shiny app and R package\nImpressum + Datenschutz (use personal work/institute address)\n\n\n\n\n\nCore colocalization analysis and results\nInteractive plots via LocusZoom.js for regional association plots\nScrollable genome-wide Manhattan via GenomeSpy\nBoth embedded via htmlwidgets or direct JS integration\nAI interpretation of coloc results via Claude API (server-side, key never exposed to frontend)\n\n\n\n\n\nShiny passes coloc statistics to Claude API\nClaude returns plain-language interpretation of results\ne.g. “Strong evidence of shared causal variant between trait A and B at locus X…”\nGoal: publication-style results paragraph output\nConsider letting users supply their own API key for public deployment"
+    "objectID": "index.html#citation",
+    "href": "index.html#citation",
+    "title": "genepicoloc",
+    "section": "Citation",
+    "text": "Citation\nBorisov et al. (2026) genepicoloc: Scalable genetic colocalization analysis for kidney genomics. In preparation."
   },
   {
-    "objectID": "tmp_project_direction.html#learning-path-alongside-this-project",
-    "href": "tmp_project_direction.html#learning-path-alongside-this-project",
-    "title": "GWAS Colocalization Project - Technical Direction",
-    "section": "",
-    "text": "TypeScript basics (1-2 weeks)\n  → Astro (build the landing page as first real project)\n    → JS visualization libraries (LocusZoom.js / GenomeSpy)\n      → Docker cleanup of full deployment"
+    "objectID": "index.html#contact",
+    "href": "index.html#contact",
+    "title": "genepicoloc",
+    "section": "Contact",
+    "text": "Contact\nInstitute of Epidemiology and Prevention, Faculty of Medicine and Medical Center, University of Freiburg, Germany Hugstetter Straße 49, 79106 Freiburg"
   },
   {
-    "objectID": "tmp_project_direction.html#infrastructure",
-    "href": "tmp_project_direction.html#infrastructure",
-    "title": "GWAS Colocalization Project - Technical Direction",
+    "objectID": "atlas.html",
+    "href": "atlas.html",
+    "title": "Kidney Genomics Colocalization Atlas",
     "section": "",
-    "text": "Personal domain + multiple VPS machines (already running)\nWireGuard VPN connecting VPS + home GPU server\nHome GPU server available for heavy compute if needed\nAvoid university hospital IT (too restrictive for public-facing projects)"
+    "text": "This page will contain interactive atlas visualizations. Under construction."
   },
   {
-    "objectID": "tmp_project_direction.html#key-libraries-to-explore",
-    "href": "tmp_project_direction.html#key-libraries-to-explore",
-    "title": "GWAS Colocalization Project - Technical Direction",
-    "section": "",
-    "text": "Library\nPurpose\n\n\n\n\nLocusZoom.js\nRegional association plots, colocalization display\n\n\nGenomeSpy\nScrollable genome-wide Manhattan, GPU accelerated\n\n\nAstro\nStatic site / landing page\n\n\nClaude API\nAI interpretation of coloc results"
+    "objectID": "atlas.html#overview",
+    "href": "atlas.html#overview",
+    "title": "Kidney Genomics Colocalization Atlas",
+    "section": "Overview",
+    "text": "Overview\nThe kidney atlas integrates colocalization results from CKDGen round 4 eGFR GWAS (Wuttke et al. 2019) against:\n\nProteomics: UKB PPP (2,940 proteins), Icelanders pGWAS (4,907 proteins)\nMetabolomics: GCKD plasma (1,297) and urine (1,409) metabolites\nTranscriptomics: Kidney eQTL, eQTLGen (blood)\nPheWAS: MVP EUR (1,669 traits), FinnGen (2,272 endpoints), UKB TOPMed (1,419 phenotypes)\nImaging: UKB kidney MRI volumes (4 phenotypes)\nKidney traits: CKDGen r4 (eGFR, BUN, UACR, urate, gout, MA)"
   },
   {
-    "objectID": "CLAUDE.html",
-    "href": "CLAUDE.html",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "genepicoloc is an R package for genetic colocalization analysis across multiple QTL and PheWAS datasets. It wraps the coloc package with scalable infrastructure for large-scale analyses.\nRepository: https://github.com/genepi-freiburg/genepicoloc\n\n\n\nThe package powers a large-scale colocalization analysis for the CKDGen Consortium (kidney function GWAS). Key achievements:\n\n\n\n7 CKDGen traits: eGFRcr, eGFRcys, UACR, Calcium, Phosphate, Albumin, Urate\n9 external data sources: GTEx eQTL, eQTLGen, UKB_PPP (proteomics), Icelanders pGWAS, FinnGen, MVP, UKB_TOPMed, GCKD metabolomics, CKDGen internal\n~200,000+ colocalization tests per study\nResults stored efficiently in tar archives with job-based parallelization\n\n\n\n\nA production-ready Shiny app was developed: ckdgen-coloc-app/\nFeatures: - Network visualization (region-centered and trait-centered views) - Interactive filtering by PP.H4 threshold and study - Regional Association Plots (LocusZoom-style) with interactive plotly - Gene Info Panel with annotations from NCBI, Reactome, HPO, HGNC - AI-powered insights (Claude API integration) - Docker deployment ready\nKey files to reference: - /home/oleg/Work/bioinfo/ckdgen/git/followup/genepicoloc/ckdgen-coloc-app/ - Full Shiny app - /home/oleg/Work/bioinfo/ckdgen/git/followup/genepicoloc/ckdgen_genepicoloc_functions.R - CKDGen-specific helper functions\n\n\n\nSuccessfully implemented regional plot data extraction:\nWorkflow: 1. Run genepicoloc with save_sumstats=TRUE to save sumstats_2 RDS files in tar archives 2. Extract regional data using optimized job-grouped extraction (5-10x faster) 3. Serve in Shiny app with interactive LocusZoom-style plots\nKey optimizations discovered: - Group regions by job, extract tar once per job (not per region) - Deduplicate trait names before processing - Use filename for Icelanders_pGWAS (short name annotation has errors)\n\n\n\n\nSecond use case: colocalization for GCKD multi-biomarker GWAS (VAE-derived modules).\n\n\n\nME19 and ME30 modules, SNPTEST format (.gwas), hg19, N=4,850\nSevere p-value underflow: lead SNPs have p ~ 1e-1762 (z ~ 90)\npvalue_precise_normal column preserves full precision as text\n\n\n\n\n\nLoad .gwas file with fread()\nHandle underflow: handle_underflow(pvalue_precise_normal, return_nlog10P = TRUE)\nLiftOver hg19 -&gt; hg38: genepi_liftover() + setDT() on result\nColumn mapping: SNP-&gt;rsID, coded_all-&gt;A1, noncoded_all-&gt;A2, AF_coded_all-&gt;AF, n_total-&gt;N\nBuild Name: chr:pos:ref:alt format\n\n\n\n\n\nME19: 1 region (chr2/NAT8), 7 high-confidence colocalizations (creatinine, eGFR, Mg, CKD, BUN, AST)\nME30: 2 regions (chr10/HPSE2 lead signal nlog10P=3274.8, chr2/NAT8 secondary), 12 high-confidence colocalizations\nAll colocalizations at chr2/NAT8 locus - kidney function signal\nchr10/HPSE2 region: no MVP colocalizations (may colocalize with eQTL/pQTL)\n\n\n\n\n\nAnalysis script: genepicoloc_internal/analyses/GCKD_VAE/run_GCKD_VAE_coloc.R\nOutput: /g/epi/data/studies/00_GCKD/01_analyses/gwas/multi_biomarker_GWAS/common_chip/21_VAE/02_output/genepicoloc/\nSummary: ~/Work/bioinfo/genepicoloc/VAE/genepicoloc/email.md\n\n\n\n\n\nR/\n├── colocalization.R      # Core coloc wrapper, map_over_args(), genepicoloc_wrapper()\n├── config.R              # YAML-based study configuration system\n├── preprocessing.R       # Sumstats formatting, match_cols()\n├── get_coloc_regions.R   # Identify significant regions\n├── gene_annotation.R     # Gene annotation utilities\n├── query_sumstats_custom.R # Data retrieval functions (incl. UKB kidney volumes)\n├── ebi_interface.R       # eQTL Catalogue API\n├── name_by_position.R    # Variant naming utilities\n├── genepicoloc_susie.R   # SuSiE/coloc.susie integration (experimental)\n├── shiny.R               # Built-in Shiny viewer\n├── utils.R               # Utility functions\n└── zzz.R                 # Package loading\n\n\n\n\n\n\nmatch_cols() - Format input sumstats\nget_coloc_regions() - Identify significant genomic regions\nwrite_regions() - Save and index preprocessed data\ncreate_args_df() - Create arguments for colocalization\nmap_over_args() / genepicoloc_wrapper() - Run colocalization\ncoloc_out_annotate() - Annotate results with gene info\n\n\n\n\n\nmake_eQTL_Catalogue_args() - eQTL Catalogue datasets\nquery_eQTL_Catalogue() - Query eQTL Catalogue API\nCustom functions for each data source (tabix-based retrieval)\ntabix_UKB_kidney_vol() / format_UKB_kidney_vol() - UKB kidney volumes (REGENIE format, handles chr23/X conversion)\n\n\n\n\n\ncreate_args_df_from_config(config_file) - Main entry point: reads YAML, builds args_df data.table for genepicoloc_wrapper()\nload_studies_config(config_file) - Loads and validates YAML config\nlist_available_studies(config_file) - Quick summary of available studies\nThree file source modes: explicit files: list, path: + pattern: directory listing, or metadata_file: TSV\nSupports type_rules: for mixed quant/cc studies, expected_count: validation, internal: true for cluster-only studies\nExample config: inst/extdata/example_studies.yaml\n\n\n\n\n\n\n\n\nReal NFS mount: /dsk/gedata (NFS from 10.239.7.58:/GenEpiData216/data)\nCurrent symlink: /g/epi/data -&gt; /dsk/gedata\nOld path (dead): /data/ - no longer exists after cluster migration\nPaths may change again; YAML config system decouples file paths from R code\n\n\n\n\n/g/epi/data/studies/06_UKBB/02_Projects/14_MRI-kidney/02_output/regenie_output/step2/10Feb2024_final_volumes/maf001/\n  model1_qnorm_tkv.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz\n  model1_qnorm_cortex.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz\n  model1_qnorm_medulla.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz\n  model1_qnorm_hilus.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz\n\n\n\nCluster-specific study definitions live in a separate repo: genepicoloc_internal - Local: /home/oleg/Work/bioinfo/genepicoloc/genepicoloc_internal/ - Cluster: /g/epi/data/programs/pipelines/genepicoloc/custom_scripts/internal_genepicoloc_dev - GitHub: github.com/genepi-freiburg/genepicoloc_internal\nStructure:\ngenepicoloc_internal/\n├── R/                    # Study definitions, annotation pipeline\n│   ├── arguments_custom.R      # create_args_df() with all study file paths\n│   ├── annotation.R            # coloc_out_annotate() dispatching\n│   ├── annotation_database.R   # Centralized annotation DB (RDS)\n│   └── preprocessing_internal.R # Helper functions\n├── analyses/             # Self-contained analysis projects\n│   └── GCKD_VAE/               # VAE modules ME19/ME30\n└── scripts/              # Standalone scripts\n    └── run_eGFR_demo_coloc.R\nWorktree workflow: Use git worktree add for side branches to avoid disrupting main for other users.\n\n\n\n/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/liftOver\n/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/hg19ToHg38.over.chain.gz\n\n\n\n\n\n\n\nDecision: Use SLURM array jobs for multi-node parallelization (not Nextflow/Snakemake)\nRationale: Workload is embarrassingly parallel (no inter-job dependencies), SLURM is already available, zero new dependencies\nApproach (Option B - cleaner separation):\n\ngenepicoloc_prepare() - new function to save inputs and return job count\nsbatch --array=1-N - SLURM submits jobs in parallel\ngenepicoloc_job_standalone(dir_out, job_idx) - each array task runs one job\nconsolidate_coloc_results() - unchanged, runs after all jobs complete\n\nStatus: Not yet implemented, planned as next major improvement\n\n\n\n\n\nBatch tabix queries (1 call for all regions per file instead of per-region) - ~2-5x speedup\nPre-filter empty datasets before main run - variable speedup\n\n\n\n\n\n\n\n\nVignette skeleton: vignettes/genepicoloc-workflow.qmd\nFill in vignette with demo data examples\nDocument all exported functions\nCreate quick-start guide\n\n\n\n\n\nImplement case/control s parameter in colocalization.R\nFix susieR dependency (requireNamespace instead of @importFrom)\nAlign p_filt defaults across functions\nFix DESCRIPTION typo and URLs\n\n\n\n\n\nRun full eGFR pipeline (259 regions x 21,405 datasets)\nSelect 3 demo regions (GATM, SLC34A1, UMOD)\nExtract demo data from cluster results\nBundle in inst/extdata/\n\n\n\n\n\nPort ckdgen-coloc-app (~3600 lines) to inst/shiny/\nModularize: config.R, network.R, regional_plots.R, gene_info.R\nAdd YAML-based configuration (user provides config.yaml)\nRegional plots as standard feature (requires save_sumstats=TRUE)\nRemove hardcoded CKDGen-specific study metadata\n\n\n\n\n\nCreate Dockerfile in inst/shiny/\nMount data volume pattern (user provides data + config.yaml)\nInclude demo data for testing\nDocument deployment: docker run -v /path/to/data:/app/data genepicoloc-shiny\n\n\n\n\n\nBenchmark performance metrics\nComparison with other tools\nUse case examples with public data\n\n\n\n\n\nCreating a demo dataset using published public data to showcase the full genepicoloc + Shiny app functionality.\nStatus: Full pipeline run complete (259 regions x 21,405 datasets). 3 demo regions selected. Next: extract demo data.\n\n\n\n\n\n\n\n\n\n\n\nRegion\nGene\nChr:Start-Stop (hg38)\nWhy\n\n\n\n\n1\nGATM\nchr15:45,583,326-46,583,326\neQTL + pQTL + PheWAS\n\n\n2\nSLC34A1\nchr4:103,514,576-105,348,007\nMulti-omics, kidney phosphate\n\n\n3\nUMOD\nchr16:19,850,119-20,850,119\nClassic kidney gene, strong network\n\n\n\n\n\n\nCKDGen Round 4 eGFR (Wuttke et al. 2019) - PMID: 31152163 - Data: https://ckdgen.imbi.uni-freiburg.de/datasets/Wuttke_2019 - File (hg38, harmonized): /g/epi/data/public_resources/CKDGen/preprocessing/Wuttke2019/20171016_MW_eGFR_overall_ALL_nstud61.dbgap.txt_hg38.gz - Full run output: eGFR_demo_coloc_output/ on cluster\nColumn mapping (applied in run_eGFR_demo_coloc.R): | Original | Standard | Description | |———-|———-|————-| | CHR_hg38 | CHR | Chromosome (1-22, X) | | POS_hg38 | POS | Position (GRCh38) | | A1_hg38 | A1 | Effect allele | | A2_hg38 | A2 | Other allele | | Name_hg38 | Name | chr:pos:ref:alt format | | RSID | rsID | dbSNP ID | | Freq1 | AF | Allele frequency | | Effect | BETA | Effect size | | StdErr | SE | Standard error | | P-value | P | P-value (converted to nlog10P) | | n_total_sum | N | Sample size |\n\n\n\nLocation: inst/scripts/preprocess_CKDGen_eGFR.R\nWorkflow: 1. Download from https://ckdgen.imbi.uni-freiburg.de/files/Wuttke2019/ 2. LiftOver hg19 → hg38 using genepi_liftover() 3. Calculate nlog10P with handle_underflow() 4. Harmonize columns to standard format 5. Output: *_hg38.gz + preprocessing_log.txt\nRequired tools (cluster paths):\nliftOver_bin=\"/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/liftOver\"\nliftOver_chain=\"/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/hg19ToHg38.over.chain.gz\"\ndbSNP_file=\"/g/epi/data/public_resources/Ensembl_human_variation_b38_v109/dbSNP_v156_b38p14_rsid.vcf.gz\"\nRun:\nRscript inst/scripts/preprocess_CKDGen_eGFR.R /path/to/output/\n\n\n\n\n\n\nCategory\nSource\nDescription\nLink\n\n\n\n\neQTL\neQTL Catalogue\neQTLGen (blood), GTEx tissues, kidney\nhttps://www.ebi.ac.uk/eqtl/Data_access/\n\n\npQTL\neQTL Catalogue\nSun et al. plasma proteomics\nhttps://www.ebi.ac.uk/eqtl/Studies/\n\n\nmGWAS\nGWAS Catalog\nGCKD metabolomics (our publication)\nPMID: 37277652\n\n\nPheWAS\nGWAS Catalog\nCKD, kidney volumes (our publication)\nGCST90667997\n\n\n\n\n\n\nSelect 3 regions that demonstrate: - Multi-omics signals (eQTL + pQTL + PheWAS colocalization) - Known kidney genes (e.g., UMOD, SLC34A1, SHROOM3) - High PP.H4 values (&gt;0.8) - Network complexity (multiple colocalized traits)\n\n\n\nFor kidney-related phenotypes: - chronic kidney disease, CKD, eGFR - proteinuria, albuminuria, UACR - kidney volume, renal volume - serum creatinine, cystatin C - uric acid, urate\n\n\n\n\nRun initial colocalization (script: ~/Work/bioinfo/genepicoloc/scripts/run_eGFR_demo_coloc.R)\n\nUses all available sumstats_2 on cluster\nGenerates region_summary_for_demo.tsv for selection\n\nSelect 3 demo regions based on multi-omics signals\nDownload public sumstats_2 from eQTL Catalogue and GWAS Catalog\nHarmonize to standard column format\nRun demo colocalization with save_sumstats=TRUE\nPackage demo data in inst/extdata/\n\n\n\n\n\nColocalization results (annot_filt.RDS): &lt;1MB\nRegional plot sumstats: ~5-10MB for 3 regions\nGene annotation: ~3.9MB (separate, in inst/extdata/)\n\n\n\n\n\n\n\ninst/\n├── shiny/\n│   ├── app.R                    # Main entry point\n│   ├── R/\n│   │   ├── config.R             # Load config.yaml\n│   │   ├── study_metadata.R     # Process study metadata\n│   │   ├── regional_plots.R     # RAP plotting functions\n│   │   ├── network.R            # Network visualization\n│   │   └── gene_info.R          # Gene info panel\n│   ├── www/                     # CSS/assets\n│   └── Dockerfile\n├── extdata/\n│   ├── demo_data/               # Demo colocalization results\n│   └── gene_annotation.tsv.gz   # Gene annotations (~3.9MB)\n└── scripts/\n    ├── create_gene_annotation.R # Regenerate gene annotations\n    └── example_config.yaml      # Template configuration\n\n\n\nUser provides configuration in mounted data volume:\ndata_path: \"/app/data\"\n\nstudies:\n  eGFRcr:\n    folder: \"eGFRcr\"\n    display_name: \"eGFR (creatinine)\"\n    description: \"Estimated GFR from creatinine\"\n    pmid: \"31152163\"\n    ancestry: \"EUR\"\n    has_regional_plots: true\n\nstudy_colors:\n  GTEx_eQTL: \"#1f77b4\"\n  eQTLGen: \"#ff7f0e\"\n  # ...\n\ngene_annotation_path: \"/app/data/gene_annotation.tsv.gz\"\n\n\n\nProcessed file (ready to use): /home/oleg/Work/bioinfo/ckdgen/git/followup/genepicoloc/ckdgen-coloc-app/data/gene_annotation_hg38_full.tsv ~3.9MB, contains: Gencode v49 + HGNC + NCBI descriptions + Reactome pathways + HPO phenotypes\nScripts to regenerate (in scripts/): 1. download_gene_annotation_sources.R - Downloads gene_info.gz, NCBI2Reactome.txt 2. create_gene_annotation_extended.R - Creates base annotation with HPO 3. process_gene_annotation_full.R - Adds NCBI descriptions + Reactome pathways\nRegeneration workflow:\ncd inst/extdata\nRscript ../../scripts/download_gene_annotation_sources.R\nRscript ../../scripts/create_gene_annotation_extended.R\nRscript ../../scripts/process_gene_annotation_full.R\nrm gene_info.gz NCBI2Reactome.txt gene_annotation_hg38_extended.tsv  # cleanup\n\n\n\n\n\n\nConverts genomic coordinates from hg19 to hg38 using UCSC liftOver.\nLocation: R/name_by_position.R\nUsage:\nsumstats_hg38 &lt;- genepi_liftover(\n  sumstats = sumstats,\n  CHR_name = \"Chr\",\n  POS_name = \"Pos_b37\",\n  A1_name = \"Allele1\",\n  A2_name = \"Allele2\",\n  liftOver_bin = \"/path/to/liftOver\",\n  liftOver_chain = \"/path/to/hg19ToHg38.over.chain.gz\"\n)\nOutput columns: CHR_hg38, POS_hg38, A1_hg38, A2_hg38\nFeatures: - Works on a copy (doesn’t modify input) - Proper temp file handling with on.exit() cleanup - Auto-detects chr prefix format - Handles strand flipping during liftOver\nRequired tools: - UCSC liftOver binary: https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver - Chain file: https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz\n\n\n\nAdds rsID and standardized variant names by querying Ensembl VCF files.\nLocation: R/name_by_position.R\nUsage:\n# Option 1: Single VCF file (e.g., chr21 only for testing)\nsumstats_named &lt;- name_by_position(\n  sumstats = sumstats_hg38,\n  CHR_name = \"CHR_hg38\",\n  POS_name = \"POS_hg38\",\n  A1_name = \"A1_hg38\",\n  A2_name = \"A2_hg38\",\n  dbSNP_file = \"/path/to/homo_sapiens-chr21.vcf.gz\"\n)\n\n# Option 2: Per-chromosome VCF directory (recommended for production)\nsumstats_named &lt;- name_by_position(\n  sumstats = sumstats_hg38,\n  CHR_name = \"CHR_hg38\",\n  POS_name = \"POS_hg38\",\n  A1_name = \"A1_hg38\",\n  A2_name = \"A2_hg38\",\n  dbSNP_dir = \"/path/to/ensembl_vcf/\"  # contains homo_sapiens-chr{1..22,X,Y,MT}.vcf.gz\n)\nParameters: - dbSNP_file: Path to single tabix-indexed VCF file - dbSNP_dir: Path to directory with per-chromosome files (homo_sapiens-chr{CHR}.vcf.gz)\nOutput columns: rs (rsID), Name_hg38 (chr:pos:ref:alt format)\nFeatures: - Works directly with Ensembl VCF files (no preprocessing needed) - Supports both single-file and per-chromosome directory modes - Auto-detects chromosome naming convention (chr21 vs 21) per file - Handles multi-allelic variants (splits comma-separated ALT alleles) - Matches alleles accounting for strand flipping - Skips chromosomes without corresponding VCF file (warns user) - No external dependencies (uses system2 + tabix)\nEnsembl VCF source:\n# For testing (chr21 only, ~165MB):\nwget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr21.vcf.gz\nwget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr21.vcf.gz.csi\n\n# For production (all chromosomes, ~15GB total):\nfor chr in {1..22} X Y MT; do\n  wget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr${chr}.vcf.gz\n  wget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr${chr}.vcf.gz.csi\ndone\nPerformance (chr21): - Input: 112,722 variants - Matched: 112,722 variants (100%) - Processing time: ~2 minutes\n\n\n\nlibrary(data.table)\nlibrary(genepicoloc)\n\n# 1. Load hg19 summary statistics\nsumstats &lt;- fread(\"gwas_hg19.txt.gz\")\n\n# 2. LiftOver to hg38\nsumstats_hg38 &lt;- genepi_liftover(\n  sumstats = sumstats,\n  CHR_name = \"Chr\",\n  POS_name = \"Pos_b37\",\n  A1_name = \"Allele1\",\n  A2_name = \"Allele2\",\n  liftOver_bin = \"liftOver\",\n  liftOver_chain = \"hg19ToHg38.over.chain.gz\"\n)\n\n# 3. Add rsID and Name (optional, for display)\nsumstats_named &lt;- name_by_position(\n  sumstats = sumstats_hg38,\n  CHR_name = \"CHR_hg38\",\n  POS_name = \"POS_hg38\",\n  A1_name = \"A1_hg38\",\n  A2_name = \"A2_hg38\",\n  dbSNP_file = \"homo_sapiens-chr21.vcf.gz\"\n)\n\n# 4. Calculate -log10(P) with underflow handling\nsumstats_named[, nlog10P := -log10(P)]\nsumstats_named[!is.finite(nlog10P), nlog10P := max(nlog10P[is.finite(nlog10P)]) + 1]\n\n\n\n\n\n\nResults are stored in tar archives per job: - jobs/job_XXX/coloc_results.tar - Colocalization results - jobs/job_XXX/sumstats.tar - Sumstats for regional plots (if save_sumstats=TRUE) - jobs/job_XXX/sumstats_1.RDS - Source study sumstats\n\n\n\nAfter colocalization, coloc_out_annotate() in genepicoloc_internal: 1. Reads consolidated results from dir_out/unfilt/ 2. Dispatches to study-specific annotator: - annotate_eQTL() - GTEx, eQTLGen, Kidney_eQTL (uses gencode_v26 for gene mapping) - annotate_pQTL() - UKB_PPP, Icelanders, GCKD_pGWAS (uses olink protein map) - annotation_std() - GWAS/PheWAS studies (uses annotation DB for phenotype names) 3. Writes annot/study_annot_unfilt.RDS 4. Filters in 3 tiers: coloc_done -&gt; PP.H4 &gt; 0.8 -&gt; sumstats_2 genome-wide sig 5. Final: annot/annot_filt.RDS (also .xlsx)\n\n\n\ngenepi_liftover() returns data.frame - Returns base R data.frame, not data.table - Must call setDT() on result before using data.table syntax (:=, bare column names in [)\nMVP annotation DB has old /data/ paths - annotation_db.RDS was created with old /data/ mount paths - Fix in arguments_custom.R: sub(\"^/data/\", \"/g/epi/data/\", ...) on file paths from DB - Proper fix: regenerate annotation DB with create_annotation_db()\nMVP ancestry-split annotation - MVP_R4_AFR/AMR/EAS/EUR/META studies share the MVP_R4 annotation DB entry - annotation_std() maps grepl(\"^MVP_R4_\", study) to “MVP_R4” for DB lookup\nP-value underflow handling - Some GWAS have p-values far beyond R’s numeric range (e.g., 1e-1762 for GCKD VAE) - handle_underflow() parses scientific notation text strings directly - Fallback from z-scores: nlog10P = -log10(2) - pnorm(abs(z), lower.tail=FALSE, log.p=TRUE) / log(10) - Always check for text-format p-value columns (e.g., pvalue_precise_normal in SNPTEST output)\nMVP variant naming bug (historical) - Old MVP data had mismatched variant names - Solution: Always verify nsnps is reasonable (~6000, not ~20)\nNon-positive definite LD matrices (coloc.susie) - Reference panel mismatch causes negative eigenvalues - Solution: Eigenvalue shift method in shift_eigenvalues_minimal()\nIcelanders_pGWAS protein naming - Short name annotation has errors (wrong proteins labeled) - Solution: Use filename (contains SeqId + protein name)\nUKB_PPP protein complex duplicates - Multi-protein assays (e.g., FUT3_FUT5) create duplicate entries - Expected behavior for comparison functions\n\n\n\n\n\n\n\nRegion-centered view: Genomic region (star) → colocalized traits (circles)\nTrait-centered view (MVP): Selected trait (diamond) → genomic regions\nTrait-centered view (pQTL): Protein (diamond) → genomic regions\nEdge colors: orange (positive direction), blue (negative), gray (unknown)\nNode size by PP.H4 value\n\n\n\n\n\nLocusZoom-style plots with plotly interactivity\nTwo panels: base study + colocalized trait\nLead SNP highlighted with purple diamond\nGene track with clickable genes\nHover tooltips with variant details (Name, rsID, position, -log10P, beta, SE, AF)\n\n\n\n\nClick gene in track to show: - Description (NCBI Gene) - Pathways (Reactome, top 5) - Phenotypes (HPO, top 5) - External links (GeneCards, HGNC, NCBI)\n\n\n\nCombined from multiple sources (~3.9MB TSV): - Gencode v49: coordinates, strand - HGNC: gene names, families - NCBI Gene: descriptions - Reactome: biological pathways - HPO: phenotype associations\nScripts: scripts/create_gene_annotation_extended.R, scripts/process_gene_annotation_full.R\n\n\n\nEach study has: - Display name (user-friendly) - Description - PMID (PubMed link) - Ancestry badge - Regional plot availability\n\n\n\n\n\n\n\nsumstats_1: Your GWAS of interest (e.g., eGFR, UACR) - the “query”\nsumstats_2: External datasets to colocalize against (eQTL, pQTL, PheWAS) - the “targets”\n\n\n\n\n\nName: CHR:POS:REF:ALT format (e.g., chr16:17906244:T:C)\nCHR, POS: Genomic coordinates (GRCh38)\nA1, A2: Effect and other allele\nBETA, SE: Effect size and standard error\nnlog10P: -log10(p-value) to avoid underflow\nAF: Allele frequency\nN: Sample size\n\n\n\n\n\nFor updating existing results while preserving regional plot data:\n# 1. Run with save_sumstats=TRUE to new folder\nrun_genepicoloc_for_studies(\n  study_names = \"study.multi\",\n  output_base_dir = \"all_sumstats_rerun\",\n  save_sumstats = TRUE\n)\n\n# 2. Compare old vs new (expect differences for bug fixes)\nrun_rerun_comparison(\"study.multi\", exclude_studies = \"CKDGen_r4\")\n\n# 3. Check \"lost\" results aren't false positives\n# (MVP with nsnps ~20 = false positive, should be ~6000)\n\n# 4. Merge validated results\nmerge_rerun_results(\"study.multi\", dry_run = FALSE)\n\n# 5. Export and extract regional plots\nprepare_shiny_export(studies = \"study.multi\", ...)\nrun_regional_extraction(studies = list(\"Study\" = \"study.multi\"), ...)\n\n\n\nFor studies needing SuSiE-based fine-mapping:\n\n\n\nEUR ancestry recommended for predominantly European GWAS\nALL ancestry suffers from LD heterogeneity → weak/scattered credible sets\nEUR shows strong colocalization (PP.H4 ~0.97) where ALL shows none (~0.001)\n\n\n\n\n\nFilter variants by “Direction” column (from meta-analysis)\nKeep variants present in most studies (≤2 “?” allowed)\nDramatically improves LD matrix eigenvalues\n\n\n\n\n\nCritical: use fixref=TRUE in LD matrix creation\nAligns effect allele from sumstats to LD reference panel\nWithout this, SuSiE fails to converge\n\n\n\n\n\nBased on ckdgen-coloc-app pattern:\nFROM rocker/shiny:4.3.0\n# Install R packages...\n# Copy app files...\nEXPOSE 3838\nCMD [\"R\", \"-e\", \"shiny::runApp('/app', host='0.0.0.0', port=3838)\"]\nMount data volumes for flexibility:\ndocker run -d -p 3838:3838 \\\n  -v /path/to/data:/app/data \\\n  genepicoloc-shiny\n\n\n\n\nUse data.table for all data manipulation\nCheck column existence before use: if (\"col\" %in% names(dt))\nWrap external calls in tryCatch for robustness\nLog progress for long-running operations\nPrefer simple solutions over complex refactoring (KISS principle)\n\n\n\n\nNo Claude footer required. Keep messages concise and descriptive."
-  },
-  {
-    "objectID": "CLAUDE.html#project-overview",
-    "href": "CLAUDE.html#project-overview",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "genepicoloc is an R package for genetic colocalization analysis across multiple QTL and PheWAS datasets. It wraps the coloc package with scalable infrastructure for large-scale analyses.\nRepository: https://github.com/genepi-freiburg/genepicoloc"
-  },
-  {
-    "objectID": "CLAUDE.html#production-use-case-ckdgen-consortium",
-    "href": "CLAUDE.html#production-use-case-ckdgen-consortium",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "The package powers a large-scale colocalization analysis for the CKDGen Consortium (kidney function GWAS). Key achievements:\n\n\n\n7 CKDGen traits: eGFRcr, eGFRcys, UACR, Calcium, Phosphate, Albumin, Urate\n9 external data sources: GTEx eQTL, eQTLGen, UKB_PPP (proteomics), Icelanders pGWAS, FinnGen, MVP, UKB_TOPMed, GCKD metabolomics, CKDGen internal\n~200,000+ colocalization tests per study\nResults stored efficiently in tar archives with job-based parallelization\n\n\n\n\nA production-ready Shiny app was developed: ckdgen-coloc-app/\nFeatures: - Network visualization (region-centered and trait-centered views) - Interactive filtering by PP.H4 threshold and study - Regional Association Plots (LocusZoom-style) with interactive plotly - Gene Info Panel with annotations from NCBI, Reactome, HPO, HGNC - AI-powered insights (Claude API integration) - Docker deployment ready\nKey files to reference: - /home/oleg/Work/bioinfo/ckdgen/git/followup/genepicoloc/ckdgen-coloc-app/ - Full Shiny app - /home/oleg/Work/bioinfo/ckdgen/git/followup/genepicoloc/ckdgen_genepicoloc_functions.R - CKDGen-specific helper functions\n\n\n\nSuccessfully implemented regional plot data extraction:\nWorkflow: 1. Run genepicoloc with save_sumstats=TRUE to save sumstats_2 RDS files in tar archives 2. Extract regional data using optimized job-grouped extraction (5-10x faster) 3. Serve in Shiny app with interactive LocusZoom-style plots\nKey optimizations discovered: - Group regions by job, extract tar once per job (not per region) - Deduplicate trait names before processing - Use filename for Icelanders_pGWAS (short name annotation has errors)"
-  },
-  {
-    "objectID": "CLAUDE.html#gckd-vae-analysis",
-    "href": "CLAUDE.html#gckd-vae-analysis",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "Second use case: colocalization for GCKD multi-biomarker GWAS (VAE-derived modules).\n\n\n\nME19 and ME30 modules, SNPTEST format (.gwas), hg19, N=4,850\nSevere p-value underflow: lead SNPs have p ~ 1e-1762 (z ~ 90)\npvalue_precise_normal column preserves full precision as text\n\n\n\n\n\nLoad .gwas file with fread()\nHandle underflow: handle_underflow(pvalue_precise_normal, return_nlog10P = TRUE)\nLiftOver hg19 -&gt; hg38: genepi_liftover() + setDT() on result\nColumn mapping: SNP-&gt;rsID, coded_all-&gt;A1, noncoded_all-&gt;A2, AF_coded_all-&gt;AF, n_total-&gt;N\nBuild Name: chr:pos:ref:alt format\n\n\n\n\n\nME19: 1 region (chr2/NAT8), 7 high-confidence colocalizations (creatinine, eGFR, Mg, CKD, BUN, AST)\nME30: 2 regions (chr10/HPSE2 lead signal nlog10P=3274.8, chr2/NAT8 secondary), 12 high-confidence colocalizations\nAll colocalizations at chr2/NAT8 locus - kidney function signal\nchr10/HPSE2 region: no MVP colocalizations (may colocalize with eQTL/pQTL)\n\n\n\n\n\nAnalysis script: genepicoloc_internal/analyses/GCKD_VAE/run_GCKD_VAE_coloc.R\nOutput: /g/epi/data/studies/00_GCKD/01_analyses/gwas/multi_biomarker_GWAS/common_chip/21_VAE/02_output/genepicoloc/\nSummary: ~/Work/bioinfo/genepicoloc/VAE/genepicoloc/email.md"
-  },
-  {
-    "objectID": "CLAUDE.html#package-structure",
-    "href": "CLAUDE.html#package-structure",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "R/\n├── colocalization.R      # Core coloc wrapper, map_over_args(), genepicoloc_wrapper()\n├── config.R              # YAML-based study configuration system\n├── preprocessing.R       # Sumstats formatting, match_cols()\n├── get_coloc_regions.R   # Identify significant regions\n├── gene_annotation.R     # Gene annotation utilities\n├── query_sumstats_custom.R # Data retrieval functions (incl. UKB kidney volumes)\n├── ebi_interface.R       # eQTL Catalogue API\n├── name_by_position.R    # Variant naming utilities\n├── genepicoloc_susie.R   # SuSiE/coloc.susie integration (experimental)\n├── shiny.R               # Built-in Shiny viewer\n├── utils.R               # Utility functions\n└── zzz.R                 # Package loading"
-  },
-  {
-    "objectID": "CLAUDE.html#key-functions",
-    "href": "CLAUDE.html#key-functions",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "match_cols() - Format input sumstats\nget_coloc_regions() - Identify significant genomic regions\nwrite_regions() - Save and index preprocessed data\ncreate_args_df() - Create arguments for colocalization\nmap_over_args() / genepicoloc_wrapper() - Run colocalization\ncoloc_out_annotate() - Annotate results with gene info\n\n\n\n\n\nmake_eQTL_Catalogue_args() - eQTL Catalogue datasets\nquery_eQTL_Catalogue() - Query eQTL Catalogue API\nCustom functions for each data source (tabix-based retrieval)\ntabix_UKB_kidney_vol() / format_UKB_kidney_vol() - UKB kidney volumes (REGENIE format, handles chr23/X conversion)\n\n\n\n\n\ncreate_args_df_from_config(config_file) - Main entry point: reads YAML, builds args_df data.table for genepicoloc_wrapper()\nload_studies_config(config_file) - Loads and validates YAML config\nlist_available_studies(config_file) - Quick summary of available studies\nThree file source modes: explicit files: list, path: + pattern: directory listing, or metadata_file: TSV\nSupports type_rules: for mixed quant/cc studies, expected_count: validation, internal: true for cluster-only studies\nExample config: inst/extdata/example_studies.yaml"
-  },
-  {
-    "objectID": "CLAUDE.html#cluster-environment",
-    "href": "CLAUDE.html#cluster-environment",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "Real NFS mount: /dsk/gedata (NFS from 10.239.7.58:/GenEpiData216/data)\nCurrent symlink: /g/epi/data -&gt; /dsk/gedata\nOld path (dead): /data/ - no longer exists after cluster migration\nPaths may change again; YAML config system decouples file paths from R code\n\n\n\n\n/g/epi/data/studies/06_UKBB/02_Projects/14_MRI-kidney/02_output/regenie_output/step2/10Feb2024_final_volumes/maf001/\n  model1_qnorm_tkv.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz\n  model1_qnorm_cortex.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz\n  model1_qnorm_medulla.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz\n  model1_qnorm_hilus.bsa_chr1-22_maf001_liftOver_hg38_dedup_sorted.txt.gz\n\n\n\nCluster-specific study definitions live in a separate repo: genepicoloc_internal - Local: /home/oleg/Work/bioinfo/genepicoloc/genepicoloc_internal/ - Cluster: /g/epi/data/programs/pipelines/genepicoloc/custom_scripts/internal_genepicoloc_dev - GitHub: github.com/genepi-freiburg/genepicoloc_internal\nStructure:\ngenepicoloc_internal/\n├── R/                    # Study definitions, annotation pipeline\n│   ├── arguments_custom.R      # create_args_df() with all study file paths\n│   ├── annotation.R            # coloc_out_annotate() dispatching\n│   ├── annotation_database.R   # Centralized annotation DB (RDS)\n│   └── preprocessing_internal.R # Helper functions\n├── analyses/             # Self-contained analysis projects\n│   └── GCKD_VAE/               # VAE modules ME19/ME30\n└── scripts/              # Standalone scripts\n    └── run_eGFR_demo_coloc.R\nWorktree workflow: Use git worktree add for side branches to avoid disrupting main for other users.\n\n\n\n/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/liftOver\n/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/hg19ToHg38.over.chain.gz"
-  },
-  {
-    "objectID": "CLAUDE.html#hpc-architecture-decisions",
-    "href": "CLAUDE.html#hpc-architecture-decisions",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "Decision: Use SLURM array jobs for multi-node parallelization (not Nextflow/Snakemake)\nRationale: Workload is embarrassingly parallel (no inter-job dependencies), SLURM is already available, zero new dependencies\nApproach (Option B - cleaner separation):\n\ngenepicoloc_prepare() - new function to save inputs and return job count\nsbatch --array=1-N - SLURM submits jobs in parallel\ngenepicoloc_job_standalone(dir_out, job_idx) - each array task runs one job\nconsolidate_coloc_results() - unchanged, runs after all jobs complete\n\nStatus: Not yet implemented, planned as next major improvement\n\n\n\n\n\nBatch tabix queries (1 call for all regions per file instead of per-region) - ~2-5x speedup\nPre-filter empty datasets before main run - variable speedup"
-  },
-  {
-    "objectID": "CLAUDE.html#roadmap-for-publication",
-    "href": "CLAUDE.html#roadmap-for-publication",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "Vignette skeleton: vignettes/genepicoloc-workflow.qmd\nFill in vignette with demo data examples\nDocument all exported functions\nCreate quick-start guide\n\n\n\n\n\nImplement case/control s parameter in colocalization.R\nFix susieR dependency (requireNamespace instead of @importFrom)\nAlign p_filt defaults across functions\nFix DESCRIPTION typo and URLs\n\n\n\n\n\nRun full eGFR pipeline (259 regions x 21,405 datasets)\nSelect 3 demo regions (GATM, SLC34A1, UMOD)\nExtract demo data from cluster results\nBundle in inst/extdata/\n\n\n\n\n\nPort ckdgen-coloc-app (~3600 lines) to inst/shiny/\nModularize: config.R, network.R, regional_plots.R, gene_info.R\nAdd YAML-based configuration (user provides config.yaml)\nRegional plots as standard feature (requires save_sumstats=TRUE)\nRemove hardcoded CKDGen-specific study metadata\n\n\n\n\n\nCreate Dockerfile in inst/shiny/\nMount data volume pattern (user provides data + config.yaml)\nInclude demo data for testing\nDocument deployment: docker run -v /path/to/data:/app/data genepicoloc-shiny\n\n\n\n\n\nBenchmark performance metrics\nComparison with other tools\nUse case examples with public data"
-  },
-  {
-    "objectID": "CLAUDE.html#demo-dataset-plan-in-progress",
-    "href": "CLAUDE.html#demo-dataset-plan-in-progress",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "Creating a demo dataset using published public data to showcase the full genepicoloc + Shiny app functionality.\nStatus: Full pipeline run complete (259 regions x 21,405 datasets). 3 demo regions selected. Next: extract demo data.\n\n\n\n\n\n\n\n\n\n\n\nRegion\nGene\nChr:Start-Stop (hg38)\nWhy\n\n\n\n\n1\nGATM\nchr15:45,583,326-46,583,326\neQTL + pQTL + PheWAS\n\n\n2\nSLC34A1\nchr4:103,514,576-105,348,007\nMulti-omics, kidney phosphate\n\n\n3\nUMOD\nchr16:19,850,119-20,850,119\nClassic kidney gene, strong network\n\n\n\n\n\n\nCKDGen Round 4 eGFR (Wuttke et al. 2019) - PMID: 31152163 - Data: https://ckdgen.imbi.uni-freiburg.de/datasets/Wuttke_2019 - File (hg38, harmonized): /g/epi/data/public_resources/CKDGen/preprocessing/Wuttke2019/20171016_MW_eGFR_overall_ALL_nstud61.dbgap.txt_hg38.gz - Full run output: eGFR_demo_coloc_output/ on cluster\nColumn mapping (applied in run_eGFR_demo_coloc.R): | Original | Standard | Description | |———-|———-|————-| | CHR_hg38 | CHR | Chromosome (1-22, X) | | POS_hg38 | POS | Position (GRCh38) | | A1_hg38 | A1 | Effect allele | | A2_hg38 | A2 | Other allele | | Name_hg38 | Name | chr:pos:ref:alt format | | RSID | rsID | dbSNP ID | | Freq1 | AF | Allele frequency | | Effect | BETA | Effect size | | StdErr | SE | Standard error | | P-value | P | P-value (converted to nlog10P) | | n_total_sum | N | Sample size |\n\n\n\nLocation: inst/scripts/preprocess_CKDGen_eGFR.R\nWorkflow: 1. Download from https://ckdgen.imbi.uni-freiburg.de/files/Wuttke2019/ 2. LiftOver hg19 → hg38 using genepi_liftover() 3. Calculate nlog10P with handle_underflow() 4. Harmonize columns to standard format 5. Output: *_hg38.gz + preprocessing_log.txt\nRequired tools (cluster paths):\nliftOver_bin=\"/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/liftOver\"\nliftOver_chain=\"/g/epi/data/programs/pipelines/genepicoloc/custom_scripts/liftOver/hg19ToHg38.over.chain.gz\"\ndbSNP_file=\"/g/epi/data/public_resources/Ensembl_human_variation_b38_v109/dbSNP_v156_b38p14_rsid.vcf.gz\"\nRun:\nRscript inst/scripts/preprocess_CKDGen_eGFR.R /path/to/output/\n\n\n\n\n\n\nCategory\nSource\nDescription\nLink\n\n\n\n\neQTL\neQTL Catalogue\neQTLGen (blood), GTEx tissues, kidney\nhttps://www.ebi.ac.uk/eqtl/Data_access/\n\n\npQTL\neQTL Catalogue\nSun et al. plasma proteomics\nhttps://www.ebi.ac.uk/eqtl/Studies/\n\n\nmGWAS\nGWAS Catalog\nGCKD metabolomics (our publication)\nPMID: 37277652\n\n\nPheWAS\nGWAS Catalog\nCKD, kidney volumes (our publication)\nGCST90667997\n\n\n\n\n\n\nSelect 3 regions that demonstrate: - Multi-omics signals (eQTL + pQTL + PheWAS colocalization) - Known kidney genes (e.g., UMOD, SLC34A1, SHROOM3) - High PP.H4 values (&gt;0.8) - Network complexity (multiple colocalized traits)\n\n\n\nFor kidney-related phenotypes: - chronic kidney disease, CKD, eGFR - proteinuria, albuminuria, UACR - kidney volume, renal volume - serum creatinine, cystatin C - uric acid, urate\n\n\n\n\nRun initial colocalization (script: ~/Work/bioinfo/genepicoloc/scripts/run_eGFR_demo_coloc.R)\n\nUses all available sumstats_2 on cluster\nGenerates region_summary_for_demo.tsv for selection\n\nSelect 3 demo regions based on multi-omics signals\nDownload public sumstats_2 from eQTL Catalogue and GWAS Catalog\nHarmonize to standard column format\nRun demo colocalization with save_sumstats=TRUE\nPackage demo data in inst/extdata/\n\n\n\n\n\nColocalization results (annot_filt.RDS): &lt;1MB\nRegional plot sumstats: ~5-10MB for 3 regions\nGene annotation: ~3.9MB (separate, in inst/extdata/)"
-  },
-  {
-    "objectID": "CLAUDE.html#shiny-app-architecture-planned",
-    "href": "CLAUDE.html#shiny-app-architecture-planned",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "inst/\n├── shiny/\n│   ├── app.R                    # Main entry point\n│   ├── R/\n│   │   ├── config.R             # Load config.yaml\n│   │   ├── study_metadata.R     # Process study metadata\n│   │   ├── regional_plots.R     # RAP plotting functions\n│   │   ├── network.R            # Network visualization\n│   │   └── gene_info.R          # Gene info panel\n│   ├── www/                     # CSS/assets\n│   └── Dockerfile\n├── extdata/\n│   ├── demo_data/               # Demo colocalization results\n│   └── gene_annotation.tsv.gz   # Gene annotations (~3.9MB)\n└── scripts/\n    ├── create_gene_annotation.R # Regenerate gene annotations\n    └── example_config.yaml      # Template configuration\n\n\n\nUser provides configuration in mounted data volume:\ndata_path: \"/app/data\"\n\nstudies:\n  eGFRcr:\n    folder: \"eGFRcr\"\n    display_name: \"eGFR (creatinine)\"\n    description: \"Estimated GFR from creatinine\"\n    pmid: \"31152163\"\n    ancestry: \"EUR\"\n    has_regional_plots: true\n\nstudy_colors:\n  GTEx_eQTL: \"#1f77b4\"\n  eQTLGen: \"#ff7f0e\"\n  # ...\n\ngene_annotation_path: \"/app/data/gene_annotation.tsv.gz\"\n\n\n\nProcessed file (ready to use): /home/oleg/Work/bioinfo/ckdgen/git/followup/genepicoloc/ckdgen-coloc-app/data/gene_annotation_hg38_full.tsv ~3.9MB, contains: Gencode v49 + HGNC + NCBI descriptions + Reactome pathways + HPO phenotypes\nScripts to regenerate (in scripts/): 1. download_gene_annotation_sources.R - Downloads gene_info.gz, NCBI2Reactome.txt 2. create_gene_annotation_extended.R - Creates base annotation with HPO 3. process_gene_annotation_full.R - Adds NCBI descriptions + Reactome pathways\nRegeneration workflow:\ncd inst/extdata\nRscript ../../scripts/download_gene_annotation_sources.R\nRscript ../../scripts/create_gene_annotation_extended.R\nRscript ../../scripts/process_gene_annotation_full.R\nrm gene_info.gz NCBI2Reactome.txt gene_annotation_hg38_extended.tsv  # cleanup"
-  },
-  {
-    "objectID": "CLAUDE.html#preprocessing-functions",
-    "href": "CLAUDE.html#preprocessing-functions",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "Converts genomic coordinates from hg19 to hg38 using UCSC liftOver.\nLocation: R/name_by_position.R\nUsage:\nsumstats_hg38 &lt;- genepi_liftover(\n  sumstats = sumstats,\n  CHR_name = \"Chr\",\n  POS_name = \"Pos_b37\",\n  A1_name = \"Allele1\",\n  A2_name = \"Allele2\",\n  liftOver_bin = \"/path/to/liftOver\",\n  liftOver_chain = \"/path/to/hg19ToHg38.over.chain.gz\"\n)\nOutput columns: CHR_hg38, POS_hg38, A1_hg38, A2_hg38\nFeatures: - Works on a copy (doesn’t modify input) - Proper temp file handling with on.exit() cleanup - Auto-detects chr prefix format - Handles strand flipping during liftOver\nRequired tools: - UCSC liftOver binary: https://hgdownload.soe.ucsc.edu/admin/exe/linux.x86_64/liftOver - Chain file: https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz\n\n\n\nAdds rsID and standardized variant names by querying Ensembl VCF files.\nLocation: R/name_by_position.R\nUsage:\n# Option 1: Single VCF file (e.g., chr21 only for testing)\nsumstats_named &lt;- name_by_position(\n  sumstats = sumstats_hg38,\n  CHR_name = \"CHR_hg38\",\n  POS_name = \"POS_hg38\",\n  A1_name = \"A1_hg38\",\n  A2_name = \"A2_hg38\",\n  dbSNP_file = \"/path/to/homo_sapiens-chr21.vcf.gz\"\n)\n\n# Option 2: Per-chromosome VCF directory (recommended for production)\nsumstats_named &lt;- name_by_position(\n  sumstats = sumstats_hg38,\n  CHR_name = \"CHR_hg38\",\n  POS_name = \"POS_hg38\",\n  A1_name = \"A1_hg38\",\n  A2_name = \"A2_hg38\",\n  dbSNP_dir = \"/path/to/ensembl_vcf/\"  # contains homo_sapiens-chr{1..22,X,Y,MT}.vcf.gz\n)\nParameters: - dbSNP_file: Path to single tabix-indexed VCF file - dbSNP_dir: Path to directory with per-chromosome files (homo_sapiens-chr{CHR}.vcf.gz)\nOutput columns: rs (rsID), Name_hg38 (chr:pos:ref:alt format)\nFeatures: - Works directly with Ensembl VCF files (no preprocessing needed) - Supports both single-file and per-chromosome directory modes - Auto-detects chromosome naming convention (chr21 vs 21) per file - Handles multi-allelic variants (splits comma-separated ALT alleles) - Matches alleles accounting for strand flipping - Skips chromosomes without corresponding VCF file (warns user) - No external dependencies (uses system2 + tabix)\nEnsembl VCF source:\n# For testing (chr21 only, ~165MB):\nwget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr21.vcf.gz\nwget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr21.vcf.gz.csi\n\n# For production (all chromosomes, ~15GB total):\nfor chr in {1..22} X Y MT; do\n  wget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr${chr}.vcf.gz\n  wget https://ftp.ensembl.org/pub/release-115/variation/vcf/homo_sapiens/homo_sapiens-chr${chr}.vcf.gz.csi\ndone\nPerformance (chr21): - Input: 112,722 variants - Matched: 112,722 variants (100%) - Processing time: ~2 minutes\n\n\n\nlibrary(data.table)\nlibrary(genepicoloc)\n\n# 1. Load hg19 summary statistics\nsumstats &lt;- fread(\"gwas_hg19.txt.gz\")\n\n# 2. LiftOver to hg38\nsumstats_hg38 &lt;- genepi_liftover(\n  sumstats = sumstats,\n  CHR_name = \"Chr\",\n  POS_name = \"Pos_b37\",\n  A1_name = \"Allele1\",\n  A2_name = \"Allele2\",\n  liftOver_bin = \"liftOver\",\n  liftOver_chain = \"hg19ToHg38.over.chain.gz\"\n)\n\n# 3. Add rsID and Name (optional, for display)\nsumstats_named &lt;- name_by_position(\n  sumstats = sumstats_hg38,\n  CHR_name = \"CHR_hg38\",\n  POS_name = \"POS_hg38\",\n  A1_name = \"A1_hg38\",\n  A2_name = \"A2_hg38\",\n  dbSNP_file = \"homo_sapiens-chr21.vcf.gz\"\n)\n\n# 4. Calculate -log10(P) with underflow handling\nsumstats_named[, nlog10P := -log10(P)]\nsumstats_named[!is.finite(nlog10P), nlog10P := max(nlog10P[is.finite(nlog10P)]) + 1]"
-  },
-  {
-    "objectID": "CLAUDE.html#technical-notes",
-    "href": "CLAUDE.html#technical-notes",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "Results are stored in tar archives per job: - jobs/job_XXX/coloc_results.tar - Colocalization results - jobs/job_XXX/sumstats.tar - Sumstats for regional plots (if save_sumstats=TRUE) - jobs/job_XXX/sumstats_1.RDS - Source study sumstats\n\n\n\nAfter colocalization, coloc_out_annotate() in genepicoloc_internal: 1. Reads consolidated results from dir_out/unfilt/ 2. Dispatches to study-specific annotator: - annotate_eQTL() - GTEx, eQTLGen, Kidney_eQTL (uses gencode_v26 for gene mapping) - annotate_pQTL() - UKB_PPP, Icelanders, GCKD_pGWAS (uses olink protein map) - annotation_std() - GWAS/PheWAS studies (uses annotation DB for phenotype names) 3. Writes annot/study_annot_unfilt.RDS 4. Filters in 3 tiers: coloc_done -&gt; PP.H4 &gt; 0.8 -&gt; sumstats_2 genome-wide sig 5. Final: annot/annot_filt.RDS (also .xlsx)\n\n\n\ngenepi_liftover() returns data.frame - Returns base R data.frame, not data.table - Must call setDT() on result before using data.table syntax (:=, bare column names in [)\nMVP annotation DB has old /data/ paths - annotation_db.RDS was created with old /data/ mount paths - Fix in arguments_custom.R: sub(\"^/data/\", \"/g/epi/data/\", ...) on file paths from DB - Proper fix: regenerate annotation DB with create_annotation_db()\nMVP ancestry-split annotation - MVP_R4_AFR/AMR/EAS/EUR/META studies share the MVP_R4 annotation DB entry - annotation_std() maps grepl(\"^MVP_R4_\", study) to “MVP_R4” for DB lookup\nP-value underflow handling - Some GWAS have p-values far beyond R’s numeric range (e.g., 1e-1762 for GCKD VAE) - handle_underflow() parses scientific notation text strings directly - Fallback from z-scores: nlog10P = -log10(2) - pnorm(abs(z), lower.tail=FALSE, log.p=TRUE) / log(10) - Always check for text-format p-value columns (e.g., pvalue_precise_normal in SNPTEST output)\nMVP variant naming bug (historical) - Old MVP data had mismatched variant names - Solution: Always verify nsnps is reasonable (~6000, not ~20)\nNon-positive definite LD matrices (coloc.susie) - Reference panel mismatch causes negative eigenvalues - Solution: Eigenvalue shift method in shift_eigenvalues_minimal()\nIcelanders_pGWAS protein naming - Short name annotation has errors (wrong proteins labeled) - Solution: Use filename (contains SeqId + protein name)\nUKB_PPP protein complex duplicates - Multi-protein assays (e.g., FUT3_FUT5) create duplicate entries - Expected behavior for comparison functions"
-  },
-  {
-    "objectID": "CLAUDE.html#shiny-app-features-ckdgen-coloc-app",
-    "href": "CLAUDE.html#shiny-app-features-ckdgen-coloc-app",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "Region-centered view: Genomic region (star) → colocalized traits (circles)\nTrait-centered view (MVP): Selected trait (diamond) → genomic regions\nTrait-centered view (pQTL): Protein (diamond) → genomic regions\nEdge colors: orange (positive direction), blue (negative), gray (unknown)\nNode size by PP.H4 value\n\n\n\n\n\nLocusZoom-style plots with plotly interactivity\nTwo panels: base study + colocalized trait\nLead SNP highlighted with purple diamond\nGene track with clickable genes\nHover tooltips with variant details (Name, rsID, position, -log10P, beta, SE, AF)\n\n\n\n\nClick gene in track to show: - Description (NCBI Gene) - Pathways (Reactome, top 5) - Phenotypes (HPO, top 5) - External links (GeneCards, HGNC, NCBI)\n\n\n\nCombined from multiple sources (~3.9MB TSV): - Gencode v49: coordinates, strand - HGNC: gene names, families - NCBI Gene: descriptions - Reactome: biological pathways - HPO: phenotype associations\nScripts: scripts/create_gene_annotation_extended.R, scripts/process_gene_annotation_full.R\n\n\n\nEach study has: - Display name (user-friendly) - Description - PMID (PubMed link) - Ancestry badge - Regional plot availability"
-  },
-  {
-    "objectID": "CLAUDE.html#data-concepts",
-    "href": "CLAUDE.html#data-concepts",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "sumstats_1: Your GWAS of interest (e.g., eGFR, UACR) - the “query”\nsumstats_2: External datasets to colocalize against (eQTL, pQTL, PheWAS) - the “targets”\n\n\n\n\n\nName: CHR:POS:REF:ALT format (e.g., chr16:17906244:T:C)\nCHR, POS: Genomic coordinates (GRCh38)\nA1, A2: Effect and other allele\nBETA, SE: Effect size and standard error\nnlog10P: -log10(p-value) to avoid underflow\nAF: Allele frequency\nN: Sample size"
-  },
-  {
-    "objectID": "CLAUDE.html#rerunvalidation-workflow",
-    "href": "CLAUDE.html#rerunvalidation-workflow",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "For updating existing results while preserving regional plot data:\n# 1. Run with save_sumstats=TRUE to new folder\nrun_genepicoloc_for_studies(\n  study_names = \"study.multi\",\n  output_base_dir = \"all_sumstats_rerun\",\n  save_sumstats = TRUE\n)\n\n# 2. Compare old vs new (expect differences for bug fixes)\nrun_rerun_comparison(\"study.multi\", exclude_studies = \"CKDGen_r4\")\n\n# 3. Check \"lost\" results aren't false positives\n# (MVP with nsnps ~20 = false positive, should be ~6000)\n\n# 4. Merge validated results\nmerge_rerun_results(\"study.multi\", dry_run = FALSE)\n\n# 5. Export and extract regional plots\nprepare_shiny_export(studies = \"study.multi\", ...)\nrun_regional_extraction(studies = list(\"Study\" = \"study.multi\"), ...)"
-  },
-  {
-    "objectID": "CLAUDE.html#coloc.susie-notes-advanced-fine-mapping",
-    "href": "CLAUDE.html#coloc.susie-notes-advanced-fine-mapping",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "For studies needing SuSiE-based fine-mapping:\n\n\n\nEUR ancestry recommended for predominantly European GWAS\nALL ancestry suffers from LD heterogeneity → weak/scattered credible sets\nEUR shows strong colocalization (PP.H4 ~0.97) where ALL shows none (~0.001)\n\n\n\n\n\nFilter variants by “Direction” column (from meta-analysis)\nKeep variants present in most studies (≤2 “?” allowed)\nDramatically improves LD matrix eigenvalues\n\n\n\n\n\nCritical: use fixref=TRUE in LD matrix creation\nAligns effect allele from sumstats to LD reference panel\nWithout this, SuSiE fails to converge"
-  },
-  {
-    "objectID": "CLAUDE.html#docker-deployment",
-    "href": "CLAUDE.html#docker-deployment",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "Based on ckdgen-coloc-app pattern:\nFROM rocker/shiny:4.3.0\n# Install R packages...\n# Copy app files...\nEXPOSE 3838\nCMD [\"R\", \"-e\", \"shiny::runApp('/app', host='0.0.0.0', port=3838)\"]\nMount data volumes for flexibility:\ndocker run -d -p 3838:3838 \\\n  -v /path/to/data:/app/data \\\n  genepicoloc-shiny"
-  },
-  {
-    "objectID": "CLAUDE.html#code-style",
-    "href": "CLAUDE.html#code-style",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "Use data.table for all data manipulation\nCheck column existence before use: if (\"col\" %in% names(dt))\nWrap external calls in tryCatch for robustness\nLog progress for long-running operations\nPrefer simple solutions over complex refactoring (KISS principle)"
-  },
-  {
-    "objectID": "CLAUDE.html#commit-messages",
-    "href": "CLAUDE.html#commit-messages",
-    "title": "CLAUDE.md - genepicoloc Package Development",
-    "section": "",
-    "text": "No Claude footer required. Keep messages concise and descriptive."
+    "objectID": "atlas.html#results-summary",
+    "href": "atlas.html#results-summary",
+    "title": "Kidney Genomics Colocalization Atlas",
+    "section": "Results Summary",
+    "text": "Results Summary\n6,439 high-confidence colocalizations (PP.H4 &gt; 0.8) across 259 eGFR-associated regions.\nInteractive visualizations coming soon."
   }
 ]
