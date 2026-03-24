@@ -975,17 +975,20 @@ source("R/trait_names.R")
       updateSelectInput(session, "selected_region", choices = gene_choices)
 
       # Update index variant selector
-      if ("clump_index_Name" %in% names(regions)) {
-        # Use index variant if available
+      has_index <- "clump_index_Name" %in% names(regions) && any(!is.na(regions$clump_index_Name))
+      if (has_index) {
+        index_label <- ifelse(is.na(regions$clump_index_Name),
+                              paste0(regions$region_id, " - ", gene_display),
+                              paste0(regions$clump_index_Name, " - ", gene_display))
         index_choices <- setNames(
           paste0(regions$CHR_var, ":", regions$BP_START_var, "-", regions$BP_STOP_var),
-          paste0(regions$clump_index_Name, " - ", gene_display)
+          index_label
         )
       } else {
-        # Fallback to coordinates if no index variant
+        # No index variants - use region coordinates
         index_choices <- setNames(
           paste0(regions$CHR_var, ":", regions$BP_START_var, "-", regions$BP_STOP_var),
-          regions$region_id
+          paste0(regions$region_id, " - ", gene_display)
         )
       }
       updateSelectInput(session, "selected_region_coord", choices = index_choices)
@@ -1172,19 +1175,21 @@ source("R/trait_names.R")
       trait_nodes_list <- dt[, {
         # Extract trait name based on source study
         trait_name <- switch(source_study[1],
+                             "CKDGen_r4" = if ("CKDGen_r4_Name" %in% names(.SD)) CKDGen_r4_Name else NA,
                              "CKDGen_r5" = CKDGen_r5_ckdgen_r5_name,
                              "FinnGen_r9" = FinnGen_r9_phenotype,
                              "GCKD_mGWAS_plasma" = GCKD_mGWAS_plasma_BIOCHEMICAL,
                              "GCKD_mGWAS_urine" = GCKD_mGWAS_urine_BIOCHEMICAL,
                              "Icelanders_pGWAS" = Icelanders_pGWAS_Protein..short.name.,
                              "MVP_R4" = MVP_R4_Analyzed.variable,
+                             "MVP_R4_EUR" = if ("MVP_R4_EUR_Analyzed.variable" %in% names(.SD)) MVP_R4_EUR_Analyzed.variable else NA,
                              "UKB_PPP_EUR" = UKB_PPP_EUR_olink_target_fullname,
                              "UKB_TOPMed" = UKB_TOPMed_phenostring,
-                             "pho_ca" = pho_ca_pho_ca_name,
-                             "eQTLGen" =  eQTLGen_gene_name,
+                             "UKB_kidney_vol" = gsub("model1_qnorm_(.*)_chr.*", "\\1", basename(sumstats_2_file)),
                              "Kidney_eQTL" = Kidney_eQTL_gene_name,
+                             "pho_ca" = pho_ca_pho_ca_name,
+                             "eQTLGen" = eQTLGen_gene_name,
                              "GTEXv8_eQTL" = GTEXv8_eQTL_gene_name,
-
                              NA
         )
 
@@ -1338,8 +1343,10 @@ source("R/trait_names.R")
 
         trait_col <- switch(input$selected_pheno_study,
                            "MVP_R4" = "MVP_R4_Analyzed.variable",
+                           "MVP_R4_EUR" = "MVP_R4_EUR_Analyzed.variable",
                            "FinnGen_r9" = "FinnGen_r9_phenotype",
                            "UKB_TOPMed" = "UKB_TOPMed_phenostring",
+                           "CKDGen_r4" = "CKDGen_r4_Name",
                            NULL)
 
         if (!is.null(trait_col) && nrow(dt) > 0 && trait_col %in% names(dt)) {
@@ -1455,8 +1462,10 @@ source("R/trait_names.R")
 
         trait_col <- switch(input$selected_pheno_study,
                            "MVP_R4" = "MVP_R4_Analyzed.variable",
+                           "MVP_R4_EUR" = "MVP_R4_EUR_Analyzed.variable",
                            "FinnGen_r9" = "FinnGen_r9_phenotype",
                            "UKB_TOPMed" = "UKB_TOPMed_phenostring",
+                           "CKDGen_r4" = "CKDGen_r4_Name",
                            NULL)
 
         if (!is.null(trait_col) && trait_col %in% names(dt)) {
@@ -1883,22 +1892,28 @@ source("R/trait_names.R")
     # === Regional Plot Logic (Region View) ===
 
     # Path to regional plot data
-    # Note: regional_plots_data is at data/regional_plots_data/{study}/regions/{region}/
+    # Supports two layouts:
+    #   1. CKDGen: data/regional_plots_data/{folder}/regions/{region}/
+    #   2. Atlas:  {DATA_PATH}/regional_plots/{study}/regions/{region}/
     regional_data_path <- reactive({
       req(current_study())
+      # Try atlas layout first
+      atlas_path <- file.path(DATA_PATH, "regional_plots", current_study())
+      if (dir.exists(atlas_path)) return(atlas_path)
+      # Fall back to CKDGen layout
       folder_name <- available_studies[[current_study()]]
-      file.path("data/regional_plots_data", folder_name)
+      ckdgen_path <- file.path("data/regional_plots_data", folder_name)
+      if (dir.exists(ckdgen_path)) return(ckdgen_path)
+      NULL
     })
 
-    # Get available traits for current region (from filtered colocalization data)
+    # Get available traits for current region
     regional_traits_available <- reactive({
       req(filtered_data())
       dt <- filtered_data()
-
       if (nrow(dt) == 0) return(NULL)
 
       # Get unique traits with their study source
-      # trait_name = filename-safe name, trait_display = human-readable name
       trait_info <- unique(dt[, .(
         source_study,
         trait_name = get_trait_name(.SD),
@@ -1970,6 +1985,11 @@ source("R/trait_names.R")
             row$`MVP_R4_Title.of.analysis`[1]
           } else "Unknown"
         },
+        "CKDGen_r4" = {
+          if ("CKDGen_r4_Name" %in% names(row)) {
+            row$CKDGen_r4_Name[1]
+          } else "Unknown"
+        },
         "CKDGen_r5" = {
           if ("CKDGen_r5_ckdgen_r5_name" %in% names(row)) {
             row$CKDGen_r5_ckdgen_r5_name[1]
@@ -1978,6 +1998,18 @@ source("R/trait_names.R")
         "pho_ca" = {
           if ("pho_ca_pho_ca_name" %in% names(row)) {
             row$pho_ca_pho_ca_name[1]
+          } else "Unknown"
+        },
+        "MVP_R4_EUR" = , "MVP_R4_AFR" = , "MVP_R4_AMR" = , "MVP_R4_EAS" = , "MVP_R4_META" = {
+          col <- paste0(source, "_Title.of.analysis")
+          if (col %in% names(row)) row[[col]][1] else "Unknown"
+        },
+        "UKB_kidney_vol" = {
+          gsub("model1_qnorm_(.*)_chr.*", "\\1", basename(row$sumstats_2_file[1]))
+        },
+        "Kidney_eQTL" = {
+          if ("Kidney_eQTL_gene_name" %in% names(row)) {
+            row$Kidney_eQTL_gene_name[1]
           } else "Unknown"
         },
         "Unknown"
@@ -2075,7 +2107,12 @@ source("R/trait_names.R")
                               paste0(input$regional_trait_selector, ".RDS"))
 
       if (file.exists(trait_file)) {
-        readRDS(trait_file)
+        dt <- readRDS(trait_file)
+        # Filter to region bounds (some files span multiple regions)
+        if (is.data.frame(dt) && nrow(dt) > 0 && "POS" %in% names(dt)) {
+          dt <- dt[dt$POS >= as.numeric(start_pos) & dt$POS <= as.numeric(end_pos), ]
+        }
+        dt
       } else {
         NULL
       }
@@ -2135,10 +2172,18 @@ source("R/trait_names.R")
 
     # Calculate shared X-axis range for Region View plots
     regional_x_range <- reactive({
+      # Use region bounds as x_range (not data extent)
+      req(current_region())
+      region_parts <- strsplit(current_region(), ":")[[1]]
+      if (length(region_parts) >= 2) {
+        pos_parts <- as.numeric(strsplit(region_parts[2], "-")[[1]])
+        return(pos_parts)
+      }
+
+      # Fallback: use data extent
       base_sumstats <- regional_base_sumstats()
       trait_sumstats <- regional_trait_sumstats()
 
-      # Collect all positions from both datasets
       all_pos <- c()
       if (!is.null(base_sumstats) && nrow(base_sumstats) > 0) {
         all_pos <- c(all_pos, base_sumstats$POS)
