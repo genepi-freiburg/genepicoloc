@@ -13,3 +13,6 @@ CLAUDE.md
 vignettes/*.html
 vignettes/*_files/
 docs/
+
+/.quarto/
+**/*.quarto_ipynb
