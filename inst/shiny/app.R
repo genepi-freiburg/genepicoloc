@@ -1,0 +1,3469 @@
+# GWAS Colocalization Network Viewer with Prioritized Genes
+# Shiny application for visualizing GWAS colocalization results
+
+# Load required libraries
+library(shiny)
+library(visNetwork)
+library(data.table)
+library(plotly)
+
+# Source configuration and metadata
+source("R/config.R")
+source("R/study_metadata.R")
+
+# Helper function to convert hex color to rgba with transparency
+hex_to_rgba <- function(hex, alpha = 0.2) {
+  rgb_vals <- col2rgb(hex)
+  return(sprintf("rgba(%d, %d, %d, %.2f)", rgb_vals[1], rgb_vals[2], rgb_vals[3], alpha))
+}
+
+# Regional association plot function (LocusZoom-style)
+# Creates a Manhattan-style plot for a genomic region
+plot_regional_association <- function(sumstats_dt, title = "", highlight_snp = NULL,
+                                      y_col = "nlog10P", color = "#3498db") {
+  if (is.null(sumstats_dt) || nrow(sumstats_dt) == 0) {
+    plot(NULL, xlim = c(0, 1), ylim = c(0, 1), xlab = "", ylab = "", axes = FALSE)
+    text(0.5, 0.5, "No data available", cex = 1.2)
+    return(invisible(NULL))
+  }
+
+  # Ensure data.table
+  if (!is.data.table(sumstats_dt)) {
+    sumstats_dt <- as.data.table(sumstats_dt)
+  }
+
+  # Get position and p-value columns
+  x <- sumstats_dt$POS
+  y <- sumstats_dt[[y_col]]
+
+  # Set up plot
+  par(mar = c(4, 4, 2, 1))
+
+  # Plot points
+  plot(x, y, pch = 19, cex = 0.6, col = adjustcolor(color, alpha.f = 0.6),
+       xlab = paste0("Position (Chromosome ", sumstats_dt$CHR[1], ")"),
+       ylab = expression(-log[10](P)),
+       main = title, cex.main = 0.9)
+
+  # Add genome-wide significance line
+  abline(h = 7.3, col = "red", lty = 2, lwd = 1)
+
+  # Add suggestive significance line
+  abline(h = 5, col = "blue", lty = 3, lwd = 0.8)
+
+  # Highlight lead SNP if provided
+  if (!is.null(highlight_snp) && highlight_snp %in% sumstats_dt$Name) {
+    lead_idx <- which(sumstats_dt$Name == highlight_snp)
+    if (length(lead_idx) > 0) {
+      points(x[lead_idx], y[lead_idx], pch = 18, cex = 2, col = "purple")
+      # Add label
+      text(x[lead_idx], y[lead_idx], labels = highlight_snp,
+           pos = 3, cex = 0.7, col = "purple", offset = 0.5)
+    }
+  }
+
+  invisible(NULL)
+}
+
+# Interactive regional association plot using plotly
+# Creates an interactive Manhattan-style plot with hover tooltips
+# Only variants with -log10(P) > 5 (p < 1e-5) have hover annotations for performance
+plot_regional_association_interactive <- function(sumstats_dt, title = "", highlight_snp = NULL,
+                                                   y_col = "nlog10P", color = "#3498db",
+                                                   x_range = NULL) {
+  if (is.null(sumstats_dt) || nrow(sumstats_dt) == 0) {
+    # Return empty plotly with message
+    return(plotly_empty() %>%
+             layout(title = list(text = "No data available", x = 0.5, y = 0.5)))
+  }
+
+  # Ensure data.table
+  if (!is.data.table(sumstats_dt)) {
+    sumstats_dt <- as.data.table(sumstats_dt)
+  }
+
+  # Separate significant (p < 1e-5, i.e., -log10(P) > 5) and non-significant variants
+  is_significant <- sumstats_dt[[y_col]] > 5
+  is_lead <- if (!is.null(highlight_snp)) sumstats_dt$Name == highlight_snp else rep(FALSE, nrow(sumstats_dt))
+
+  # Create hover text only for significant variants (for performance)
+  hover_text_sig <- paste0(
+    "<b>", sumstats_dt$Name[is_significant], "</b>",
+    ifelse("rsID" %in% names(sumstats_dt) & !is.na(sumstats_dt$rsID[is_significant]),
+           paste0("<br>rsID: ", sumstats_dt$rsID[is_significant]), ""),
+    "<br>Position: ", format(sumstats_dt$POS[is_significant], big.mark = ","),
+    "<br>-log10(P): ", round(sumstats_dt[[y_col]][is_significant], 2),
+    ifelse("BETA" %in% names(sumstats_dt) & !is.na(sumstats_dt$BETA[is_significant]),
+           paste0("<br>Beta: ", round(sumstats_dt$BETA[is_significant], 4)), ""),
+    ifelse("SE" %in% names(sumstats_dt) & !is.na(sumstats_dt$SE[is_significant]),
+           paste0("<br>SE: ", round(sumstats_dt$SE[is_significant], 4)), ""),
+    ifelse("AF" %in% names(sumstats_dt) & !is.na(sumstats_dt$AF[is_significant]),
+           paste0("<br>AF: ", round(sumstats_dt$AF[is_significant], 3)), "")
+  )
+
+  # Create hover text for lead SNP
+  hover_text_lead <- if (any(is_lead)) {
+    paste0(
+      "<b>", sumstats_dt$Name[is_lead], "</b>",
+      ifelse("rsID" %in% names(sumstats_dt) & !is.na(sumstats_dt$rsID[is_lead]),
+             paste0("<br>rsID: ", sumstats_dt$rsID[is_lead]), ""),
+      "<br>Position: ", format(sumstats_dt$POS[is_lead], big.mark = ","),
+      "<br>-log10(P): ", round(sumstats_dt[[y_col]][is_lead], 2),
+      ifelse("BETA" %in% names(sumstats_dt) & !is.na(sumstats_dt$BETA[is_lead]),
+             paste0("<br>Beta: ", round(sumstats_dt$BETA[is_lead], 4)), ""),
+      ifelse("SE" %in% names(sumstats_dt) & !is.na(sumstats_dt$SE[is_lead]),
+             paste0("<br>SE: ", round(sumstats_dt$SE[is_lead], 4)), ""),
+      ifelse("AF" %in% names(sumstats_dt) & !is.na(sumstats_dt$AF[is_lead]),
+             paste0("<br>AF: ", round(sumstats_dt$AF[is_lead], 3)), "")
+    )
+  } else NULL
+
+  # Non-significant, non-lead variants (no hover)
+  is_nonsig_nonlead <- !is_significant & !is_lead
+  # Significant, non-lead variants (with hover)
+  is_sig_nonlead <- is_significant & !is_lead
+
+  # Create the plot - start with non-significant variants (no hover for performance)
+  p <- plot_ly()
+
+  # Add non-significant variants (no hover text for performance)
+  if (any(is_nonsig_nonlead)) {
+    p <- p %>%
+      add_trace(
+        data = sumstats_dt[is_nonsig_nonlead],
+        x = ~POS,
+        y = ~get(y_col),
+        type = "scatter",
+        mode = "markers",
+        marker = list(
+          color = color,
+          size = 5,
+          opacity = 0.4
+        ),
+        hoverinfo = "none",
+        name = "Variants (p > 1e-5)"
+      )
+  }
+
+  # Add significant variants (with hover)
+  if (any(is_sig_nonlead)) {
+    p <- p %>%
+      add_trace(
+        data = sumstats_dt[is_sig_nonlead],
+        x = ~POS,
+        y = ~get(y_col),
+        type = "scatter",
+        mode = "markers",
+        marker = list(
+          color = color,
+          size = 7,
+          opacity = 0.8
+        ),
+        text = hover_text_sig[!is_lead[is_significant]],
+        hoverinfo = "text",
+        name = "Variants (p < 1e-5)"
+      )
+  }
+
+  # Add lead SNP as separate trace if present
+  if (any(is_lead)) {
+    p <- p %>%
+      add_trace(
+        data = sumstats_dt[is_lead],
+        x = ~POS,
+        y = ~get(y_col),
+        type = "scatter",
+        mode = "markers",
+        marker = list(
+          color = "purple",
+          size = 12,
+          symbol = "diamond"
+        ),
+        text = hover_text_lead,
+        hoverinfo = "text",
+        name = "Lead SNP"
+      )
+  }
+
+  # Add significance lines and layout
+  chr_label <- if ("CHR" %in% names(sumstats_dt)) sumstats_dt$CHR[1] else "?"
+
+  # Set x-axis range (use provided range for synchronization, or auto)
+  xaxis_config <- list(
+    title = paste0("Position (Chromosome ", chr_label, ")"),
+    tickformat = ",d"
+  )
+  if (!is.null(x_range)) {
+    xaxis_config$range <- x_range
+  }
+
+  p <- p %>%
+    layout(
+      title = list(text = title, font = list(size = 14)),
+      xaxis = xaxis_config,
+      yaxis = list(title = "-log<sub>10</sub>(P)"),
+      shapes = list(
+        # Genome-wide significance line (7.3 = -log10(5e-8))
+        list(type = "line", x0 = 0, x1 = 1, xref = "paper",
+             y0 = 7.3, y1 = 7.3, line = list(color = "red", dash = "dash", width = 1)),
+        # Suggestive significance line
+        list(type = "line", x0 = 0, x1 = 1, xref = "paper",
+             y0 = 5, y1 = 5, line = list(color = "blue", dash = "dot", width = 0.8))
+      ),
+      showlegend = FALSE,
+      hovermode = "closest",
+      margin = list(t = 40, b = 60, l = 60, r = 20)
+    ) %>%
+    config(displayModeBar = TRUE, displaylogo = FALSE,
+           modeBarButtonsToRemove = c("lasso2d", "select2d"))
+
+  return(p)
+}
+
+# Load gene annotation for gene tracks (Gencode v49 + HGNC + HPO + NCBI + Reactome)
+gene_annotation <- tryCatch({
+  # Check configured data path first, then local data/
+  gene_paths <- c(
+    file.path(DATA_PATH, "gene_annotation_hg38_full.tsv"),
+    "data/gene_annotation_hg38_full.tsv",
+    "data/gene_annotation_hg38_extended.tsv",
+    "data/gene_annotation_hg38.tsv",
+    system.file("extdata", "genes_chr.txt.gz", package = "genepicoloc")
+  )
+  gene_file <- gene_paths[file.exists(gene_paths)][1]
+  if (!is.na(gene_file)) fread(gene_file) else NULL
+}, error = function(e) NULL)
+
+# Gene track plot function
+# Creates a plotly gene track showing genes in a genomic region
+plot_gene_track <- function(region_chr, region_start, region_end, max_genes = 30, source = NULL) {
+  if (is.null(gene_annotation)) {
+    return(plotly_empty() %>% layout(title = "Gene annotation not available"))
+  }
+
+  # Filter genes in region
+  chr_clean <- gsub("^chr", "", as.character(region_chr))
+  genes_in_region <- gene_annotation[
+    chr == chr_clean &
+    start <= region_end &
+    end >= region_start
+  ]
+
+  if (nrow(genes_in_region) == 0) {
+    return(plotly_empty() %>%
+             layout(title = "No genes in region",
+                    xaxis = list(range = c(region_start, region_end) / 1e6)))
+  }
+
+  # Limit number of genes for readability
+  if (nrow(genes_in_region) > max_genes) {
+    # Prioritize genes that overlap more with the region
+    genes_in_region[, overlap := pmin(end, region_end) - pmax(start, region_start)]
+    setorder(genes_in_region, -overlap)
+    genes_in_region <- genes_in_region[1:max_genes]
+    genes_in_region[, overlap := NULL]
+  }
+
+  # Assign rows to avoid overlapping labels (simple greedy algorithm)
+  setorder(genes_in_region, start)
+  genes_in_region[, row := 1L]
+
+  if (nrow(genes_in_region) > 1) {
+    row_ends <- c(genes_in_region$end[1])
+    for (i in 2:nrow(genes_in_region)) {
+      gene_start <- genes_in_region$start[i]
+      # Find first row where gene fits (with padding for label)
+      placed <- FALSE
+      for (r in seq_along(row_ends)) {
+        if (gene_start > row_ends[r] + (region_end - region_start) * 0.02) {  # 2% padding
+          genes_in_region[i, row := r]
+          row_ends[r] <- genes_in_region$end[i]
+          placed <- TRUE
+          break
+        }
+      }
+      if (!placed) {
+        # Create new row
+        genes_in_region[i, row := length(row_ends) + 1L]
+        row_ends <- c(row_ends, genes_in_region$end[i])
+      }
+    }
+  }
+
+  n_rows <- max(genes_in_region$row)
+
+  # Create plot (source for click event capture)
+  p <- plot_ly(source = source)
+
+  # Add gene rectangles and arrows
+  for (i in seq_len(nrow(genes_in_region))) {
+    g <- genes_in_region[i]
+    y_pos <- -g$row + 0.5
+
+    # Gene body (rectangle)
+    gene_start_mb <- max(g$start, region_start) / 1e6
+    gene_end_mb <- min(g$end, region_end) / 1e6
+
+    # Build hover text with basic info only (click for full details)
+    hover_parts <- paste0("<b>", g$gene_name, "</b>",
+                          "<br>chr", g$chr, ":", format(g$start, big.mark = ","),
+                          "-", format(g$end, big.mark = ","))
+
+    # Add gene as a line with markers for direction
+    p <- p %>% add_trace(
+      x = c(gene_start_mb, gene_end_mb),
+      y = c(y_pos, y_pos),
+      type = "scatter",
+      mode = "lines",
+      line = list(color = "#2c3e50", width = 6),
+      hoverinfo = "text",
+      text = hover_parts,
+      customdata = g$gene_name,  # For click handler
+      showlegend = FALSE
+    )
+
+    # Add direction arrow
+    arrow_x <- if (g$strand == "+") gene_end_mb else gene_start_mb
+    p <- p %>% add_trace(
+      x = arrow_x,
+      y = y_pos,
+      type = "scatter",
+      mode = "markers",
+      marker = list(
+        symbol = if (g$strand == "+") "triangle-right" else "triangle-left",
+        size = 8,
+        color = "#2c3e50"
+      ),
+      hoverinfo = "skip",
+      showlegend = FALSE
+    )
+
+    # Add gene label
+    label_x <- (gene_start_mb + gene_end_mb) / 2
+    p <- p %>% add_annotations(
+      x = label_x,
+      y = y_pos + 0.3,
+      text = paste0("<i>", g$gene_name, "</i>"),
+      showarrow = FALSE,
+      font = list(size = 9, color = "#2c3e50"),
+      xanchor = "center",
+      yanchor = "bottom"
+    )
+  }
+
+  # Layout
+  p <- p %>% layout(
+    xaxis = list(
+      title = "",
+      range = c(region_start / 1e6, region_end / 1e6),
+      showgrid = FALSE,
+      zeroline = FALSE
+    ),
+    yaxis = list(
+      title = "",
+      showticklabels = FALSE,
+      showgrid = FALSE,
+      zeroline = FALSE,
+      range = c(-n_rows - 0.5, 1)
+    ),
+    margin = list(t = 5, b = 5, l = 60, r = 20),
+    showlegend = FALSE,
+    hovermode = "closest"
+  ) %>%
+    config(displayModeBar = FALSE)
+
+  # Register click event if source specified
+  if (!is.null(source)) {
+    p <- p %>% event_register("plotly_click")
+  }
+
+  return(p)
+}
+
+# Set study paths and available studies
+STUDY_BASE_PATH <- DEFAULT_STUDY_BASE_PATH
+available_studies <- DEFAULT_AVAILABLE_STUDIES
+
+# Helper: resolve RDS file path (supports both flat and nested layouts)
+resolve_annot_path <- function(study_name) {
+  entry <- available_studies[[study_name]]
+  if (is.null(entry)) return(NULL)
+  # If entry is a full path to RDS (flat layout)
+  if (grepl("\\.RDS$", entry) && file.exists(entry)) return(entry)
+  # Nested layout: folder/annot/annot_filt.RDS
+  file.path(STUDY_BASE_PATH, entry, "annot", "annot_filt.RDS")
+}
+
+  # UI ----
+  ui <- fluidPage(
+    tags$head(
+      tags$style(HTML("
+    .study-card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+      background-color: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .study-card:hover {
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      transform: translateY(-2px);
+    }
+    .study-card h4 {
+      margin-top: 0;
+      color: #2c3e50;
+    }
+    .study-card p {
+      color: #7f8c8d;
+      margin-bottom: 10px;
+    }
+    .category-header {
+      color: #34495e;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 10px;
+      margin-top: 30px;
+      margin-bottom: 20px;
+    }
+    /* Compact checkbox styling for study selector */
+    .checkbox {
+      margin-top: 0px;
+      margin-bottom: 0px;
+      padding: 0;
+    }
+  ")),
+      # JavaScript for PNG export
+      tags$script(HTML("
+        // Region View network export
+        Shiny.addCustomMessageHandler('exportNetwork', function(message) {
+          var container = document.getElementById('network');
+          if (container) {
+            var canvas = container.querySelector('canvas');
+            if (canvas) {
+              var link = document.createElement('a');
+              link.download = message.filename;
+              link.href = canvas.toDataURL('image/png');
+              link.click();
+            } else {
+              alert('Network canvas not found. Please wait for the network to render.');
+            }
+          } else {
+            alert('Network container not found.');
+          }
+        });
+
+        // Trait View network export
+        Shiny.addCustomMessageHandler('exportTraitNetwork', function(message) {
+          var container = document.getElementById('trait_network');
+          if (container) {
+            var canvas = container.querySelector('canvas');
+            if (canvas) {
+              var link = document.createElement('a');
+              link.download = message.filename;
+              link.href = canvas.toDataURL('image/png');
+              link.click();
+            } else {
+              alert('Trait network canvas not found. Please wait for the network to render.');
+            }
+          } else {
+            alert('Trait network container not found.');
+          }
+        });
+      "))
+    ),
+    
+    tabsetPanel(
+      id = "main_tabs",
+      tabPanel("CKDGen Round 5 Traits", 
+               fluidRow(
+                 column(12,
+                        h1("GWAS Colocalization Network Viewer", style = "text-align: center; margin-bottom: 30px;"),
+                        h3("Select a Study to Analyze", style = "text-align: center; color: #7f8c8d; margin-bottom: 40px;")
+                 )
+               ),
+               
+               fluidRow(
+                 column(12,
+                        h3("Available Studies", class = "category-header"),
+                        p("Click on any study below to load and analyze its colocalization data:", 
+                          style = "text-align: center; margin-bottom: 30px;")
+                 )
+               ),
+               
+               # Create study cards in a grid layout
+               fluidRow(
+                 lapply(names(available_studies), function(study_name) {
+                   # Get study info if available
+                   study_meta <- if (study_name %in% names(input_sumstats_info)) {
+                     input_sumstats_info[[study_name]]
+                   } else {
+                     list(ancestry = NULL, description = NULL)
+                   }
+
+                   column(4,
+                          div(class = "study-card",
+                              onclick = paste0("Shiny.setInputValue('selected_study', '", study_name, "', {priority: 'event'});"),
+                              h4(study_name),
+
+                              # Ancestry badge
+                              if (!is.null(study_meta$ancestry)) {
+                                tags$span(
+                                  class = "badge",
+                                  style = "background-color: #3498db; color: white; font-size: 10px; padding: 3px 8px; margin-bottom: 8px;",
+                                  study_meta$ancestry
+                                )
+                              },
+
+                              # Description
+                              if (!is.null(study_meta$description)) {
+                                p(style = "font-size: 11px; color: #7f8c8d; margin-top: 5px;",
+                                  study_meta$description)
+                              },
+
+                              # Regional Plot status
+                              if (!is.null(study_meta$regional_plot)) {
+                                p(style = "font-size: 11px; margin-top: 5px;",
+                                  tags$strong("Regional Plot: "),
+                                  if (study_meta$regional_plot == "Available") {
+                                    tags$span(style = "color: #27ae60;", study_meta$regional_plot)
+                                  } else {
+                                    tags$span(style = "color: #95a5a6;", study_meta$regional_plot)
+                                  }
+                                )
+                              },
+
+                              tags$button(class = "btn btn-primary btn-sm", "Load Study")
+                          )
+                   )
+                 })
+               )
+      ),
+      tabPanel("Region View",
+               titlePanel("Region-Centered Network View"),
+               
+               # Add notification area for study loading
+               fluidRow(
+                 column(12,
+                        uiOutput("study_notification")
+                 )
+               ),
+               
+               fluidRow(
+                 # Left sidebar panel
+                 column(
+                   width = 3,
+                   wellPanel(
+                     # Current study indicator
+                     uiOutput("current_study_info"),
+
+                     # Back to study selection
+                     actionButton("back_to_home", "Select Different Study", 
+                                  class = "btn-info", width = "100%", icon = icon("arrow-left")),
+                     
+                     hr(),
+                     
+                     # Region selector
+                     selectInput("selected_region",
+                                 "Select Region (by prioritized gene):",
+                                 choices = NULL,
+                                 selected = NULL),
+
+                     # Alternative region selector by index variant
+                     selectInput("selected_region_coord",
+                                 "Or select by index variant:",
+                                 choices = NULL,
+                                 selected = NULL),
+
+                     # Info note about multiple regions - placed after index variant selector
+                     HTML('<p style="font-size: 11px; color: #7f8c8d; margin: 5px 0 10px 0; font-style: italic;">
+                           Note: Some genes have multiple colocalizing loci. Use index variant to distinguish them.
+                          </p>'),
+
+                     hr(),
+
+                     # Filter options
+                     sliderInput("min_pph4",
+                                 "Minimum PP.H4:",
+                                 min = 0.8, max = 1, value = 0.8, step = 0.01),
+
+                     sliderInput("min_nlog10P",
+                                 "Minimum -log10(p-value):",
+                                 min = 7.308, max = 100, value = 7.308, step = 0.5),
+
+                     hr(),
+
+                     # Edge color legend
+                     h5("Edge Colors (Directionality)"),
+                     HTML('
+                       <div style="margin: 2px 0;">
+                         <span style="display: inline-block; width: 30px; height: 4px;
+                           background-color: #e67e22; margin-right: 5px; vertical-align: middle;"></span>
+                         <span style="font-size: 11px;">Concordant</span>
+                       </div>
+                       <div style="margin: 2px 0;">
+                         <span style="display: inline-block; width: 30px; height: 4px;
+                           background-color: #3498db; margin-right: 5px; vertical-align: middle;"></span>
+                         <span style="font-size: 11px;">Discordant</span>
+                       </div>
+                       <div style="margin: 2px 0;">
+                         <span style="display: inline-block; width: 30px; height: 4px;
+                           background-color: #848484; margin-right: 5px; vertical-align: middle;"></span>
+                         <span style="font-size: 11px;">Unknown/N/A</span>
+                       </div>
+                     '),
+
+                     hr(),
+
+                     # Display options
+                     checkboxInput("physics", "Enable physics simulation", value = FALSE),
+
+                     hr(),
+
+                     # Download button
+                     downloadButton("download_data", "Download filtered data"),
+
+                     # Customize for Export panel (conditional based on config)
+                     if (SHOW_EXPORT_CUSTOMIZATION) {
+                       tagList(
+                         hr(),
+                         tags$details(open = "open",
+                           tags$summary(style = "cursor: pointer; font-weight: bold;",
+                                       "Customize for Export"),
+                           div(style = "margin-top: 8px;",
+                             # Node Selection
+                             h6("Node Selection:", style = "margin-bottom: 5px;"),
+                             fluidRow(
+                               column(4, actionButton("nodes_all", "All", class = "btn-xs btn-block")),
+                               column(4, actionButton("nodes_none", "None", class = "btn-xs btn-block")),
+                               column(4, actionButton("nodes_top10", "Top 10", class = "btn-xs btn-block"))
+                             ),
+                             br(),
+                             selectizeInput("visible_nodes",
+                                           label = NULL,
+                                           choices = NULL,
+                                           multiple = TRUE,
+                                           options = list(
+                                             plugins = list('remove_button'),
+                                             placeholder = 'Select nodes to display...'
+                                           )),
+
+                             hr(style = "margin: 10px 0;"),
+
+                             # Study colors
+                             h6("Study Colors:", style = "margin-bottom: 5px;"),
+                             uiOutput("study_color_pickers"),
+
+                             hr(style = "margin: 10px 0;"),
+
+                             # Edit selected node label
+                             h6("Edit Node Label:", style = "margin-bottom: 5px;"),
+                             textInput("custom_node_label", label = NULL,
+                                      placeholder = "Click a node to edit its label"),
+                             actionButton("apply_label", "Apply Label",
+                                         class = "btn-xs btn-success btn-block")
+                           )
+                         )
+                       )
+                     }
+                   )  # End wellPanel
+                 ),  # End left column
+
+                 # Main panel (network + regional plot tabs)
+                 column(
+                   width = 7,
+                   tabsetPanel(
+                     id = "region_view_tabs",
+                     type = "tabs",
+
+                     # Tab 1: Network visualization
+                     tabPanel(
+                       "Network",
+                       br(),
+                       # Export buttons row
+                       fluidRow(
+                         column(12,
+                           div(style = "text-align: right; margin-bottom: 5px;",
+                             actionButton("export_png", "Export PNG",
+                                         icon = icon("image"),
+                                         class = "btn-sm btn-default",
+                                         style = "margin-right: 5px;"),
+                             downloadButton("export_html", "Export HTML",
+                                           class = "btn-sm btn-primary")
+                           )
+                         )
+                       ),
+                       # Network visualization
+                       visNetworkOutput("network", height = "700px"),
+                       br(),
+                       h4("Selected Node Details"),
+                       verbatimTextOutput("node_info")
+                     ),  # End Network tab
+
+                     # Tab 2: Regional Association Plot
+                     tabPanel(
+                       "Regional Plot",
+                       br(),
+                       fluidRow(
+                         column(4,
+                           selectInput("regional_trait_selector",
+                                      "Select Colocalized Trait:",
+                                      choices = NULL)
+                         ),
+                         column(4,
+                           checkboxInput("regional_highlight_lead",
+                                        "Highlight Lead SNP",
+                                        value = TRUE)
+                         ),
+                         column(4,
+                           div(style = "margin-top: 25px;",
+                             textOutput("regional_coloc_info")
+                           )
+                         )
+                       ),
+                       # Two stacked regional plots (interactive with plotly)
+                       h5(textOutput("regional_plot_title_base"), style = "margin-top: 10px;"),
+                       plotlyOutput("regional_plot_base", height = "300px"),
+                       tags$p(style = "color: #888; font-size: 12px; margin: 5px 0;",
+                              "Displayed loci are defined as 1 Mb windows around clumping index variants and may span multiple association peaks.",
+                              tags$span(
+                                title = "Displayed loci capture the local genetic architecture. Look for association peaks at similar positions in both traits - overlapping signals support true colocalization. See Documentation for additional interpretation guidance.",
+                                style = "cursor: help; margin-left: 4px;",
+                                "ⓘ"
+                              )),
+                       hr(),
+                       h5(textOutput("regional_plot_title_trait")),
+                       plotlyOutput("regional_plot_trait", height = "300px"),
+                       hr(),
+                       h5("Genes in Region", tags$span(style = "color: #666; font-weight: normal;", " - click gene for details")),
+                       plotlyOutput("regional_gene_track", height = "150px"),
+                       uiOutput("gene_info_panel")
+                     )  # End Regional Plot tab
+                   )  # End tabsetPanel
+                 ),  # End main column
+
+                 # Right panel (study selector)
+                 column(
+                   width = 2,
+                   wellPanel(
+                     style = "padding: 10px;",
+
+                     h5("Include Studies:", style = "margin-top: 0;"),
+
+                     # Select all/none buttons (top)
+                     fluidRow(
+                       column(6, actionButton("select_all", "All", class = "btn-sm btn-block", style = "margin-bottom: 3px;")),
+                       column(6, actionButton("select_none", "None", class = "btn-sm btn-block", style = "margin-bottom: 3px;"))
+                     ),
+
+                     # Group selection buttons
+                     fluidRow(
+                       column(6, actionButton("select_phenotypes", "Phenotypes", class = "btn-xs btn-block", style = "margin-bottom: 3px; font-size: 10px; padding: 2px;")),
+                       column(6, actionButton("select_pqtl", "pQTL", class = "btn-xs btn-block", style = "margin-bottom: 3px; font-size: 10px; padding: 2px;"))
+                     ),
+                     fluidRow(
+                       column(6, actionButton("select_eqtl", "eQTL", class = "btn-xs btn-block", style = "margin-bottom: 3px; font-size: 10px; padding: 2px;")),
+                       column(6, actionButton("select_mqtl", "mQTL", class = "btn-xs btn-block", style = "margin-bottom: 3px; font-size: 10px; padding: 2px;"))
+                     ),
+
+                     hr(style = "margin: 8px 0;"),
+
+                     uiOutput("study_selector")
+                   )  # End wellPanel
+                 )  # End right column
+               )  # End fluidRow
+      ),
+      tabPanel("Trait View",
+               titlePanel("Trait-Centered Network View"),
+
+               fluidRow(
+                 # Left sidebar panel
+                 column(
+                   width = 3,
+                   wellPanel(
+                     # Study type selector
+                     selectInput("trait_view_type",
+                                 "Select Study Type:",
+                                 choices = c("Phenotypes" = "Phenotypes",
+                                           "pQTL" = "pQTL",
+                                           "eQTL" = "eQTL",
+                                           "mQTL" = "mQTL"),
+                                 selected = "Phenotypes"),
+
+                     hr(),
+
+                     # Phenotypes study and trait selectors (conditional)
+                     conditionalPanel(
+                       condition = "input.trait_view_type == 'Phenotypes'",
+                       selectInput("selected_pheno_study",
+                                   "Select Study:",
+                                   choices = c("MVP Million Veteran Program (MVP_R4)" = "MVP_R4",
+                                             "FinnGen (FinnGen_r9)" = "FinnGen_r9",
+                                             "UK Biobank TOPMed (UKB_TOPMed)" = "UKB_TOPMed"),
+                                   selected = "MVP_R4"),
+
+                       selectInput("selected_trait_pheno",
+                                   "Select Trait/Phenotype:",
+                                   choices = NULL,
+                                   selected = NULL)
+                     ),
+
+                     # pQTL study and protein selectors (conditional)
+                     conditionalPanel(
+                       condition = "input.trait_view_type == 'pQTL'",
+                       selectInput("selected_pqtl_study",
+                                   "Select Study:",
+                                   choices = c("UKB Plasma Proteomics (UKB_PPP_EUR)" = "UKB_PPP_EUR",
+                                             "Icelanders Proteomics (Icelanders_pGWAS)" = "Icelanders_pGWAS"),
+                                   selected = "UKB_PPP_EUR"),
+
+                       selectInput("selected_protein_pqtl",
+                                   "Select Protein:",
+                                   choices = NULL,
+                                   selected = NULL)
+                     ),
+
+                     # eQTL study and gene selectors (conditional)
+                     conditionalPanel(
+                       condition = "input.trait_view_type == 'eQTL'",
+                       selectInput("selected_eqtl_study",
+                                   "Select Study:",
+                                   choices = c("eQTLGen Phase I (eQTLGen)" = "eQTLGen"
+                                             # "Kidney eQTL (Kidney_eQTL)" = "Kidney_eQTL",  # Uncomment when data available
+                                             # "GTEx V8 (GTEXv8_eQTL)" = "GTEXv8_eQTL"      # Uncomment when data available
+                                             ),
+                                   selected = "eQTLGen"),
+
+                       selectInput("selected_gene_eqtl",
+                                   "Select Gene:",
+                                   choices = NULL,
+                                   selected = NULL)
+                     ),
+
+                     # mQTL study and metabolite selectors (conditional)
+                     conditionalPanel(
+                       condition = "input.trait_view_type == 'mQTL'",
+                       selectInput("selected_mqtl_study",
+                                   "Select Study:",
+                                   choices = c("GCKD mGWAS Plasma (GCKD_mGWAS_plasma)" = "GCKD_mGWAS_plasma",
+                                             "GCKD mGWAS Urine (GCKD_mGWAS_urine)" = "GCKD_mGWAS_urine"),
+                                   selected = "GCKD_mGWAS_plasma"),
+
+                       selectInput("selected_metabolite_mqtl",
+                                   "Select Metabolite:",
+                                   choices = NULL,
+                                   selected = NULL)
+                     ),
+
+                     hr(),
+
+                     # PP.H4 filter (shared)
+                     sliderInput("min_pph4_trait",
+                                 "Minimum PP.H4:",
+                                 min = 0.8, max = 1, value = 0.8, step = 0.01),
+
+                     # p-value filter (shared)
+                     sliderInput("min_nlog10P_trait",
+                                 "Minimum -log10(p-value):",
+                                 min = 7.308, max = 100, value = 7.308, step = 0.5),
+
+                     hr(),
+
+                     # Edge color legend
+                     h5("Edge Colors (Directionality)"),
+                     HTML('
+                       <div style="margin: 2px 0;">
+                         <span style="display: inline-block; width: 30px; height: 4px;
+                           background-color: #e67e22; margin-right: 5px; vertical-align: middle;"></span>
+                         <span style="font-size: 11px;">Concordant</span>
+                       </div>
+                       <div style="margin: 2px 0;">
+                         <span style="display: inline-block; width: 30px; height: 4px;
+                           background-color: #3498db; margin-right: 5px; vertical-align: middle;"></span>
+                         <span style="font-size: 11px;">Discordant</span>
+                       </div>
+                       <div style="margin: 2px 0;">
+                         <span style="display: inline-block; width: 30px; height: 4px;
+                           background-color: #848484; margin-right: 5px; vertical-align: middle;"></span>
+                         <span style="font-size: 11px;">Unknown/N/A</span>
+                       </div>
+                     '),
+
+                     hr(),
+
+                     # Display options
+                     checkboxInput("trait_physics", "Enable physics simulation", value = FALSE),
+
+                     # Customize for Export panel (conditional based on config)
+                     if (SHOW_EXPORT_CUSTOMIZATION) {
+                       tagList(
+                         hr(),
+                         tags$details(open = "open",
+                           tags$summary(style = "cursor: pointer; font-weight: bold;",
+                                       "Customize for Export"),
+                           div(style = "margin-top: 8px;",
+                             # Node Selection
+                             h6("Node Selection:", style = "margin-bottom: 5px;"),
+                             fluidRow(
+                               column(4, actionButton("trait_nodes_all", "All", class = "btn-xs btn-block")),
+                               column(4, actionButton("trait_nodes_none", "None", class = "btn-xs btn-block")),
+                               column(4, actionButton("trait_nodes_top10", "Top 10", class = "btn-xs btn-block"))
+                             ),
+                             br(),
+                             selectizeInput("trait_visible_nodes",
+                                           label = NULL,
+                                           choices = NULL,
+                                           multiple = TRUE,
+                                           options = list(
+                                             plugins = list('remove_button'),
+                                             placeholder = 'Select nodes to display...'
+                                           )),
+
+                             hr(style = "margin: 10px 0;"),
+
+                             # Node colors
+                             h6("Node Colors:", style = "margin-bottom: 5px;"),
+                             div(style = "display: flex; align-items: center; margin-bottom: 5px;",
+                               textInput("trait_central_color", label = NULL,
+                                 value = "#9b59b6"),
+                               span("Central (Trait/Protein)", style = "font-size: 11px; margin-left: 5px;")
+                             ),
+                             div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                               textInput("trait_region_color", label = NULL,
+                                 value = "#3498db"),
+                               span("Regions (Genes)", style = "font-size: 11px; margin-left: 5px;")
+                             ),
+
+                             hr(style = "margin: 10px 0;"),
+
+                             # Edit selected node label
+                             h6("Edit Node Label:", style = "margin-bottom: 5px;"),
+                             textInput("trait_custom_node_label", label = NULL,
+                                      placeholder = "Click a node to edit its label"),
+                             actionButton("trait_apply_label", "Apply Label",
+                                         class = "btn-xs btn-success btn-block")
+                           )
+                         )
+                       )
+                     }
+                   )  # End wellPanel
+                 ),  # End left column
+
+                 # Main panel (network + regional plot tabs)
+                 column(
+                   width = 9,
+                   tabsetPanel(
+                     id = "trait_view_tabs",
+                     type = "tabs",
+
+                     # Tab 1: Network visualization
+                     tabPanel(
+                       "Network",
+                       br(),
+                       # Export buttons row
+                       fluidRow(
+                         column(12,
+                           div(style = "text-align: right; margin-bottom: 5px;",
+                             actionButton("trait_export_png", "Export PNG",
+                                         icon = icon("image"),
+                                         class = "btn-sm btn-default",
+                                         style = "margin-right: 5px;"),
+                             downloadButton("trait_export_html", "Export HTML",
+                                           class = "btn-sm btn-primary")
+                           )
+                         )
+                       ),
+                       # Network visualization
+                       visNetworkOutput("trait_network", height = "600px"),
+                       br(),
+                       p("Center node (purple diamond) = Selected trait/protein/transcript/metabolite. Surrounding nodes (blue) = Colocalizing genomic regions/genes from the selected CKDGen trait.",
+                         style = "font-size: 12px; color: #7f8c8d;")
+                     ),  # End Network tab
+
+                     # Tab 2: Regional Association Plot
+                     tabPanel(
+                       "Regional Plot",
+                       br(),
+                       fluidRow(
+                         column(4,
+                           selectInput("trait_regional_region_selector",
+                                      "Select Colocalized Region:",
+                                      choices = NULL)
+                         ),
+                         column(4,
+                           checkboxInput("trait_regional_highlight_lead",
+                                        "Highlight Lead SNP",
+                                        value = TRUE)
+                         ),
+                         column(4,
+                           div(style = "margin-top: 25px;",
+                             textOutput("trait_regional_coloc_info")
+                           )
+                         )
+                       ),
+                       # Two stacked regional plots (interactive with plotly)
+                       h5(textOutput("trait_regional_plot_title_base"), style = "margin-top: 10px;"),
+                       plotlyOutput("trait_regional_plot_base", height = "300px"),
+                       tags$p(style = "color: #888; font-size: 12px; margin: 5px 0;",
+                              "Displayed loci are defined as 1 Mb windows around clumping index variants and may span multiple association peaks.",
+                              tags$span(
+                                title = "Displayed loci capture the local genetic architecture. Look for association peaks at similar positions in both traits - overlapping signals support true colocalization. See Documentation for additional interpretation guidance.",
+                                style = "cursor: help; margin-left: 4px;",
+                                "ⓘ"
+                              )),
+                       hr(),
+                       h5(textOutput("trait_regional_plot_title_trait")),
+                       plotlyOutput("trait_regional_plot_trait", height = "300px"),
+                       hr(),
+                       h5("Genes in Region", tags$span(style = "color: #666; font-weight: normal;", " - click gene for details")),
+                       plotlyOutput("trait_regional_gene_track", height = "150px"),
+                       uiOutput("trait_gene_info_panel")
+                     )  # End Regional Plot tab
+                   )  # End tabsetPanel
+                 )  # End main column
+               )  # End fluidRow
+      ),
+      tabPanel("Documentation",
+               tags$iframe(
+                 src = "documentation.html",
+                 style = "width: 100%; height: calc(100vh - 80px); border: none;"
+               )
+      )
+    )
+  )
+  
+  server <- function(input, output, session) {
+
+    # === Reactive Values ===
+    
+    # Reactive value to store the current loaded study
+    current_study <- reactiveVal(NULL)
+
+    # === Event Handlers ===
+    
+    # Handle study selection from home page
+    observeEvent(input$selected_study, {
+      req(input$selected_study)
+      
+      # Resolve file path (supports flat and nested layouts)
+      file_path <- resolve_annot_path(input$selected_study)
+      
+      # Check if file exists
+      if (file.exists(file_path)) {
+        # Store current study (now storing the name, not the folder)
+        current_study(input$selected_study)
+
+        # Switch to Region View tab
+        updateTabsetPanel(session, "main_tabs", selected = "Region View")
+        
+        # Show loading notification
+        showNotification(
+          paste("Loading study:", input$selected_study),
+          type = "message",
+          duration = 3
+        )
+      } else {
+        showNotification(
+          paste("Error: Could not find data file for", input$selected_study),
+          type = "error",
+          duration = 5
+        )
+      }
+    })
+
+    # Handle back to home button
+    observeEvent(input$back_to_home, {
+      updateTabsetPanel(session, "main_tabs", selected = "CKDGen Round 5 Traits")
+    })
+
+    # Select all studies
+    observeEvent(input$select_all, {
+      lapply(names(study_colors), function(study) {
+        updateCheckboxInput(session, paste0("study_", study), value = TRUE)
+      })
+    })
+
+    # Select no studies
+    observeEvent(input$select_none, {
+      lapply(names(study_colors), function(study) {
+        updateCheckboxInput(session, paste0("study_", study), value = FALSE)
+      })
+    })
+
+    # Select studies by group
+    observeEvent(input$select_phenotypes, {
+      lapply(study_categories$Phenotypes, function(study) {
+        if (study %in% names(study_colors)) {
+          updateCheckboxInput(session, paste0("study_", study), value = TRUE)
+        }
+      })
+    })
+
+    observeEvent(input$select_pqtl, {
+      lapply(study_categories$pQTL, function(study) {
+        if (study %in% names(study_colors)) {
+          updateCheckboxInput(session, paste0("study_", study), value = TRUE)
+        }
+      })
+    })
+
+    observeEvent(input$select_eqtl, {
+      lapply(study_categories$eQTL, function(study) {
+        if (study %in% names(study_colors)) {
+          updateCheckboxInput(session, paste0("study_", study), value = TRUE)
+        }
+      })
+    })
+
+    observeEvent(input$select_mqtl, {
+      lapply(study_categories$mQTL, function(study) {
+        if (study %in% names(study_colors)) {
+          updateCheckboxInput(session, paste0("study_", study), value = TRUE)
+        }
+      })
+    })
+
+    # === Node Selection for Export ===
+
+    # Store available nodes (all nodes from network_data)
+    available_nodes <- reactiveVal(NULL)
+
+    # Update node selector choices when network data changes
+    observe({
+      req(network_data())
+      net_data <- network_data()
+
+      if (nrow(net_data$nodes) > 0) {
+        # Create node choices: id -> label (group)
+        node_choices <- setNames(
+          net_data$nodes$id,
+          paste0(net_data$nodes$label, " (", net_data$nodes$group, ")")
+        )
+        # Store for quick selection buttons
+        available_nodes(net_data$nodes)
+
+        # Update selectize with all nodes selected by default
+        updateSelectizeInput(session, "visible_nodes",
+                            choices = node_choices,
+                            selected = net_data$nodes$id)
+
+        # Auto-enable physics simulation for large networks (>150 nodes)
+        if (nrow(net_data$nodes) > 150 && !input$physics) {
+          updateCheckboxInput(session, "physics", value = TRUE)
+        }
+      }
+    })
+
+    # Node selection: All
+    observeEvent(input$nodes_all, {
+      req(available_nodes())
+      updateSelectizeInput(session, "visible_nodes",
+                          selected = available_nodes()$id)
+    })
+
+    # Node selection: None
+    observeEvent(input$nodes_none, {
+      updateSelectizeInput(session, "visible_nodes", selected = character(0))
+    })
+
+    # Node selection: Top 10 by PP.H4
+    observeEvent(input$nodes_top10, {
+      req(filtered_data(), available_nodes())
+      dt <- filtered_data()
+
+      # Get top 10 by PP.H4 (excluding the central region node)
+      top_10 <- head(dt[order(-PP.H4.abf)], 10)
+
+      # Build matching node IDs
+      top_node_ids <- paste0(top_10$source_study, "_", seq_len(nrow(top_10)))
+
+      # Always include the region node
+      selected_ids <- c("region", top_node_ids)
+
+      updateSelectizeInput(session, "visible_nodes", selected = selected_ids)
+    })
+
+    # === Customize for Export (Colors & Labels) ===
+
+    # Reactive values for custom colors and labels
+    custom_colors <- reactiveVal(study_colors)  # Start with default colors
+    custom_labels <- reactiveVal(list())  # node_id -> custom_label
+
+    # Render color pickers for each study in the current data
+    output$study_color_pickers <- renderUI({
+      req(filtered_data())
+      dt <- filtered_data()
+
+      # Get unique studies in current data
+      studies_in_data <- unique(dt$source_study)
+      studies_in_data <- studies_in_data[studies_in_data %in% names(study_colors)]
+
+      if (length(studies_in_data) == 0) {
+        return(p("No studies to customize", style = "color: #999; font-size: 11px;"))
+      }
+
+      # Create color picker for each study - use study_colors directly for initial values
+      tagList(
+        lapply(studies_in_data, function(study) {
+          display_name <- get_study_display_name(study)
+          # Use study_colors for initial value (unname to get plain hex string)
+          initial_color <- unname(study_colors[study])
+          div(style = "display: flex; align-items: center; margin-bottom: 3px;",
+            textInput(
+              paste0("color_", study),
+              label = NULL,
+              value = initial_color
+            ),
+            span(display_name, style = "font-size: 11px; margin-left: 5px;")
+          )
+        })
+      )
+    })
+
+    # Observe color picker changes and update custom_colors
+    observe({
+      req(filtered_data())
+      dt <- filtered_data()
+      studies_in_data <- unique(dt$source_study)
+      studies_in_data <- studies_in_data[studies_in_data %in% names(study_colors)]
+
+      current_colors <- custom_colors()
+
+      for (study in studies_in_data) {
+        color_input <- input[[paste0("color_", study)]]
+        if (!is.null(color_input)) {
+          current_colors[[study]] <- color_input
+        }
+      }
+
+      custom_colors(current_colors)
+    })
+
+    # When a node is clicked, populate the label input with current label
+    observe({
+      req(input$selected_node)
+      net_data <- network_data()
+
+      node <- net_data$nodes[net_data$nodes$id == input$selected_node, ]
+      if (nrow(node) > 0) {
+        # Check if there's a custom label, otherwise use the original
+        labels <- custom_labels()
+        current_label <- if (input$selected_node %in% names(labels)) {
+          labels[[input$selected_node]]
+        } else {
+          node$label
+        }
+        updateTextInput(session, "custom_node_label", value = current_label)
+      }
+    })
+
+    # Apply custom label when button is clicked
+    observeEvent(input$apply_label, {
+      req(input$selected_node, input$custom_node_label)
+
+      labels <- custom_labels()
+      labels[[input$selected_node]] <- input$custom_node_label
+      custom_labels(labels)
+
+      # Show confirmation
+      showNotification(
+        paste0("Label updated for: ", input$selected_node),
+        type = "message",
+        duration = 2
+      )
+    })
+
+    # PNG Export via JavaScript
+    observeEvent(input$export_png, {
+      # Get current region name for filename
+      region <- current_region()
+      gene <- if (!is.null(filtered_data()) && nrow(filtered_data()) > 0) {
+        fd <- filtered_data()
+        if (!is.na(fd$Prioritized_Gene[1])) fd$Prioritized_Gene[1] else "network"
+      } else {
+        "network"
+      }
+      filename <- paste0(gene, "_", gsub(":", "-", region), ".png")
+
+      # Trigger JavaScript export
+      session$sendCustomMessage("exportNetwork", list(filename = filename))
+    })
+
+    # HTML Export (interactive) - Region View
+    output$export_html <- downloadHandler(
+      filename = function() {
+        region <- current_region()
+        gene <- if (!is.null(filtered_data()) && nrow(filtered_data()) > 0) {
+          fd <- filtered_data()
+          if (!is.na(fd$Prioritized_Gene[1])) fd$Prioritized_Gene[1] else "network"
+        } else {
+          "network"
+        }
+        paste0(gene, "_", gsub(":", "-", region), ".html")
+      },
+      content = function(file) {
+        net_data <- network_data()
+
+        # Filter nodes based on selection
+        visible <- input$visible_nodes
+        if (!is.null(visible) && length(visible) > 0) {
+          nodes_filtered <- net_data$nodes[net_data$nodes$id %in% visible, ]
+          edges_filtered <- net_data$edges[
+            net_data$edges$from %in% visible & net_data$edges$to %in% visible,
+          ]
+        } else {
+          nodes_filtered <- net_data$nodes
+          edges_filtered <- net_data$edges
+        }
+
+        # Create visNetwork and save
+        network <- visNetwork(nodes_filtered, edges_filtered) %>%
+          visNodes(
+            font = list(color = "#000000", size = 14, face = "arial")
+          ) %>%
+          visOptions(
+            highlightNearest = list(enabled = TRUE, degree = 1, hover = TRUE)
+          ) %>%
+          visPhysics(enabled = FALSE) %>%
+          visLayout(randomSeed = 123) %>%
+          visInteraction(
+            dragNodes = TRUE,
+            dragView = TRUE,
+            zoomView = TRUE
+          )
+
+        visSave(network, file)
+      }
+    )
+
+    # Update region selectors
+    observe({
+      req(regions_data())
+      regions <- regions_data()
+
+      # Update gene-based selector - use Prioritized_Gene if available, otherwise nearest_gene_1
+      gene_display <- ifelse(!is.na(regions$Prioritized_Gene),
+                            regions$Prioritized_Gene,
+                            regions$nearest_gene_1)
+      gene_choices <- setNames(
+        paste0(regions$CHR_var, ":", regions$BP_START_var, "-", regions$BP_STOP_var),
+        paste0(gene_display, " (", regions$N, " coloc)")
+      )
+      updateSelectInput(session, "selected_region", choices = gene_choices)
+
+      # Update index variant selector
+      if ("clump_index_Name" %in% names(regions)) {
+        # Use index variant if available
+        index_choices <- setNames(
+          paste0(regions$CHR_var, ":", regions$BP_START_var, "-", regions$BP_STOP_var),
+          paste0(regions$clump_index_Name, " - ", gene_display)
+        )
+      } else {
+        # Fallback to coordinates if no index variant
+        index_choices <- setNames(
+          paste0(regions$CHR_var, ":", regions$BP_START_var, "-", regions$BP_STOP_var),
+          regions$region_id
+        )
+      }
+      updateSelectInput(session, "selected_region_coord", choices = index_choices)
+    })
+    
+    # Synchronize selectors
+    observeEvent(input$selected_region, {
+      if (!is.null(input$selected_region) && input$selected_region != "") {
+        updateSelectInput(session, "selected_region_coord", selected = input$selected_region)
+      }
+    })
+    
+    observeEvent(input$selected_region_coord, {
+      if (!is.null(input$selected_region_coord) && input$selected_region_coord != "") {
+        updateSelectInput(session, "selected_region", selected = input$selected_region_coord)
+      }
+    })
+    
+    # === Reactive Data Processing ===
+    
+    # Get current selected region
+    current_region <- reactive({
+      if (!is.null(input$selected_region) && input$selected_region != "") {
+        input$selected_region
+      } else if (!is.null(input$selected_region_coord) && input$selected_region_coord != "") {
+        input$selected_region_coord
+      } else {
+        NULL
+      }
+    })
+    
+    # Load and process data
+    coloc_data <- reactive({
+      # First priority: auto-loaded study from home page
+      if (!is.null(current_study())) {
+        file_path <- resolve_annot_path(current_study())
+        if (file.exists(file_path)) {
+          data <- readRDS(file_path)
+          # Ensure data is a data.table
+          if (!is.data.table(data)) {
+            data <- as.data.table(data)
+          }
+
+          # Add missing columns with fallbacks
+          if (!"Prioritized_Gene" %in% names(data)) {
+            data[, Prioritized_Gene := nearest_gene_1]
+          }
+          if (!"clump_index_Name" %in% names(data)) {
+            data[, clump_index_Name := NA_character_]
+          }
+          if (!"clump_index_P" %in% names(data)) {
+            data[, clump_index_P := NA_real_]
+          }
+          if (!"region_center_pos" %in% names(data)) {
+            data[, region_center_pos := as.numeric(BP_START_var + BP_STOP_var) / 2]
+          }
+
+          # Filter out disabled studies
+          if (!INCLUDE_CKDGEN_R5 && "source_study" %in% names(data)) {
+            data <- data[source_study != "CKDGen_r5"]
+          }
+
+          showNotification(
+            paste("Successfully loaded:", current_study()),
+            type = "message",
+            duration = 3
+          )
+          return(data)
+        }
+      }
+
+      return(NULL)
+    })
+    
+    # Get unique regions
+    regions_data <- reactive({
+      req(coloc_data())
+      dt <- coloc_data()
+
+      # Get unique regions with their info
+      if ("clump_index_Name" %in% names(dt)) {
+        regions <- unique(dt[, .(
+          CHR_var, BP_START_var, BP_STOP_var,
+          region_center_pos, nearest_gene_1, Prioritized_Gene,
+          clump_index_Name,
+          region_id = paste0("chr", CHR_var, ":", BP_START_var, "-", BP_STOP_var)
+        )])
+      } else {
+        regions <- unique(dt[, .(
+          CHR_var, BP_START_var, BP_STOP_var,
+          region_center_pos, nearest_gene_1, Prioritized_Gene,
+          region_id = paste0("chr", CHR_var, ":", BP_START_var, "-", BP_STOP_var)
+        )])
+      }
+
+      # Count colocalizations per region
+      region_counts <- dt[, .N, by = .(CHR_var, BP_START_var, BP_STOP_var)]
+      regions <- merge(regions, region_counts, by = c("CHR_var", "BP_START_var", "BP_STOP_var"))
+
+      setorder(regions, CHR_var, BP_START_var)
+      regions
+    })
+    
+    # Filter data for selected region
+    filtered_data <- reactive({
+      req(coloc_data(), current_region())
+      
+      # Parse region
+      region_parts <- strsplit(current_region(), ":")[[1]]
+      chr <- region_parts[1]
+      pos_parts <- strsplit(region_parts[2], "-")[[1]]
+      start_pos <- as.numeric(pos_parts[1])
+      end_pos <- as.numeric(pos_parts[2])
+      
+      # Filter data
+      dt <- coloc_data()[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
+      
+      # Apply PP.H4 filter
+      dt <- dt[PP.H4.abf >= input$min_pph4]
+      
+      # Apply nlog10 filter
+      dt <- dt[sumstats_2_max_nlog10P >= input$min_nlog10P]
+
+      # Apply study filter
+      dt <- dt[source_study %in% selected_studies()]
+
+      dt
+    })
+    
+    # Create network data
+    network_data <- reactive({
+      req(filtered_data())
+      dt <- filtered_data()
+      
+      if (nrow(dt) == 0) {
+        return(list(nodes = data.frame(), edges = data.frame()))
+      }
+      
+      # Create central node (the region)
+      # Select columns, including clump index if available
+      cols_to_select <- c("Prioritized_Gene", "nearest_gene_1", "CHR_var", "BP_START_var", "BP_STOP_var")
+      if ("clump_index_Name" %in% names(dt)) cols_to_select <- c(cols_to_select, "clump_index_Name")
+      if ("clump_index_P" %in% names(dt)) cols_to_select <- c(cols_to_select, "clump_index_P")
+
+      region_info <- unique(dt[, ..cols_to_select])
+
+      # Use Prioritized_Gene if available, otherwise use nearest_gene_1
+      gene_label <- if (!is.na(region_info$Prioritized_Gene[1]) && region_info$Prioritized_Gene[1] != "") {
+        region_info$Prioritized_Gene[1]
+      } else {
+        region_info$nearest_gene_1[1]
+      }
+
+      # Build tooltip with both genes and clump index info
+      tooltip_text <- paste0("Region: chr", region_info$CHR_var[1], ":",
+                            region_info$BP_START_var[1], "-", region_info$BP_STOP_var[1], "<br>",
+                            "Prioritized Gene: ", ifelse(!is.na(region_info$Prioritized_Gene[1]),
+                                                         region_info$Prioritized_Gene[1], "N/A"), "<br>",
+                            "Nearest Gene: ", region_info$nearest_gene_1[1])
+
+      # Add clump index information if available
+      if ("clump_index_Name" %in% names(region_info)) {
+        tooltip_text <- paste0(tooltip_text, "<br>Clump Index Name: ",
+                              ifelse(!is.na(region_info$clump_index_Name[1]),
+                                    region_info$clump_index_Name[1], "N/A"))
+      }
+      if ("clump_index_P" %in% names(region_info)) {
+        # Format p-value in scientific notation with 2 decimal places
+        formatted_p <- ifelse(!is.na(region_info$clump_index_P[1]),
+                             sprintf("%.2e", region_info$clump_index_P[1]),
+                             "N/A")
+        tooltip_text <- paste0(tooltip_text, "<br>Clump Index P: ", formatted_p)
+      }
+
+      central_node <- data.frame(
+        id = "region",
+        label = gene_label,
+        title = tooltip_text,
+        group = "region",
+        shape = "star",
+        size = 30,
+        color = "#FFD700",
+        stringsAsFactors = FALSE
+      )
+      
+      # Create trait nodes - make sure column structure matches
+      trait_nodes_list <- dt[, {
+        # Extract trait name based on source study
+        trait_name <- switch(source_study[1],
+                             "CKDGen_r5" = CKDGen_r5_ckdgen_r5_name,
+                             "FinnGen_r9" = FinnGen_r9_phenotype,
+                             "GCKD_mGWAS_plasma" = GCKD_mGWAS_plasma_BIOCHEMICAL,
+                             "GCKD_mGWAS_urine" = GCKD_mGWAS_urine_BIOCHEMICAL,
+                             "Icelanders_pGWAS" = Icelanders_pGWAS_Protein..short.name.,
+                             "MVP_R4" = MVP_R4_Analyzed.variable,
+                             "UKB_PPP_EUR" = UKB_PPP_EUR_olink_target_fullname,
+                             "UKB_TOPMed" = UKB_TOPMed_phenostring,
+                             "pho_ca" = pho_ca_pho_ca_name,
+                             "eQTLGen" =  eQTLGen_gene_name,
+                             "Kidney_eQTL" = Kidney_eQTL_gene_name,
+                             "GTEXv8_eQTL" = GTEXv8_eQTL_gene_name,
+
+                             NA
+        )
+
+        # Create node ID
+        node_id <- paste0(source_study, "_", .I)
+
+        list(
+          id = node_id,
+          label = ifelse(is.na(trait_name), source_study,
+                         substr(trait_name, 1, 30)),  # Truncate long names
+          title = paste0(
+            "Study: ", source_study, "<br>",
+            "Trait: ", ifelse(is.na(trait_name), "N/A", trait_name), "<br>",
+            "PP.H4: ", round(PP.H4.abf, 3), "<br>",
+            "Significance: ", round(sumstats_2_max_nlog10P, 2), " (-log10 P)"
+          ),
+          group = source_study,
+          shape = "dot",
+          size = 10 + 20 * PP.H4.abf  # Size by PP.H4
+        )
+      }, by = .I]
+
+      # Convert to data.frame
+      trait_nodes <- data.frame(
+        id = trait_nodes_list$id,
+        label = trait_nodes_list$label,
+        title = trait_nodes_list$title,
+        group = trait_nodes_list$group,
+        shape = trait_nodes_list$shape,
+        size = trait_nodes_list$size,
+        stringsAsFactors = FALSE
+      )
+
+      # Add colors: use color picker input if available, otherwise default
+      # Note: #000000 is textInput's default, treat it as "not set"
+      trait_nodes$color <- unname(sapply(trait_nodes$group, function(study) {
+        color_input <- input[[paste0("color_", study)]]
+        if (!is.null(color_input) && color_input != "#000000") {
+          color_input
+        } else {
+          study_colors[study]
+        }
+      }))
+
+      nodes <- rbind(central_node, trait_nodes)
+
+      # Apply custom labels if any
+      labels <- custom_labels()
+      if (length(labels) > 0) {
+        for (node_id in names(labels)) {
+          if (node_id %in% nodes$id) {
+            nodes$label[nodes$id == node_id] <- labels[[node_id]]
+          }
+        }
+      }
+
+      # Create edges with directionality colors and tooltips
+      # Get current study name for tooltip
+      study_name <- if (!is.null(current_study())) current_study() else "Region"
+
+      edge_list <- dt[, {
+        # Determine edge color and label based on directionality (colorblind-friendly)
+        dir_label <- "N/A"
+        edge_color <- "#848484"  # Default gray
+
+        if ("directionality" %in% names(dt)) {
+          dir_val <- as.character(directionality)
+          if (!is.na(directionality) && dir_val != "") {
+            # Check if positive
+            if (grepl("positive|concordant", dir_val, ignore.case = TRUE) ||
+                (suppressWarnings(!is.na(as.numeric(dir_val))) && as.numeric(dir_val) > 0)) {
+              edge_color <- "#e67e22"  # Orange for positive/concordant
+              dir_label <- "Positive"
+            }
+            # Check if negative
+            else if (grepl("negative|discordant", dir_val, ignore.case = TRUE) ||
+                     (suppressWarnings(!is.na(as.numeric(dir_val))) && as.numeric(dir_val) < 0)) {
+              edge_color <- "#3498db"  # Blue for negative/discordant
+              dir_label <- "Negative"
+            }
+          }
+        }
+
+        # Build edge tooltip
+        edge_title <- paste0(
+          "PP.H4: ", round(PP.H4.abf, 3), "<br>",
+          "Directionality: ", dir_label, "<br>"
+        )
+
+        # Add index SNP info if available
+        if ("sumstats_1_ind_Name" %in% names(dt)) {
+          edge_title <- paste0(edge_title, "Index SNP: ",
+                              ifelse(is.na(sumstats_1_ind_Name), "N/A", sumstats_1_ind_Name), "<br>")
+        }
+        if ("sumstats_1_ind_nlog10P" %in% names(dt)) {
+          edge_title <- paste0(edge_title, "P-value in ", study_name, ": ",
+                              round(sumstats_1_ind_nlog10P, 2), " (-log10)", "<br>")
+        }
+        if ("sumstats_2_ind_nlog10P" %in% names(dt)) {
+          edge_title <- paste0(edge_title, "P-value in sumstats_2: ",
+                              round(sumstats_2_ind_nlog10P, 2), " (-log10)")
+        }
+
+        list(
+          edge_color = edge_color,
+          edge_title = edge_title
+        )
+      }, by = .I]
+
+      edges <- data.frame(
+        from = rep("region", nrow(trait_nodes)),
+        to = trait_nodes$id,
+        width = 4,  # Thicker edges
+        color = edge_list$edge_color,
+        title = edge_list$edge_title,
+        stringsAsFactors = FALSE
+      )
+
+      list(nodes = nodes, edges = edges)
+    })
+
+    # === Unified Trait View Reactives ===
+
+    # Get trait data based on selected study type
+    trait_data <- reactive({
+      req(coloc_data(), input$trait_view_type)
+      dt <- coloc_data()
+
+      if (input$trait_view_type == "Phenotypes") {
+        req(input$selected_pheno_study)
+        dt <- dt[source_study == input$selected_pheno_study]
+      } else if (input$trait_view_type == "pQTL") {
+        req(input$selected_pqtl_study)
+        dt <- dt[source_study == input$selected_pqtl_study]
+      } else if (input$trait_view_type == "eQTL") {
+        req(input$selected_eqtl_study)
+        dt <- dt[source_study == input$selected_eqtl_study]
+      } else if (input$trait_view_type == "mQTL") {
+        req(input$selected_mqtl_study)
+        dt <- dt[source_study == input$selected_mqtl_study]
+      }
+
+      dt
+    })
+
+    # Update Phenotypes trait selector
+    observe({
+      req(trait_data(), input$trait_view_type, input$selected_pheno_study)
+      if (input$trait_view_type == "Phenotypes") {
+        dt <- trait_data()
+
+        trait_col <- switch(input$selected_pheno_study,
+                           "MVP_R4" = "MVP_R4_Analyzed.variable",
+                           "FinnGen_r9" = "FinnGen_r9_phenotype",
+                           "UKB_TOPMed" = "UKB_TOPMed_phenostring",
+                           NULL)
+
+        if (!is.null(trait_col) && nrow(dt) > 0 && trait_col %in% names(dt)) {
+          # Count colocs per trait
+          trait_counts <- dt[, .N, by = trait_col]
+          setnames(trait_counts, trait_col, "trait")
+          trait_counts <- trait_counts[!is.na(trait)]
+          trait_counts <- trait_counts[order(trait)]  # Sort alphabetically
+
+          # Create named choices with counts
+          choices <- setNames(
+            trait_counts$trait,
+            paste0(trait_counts$trait, " (", trait_counts$N, ")")
+          )
+          updateSelectInput(session, "selected_trait_pheno", choices = choices)
+        }
+      }
+    })
+
+    # Update pQTL protein selector
+    observe({
+      req(trait_data(), input$trait_view_type, input$selected_pqtl_study)
+      if (input$trait_view_type == "pQTL") {
+        dt <- trait_data()
+
+        protein_col <- switch(input$selected_pqtl_study,
+                             "UKB_PPP_EUR" = "UKB_PPP_EUR_olink_target_fullname",
+                             "Icelanders_pGWAS" = "Icelanders_pGWAS_Protein..short.name.",
+                             NULL)
+
+        if (!is.null(protein_col) && nrow(dt) > 0 && protein_col %in% names(dt)) {
+          # Count colocs per protein
+          protein_counts <- dt[, .N, by = protein_col]
+          setnames(protein_counts, protein_col, "protein")
+          protein_counts <- protein_counts[!is.na(protein)]
+          protein_counts <- protein_counts[order(protein)]  # Sort alphabetically
+
+          # Create named choices with counts
+          choices <- setNames(
+            protein_counts$protein,
+            paste0(protein_counts$protein, " (", protein_counts$N, ")")
+          )
+          updateSelectInput(session, "selected_protein_pqtl", choices = choices)
+        }
+      }
+    })
+
+    # Update eQTL gene selector
+    observe({
+      req(trait_data(), input$trait_view_type, input$selected_eqtl_study)
+      if (input$trait_view_type == "eQTL") {
+        dt <- trait_data()
+
+        gene_col <- switch(input$selected_eqtl_study,
+                          "eQTLGen" = "eQTLGen_gene_name",
+                          # "Kidney_eQTL" = "Kidney_eQTL_gene_name",    # Uncomment when data available
+                          # "GTEXv8_eQTL" = "GTEXv8_eQTL_gene_name",    # Uncomment when data available
+                          NULL)
+
+        if (!is.null(gene_col) && nrow(dt) > 0 && gene_col %in% names(dt)) {
+          # Count colocs per gene
+          gene_counts <- dt[, .N, by = gene_col]
+          setnames(gene_counts, gene_col, "gene")
+          gene_counts <- gene_counts[!is.na(gene)]
+          gene_counts <- gene_counts[order(gene)]  # Sort alphabetically
+
+          # Create named choices with counts
+          choices <- setNames(
+            gene_counts$gene,
+            paste0(gene_counts$gene, " (", gene_counts$N, ")")
+          )
+          updateSelectInput(session, "selected_gene_eqtl", choices = choices)
+        }
+      }
+    })
+
+    # Update mQTL metabolite selector
+    observe({
+      req(trait_data(), input$trait_view_type, input$selected_mqtl_study)
+      if (input$trait_view_type == "mQTL") {
+        dt <- trait_data()
+
+        metabolite_col <- switch(input$selected_mqtl_study,
+                                "GCKD_mGWAS_plasma" = "GCKD_mGWAS_plasma_BIOCHEMICAL",
+                                "GCKD_mGWAS_urine" = "GCKD_mGWAS_urine_BIOCHEMICAL",
+                                NULL)
+
+        if (!is.null(metabolite_col) && nrow(dt) > 0 && metabolite_col %in% names(dt)) {
+          # Count colocs per metabolite
+          metabolite_counts <- dt[, .N, by = metabolite_col]
+          setnames(metabolite_counts, metabolite_col, "metabolite")
+          metabolite_counts <- metabolite_counts[!is.na(metabolite)]
+          metabolite_counts <- metabolite_counts[order(metabolite)]  # Sort alphabetically
+
+          # Create named choices with counts
+          choices <- setNames(
+            metabolite_counts$metabolite,
+            paste0(metabolite_counts$metabolite, " (", metabolite_counts$N, ")")
+          )
+          updateSelectInput(session, "selected_metabolite_mqtl", choices = choices)
+        }
+      }
+    })
+
+    # Filter by selected trait/protein/gene/metabolite, PP.H4, and p-value
+    trait_filtered_data <- reactive({
+      req(trait_data(), input$trait_view_type)
+      dt <- trait_data()
+
+      # Filter by trait/protein/gene/metabolite based on study type
+      if (input$trait_view_type == "Phenotypes") {
+        req(input$selected_trait_pheno, input$selected_pheno_study)
+
+        trait_col <- switch(input$selected_pheno_study,
+                           "MVP_R4" = "MVP_R4_Analyzed.variable",
+                           "FinnGen_r9" = "FinnGen_r9_phenotype",
+                           "UKB_TOPMed" = "UKB_TOPMed_phenostring",
+                           NULL)
+
+        if (!is.null(trait_col) && trait_col %in% names(dt)) {
+          dt <- dt[get(trait_col) == input$selected_trait_pheno]
+        }
+      } else if (input$trait_view_type == "pQTL") {
+        req(input$selected_protein_pqtl, input$selected_pqtl_study)
+
+        protein_col <- switch(input$selected_pqtl_study,
+                             "UKB_PPP_EUR" = "UKB_PPP_EUR_olink_target_fullname",
+                             "Icelanders_pGWAS" = "Icelanders_pGWAS_Protein..short.name.",
+                             NULL)
+
+        if (!is.null(protein_col) && protein_col %in% names(dt)) {
+          dt <- dt[get(protein_col) == input$selected_protein_pqtl]
+        }
+      } else if (input$trait_view_type == "eQTL") {
+        req(input$selected_gene_eqtl, input$selected_eqtl_study)
+
+        gene_col <- switch(input$selected_eqtl_study,
+                          "eQTLGen" = "eQTLGen_gene_name",
+                          # "Kidney_eQTL" = "Kidney_eQTL_gene_name",    # Uncomment when data available
+                          # "GTEXv8_eQTL" = "GTEXv8_eQTL_gene_name",    # Uncomment when data available
+                          NULL)
+
+        if (!is.null(gene_col) && gene_col %in% names(dt)) {
+          dt <- dt[get(gene_col) == input$selected_gene_eqtl]
+        }
+      } else if (input$trait_view_type == "mQTL") {
+        req(input$selected_metabolite_mqtl, input$selected_mqtl_study)
+
+        metabolite_col <- switch(input$selected_mqtl_study,
+                                "GCKD_mGWAS_plasma" = "GCKD_mGWAS_plasma_BIOCHEMICAL",
+                                "GCKD_mGWAS_urine" = "GCKD_mGWAS_urine_BIOCHEMICAL",
+                                NULL)
+
+        if (!is.null(metabolite_col) && metabolite_col %in% names(dt)) {
+          dt <- dt[get(metabolite_col) == input$selected_metabolite_mqtl]
+        }
+      }
+
+      # Apply filters (shared for all types)
+      dt <- dt[PP.H4.abf >= input$min_pph4_trait]
+
+      if ("sumstats_2_max_nlog10P" %in% names(dt)) {
+        dt <- dt[sumstats_2_max_nlog10P >= input$min_nlog10P_trait]
+      }
+
+      dt
+    })
+
+    # Create trait-centered network (unified)
+    trait_network_data <- reactive({
+      req(trait_filtered_data(), input$trait_view_type)
+      dt <- trait_filtered_data()
+
+      if (nrow(dt) == 0) {
+        return(list(nodes = data.frame(), edges = data.frame()))
+      }
+
+      # Determine label and study info based on type
+      if (input$trait_view_type == "Phenotypes") {
+        req(input$selected_trait_pheno, input$selected_pheno_study)
+        node_label <- input$selected_trait_pheno
+        study_info <- input$selected_pheno_study
+        node_type <- "Trait"
+      } else if (input$trait_view_type == "pQTL") {
+        req(input$selected_protein_pqtl, input$selected_pqtl_study)
+        node_label <- input$selected_protein_pqtl
+        study_info <- input$selected_pqtl_study
+        node_type <- "Protein"
+      } else if (input$trait_view_type == "eQTL") {
+        req(input$selected_gene_eqtl, input$selected_eqtl_study)
+        node_label <- input$selected_gene_eqtl
+        study_info <- input$selected_eqtl_study
+        node_type <- "Gene"
+      } else {  # mQTL
+        req(input$selected_metabolite_mqtl, input$selected_mqtl_study)
+        node_label <- input$selected_metabolite_mqtl
+        study_info <- input$selected_mqtl_study
+        node_type <- "Metabolite"
+      }
+
+      # Get custom colors from inputs (with defaults)
+      # Note: #000000 is textInput's default, treat it as "not set"
+      central_color <- if (!is.null(input$trait_central_color) && input$trait_central_color != "#000000") {
+        input$trait_central_color
+      } else {
+        "#9b59b6"
+      }
+      region_color <- if (!is.null(input$trait_region_color) && input$trait_region_color != "#000000") {
+        input$trait_region_color
+      } else {
+        "#3498db"
+      }
+
+      # Central node: The trait/protein/gene/metabolite (purple diamond)
+      central_node <- data.frame(
+        id = "trait",
+        label = node_label,
+        title = paste0(node_type, ": ", node_label, "<br>",
+                      "Study: ", study_info, "<br>",
+                      "Genomic regions: ", length(unique(paste(dt$CHR_var, dt$BP_START_var, dt$BP_STOP_var)))),
+        shape = "diamond",
+        size = 40,
+        color = central_color,
+        stringsAsFactors = FALSE
+      )
+
+      # Get unique regions
+      regions <- unique(dt[, .(CHR_var, BP_START_var, BP_STOP_var, Prioritized_Gene, nearest_gene_1)])
+
+      # Create region nodes
+      region_nodes_list <- lapply(1:nrow(regions), function(i) {
+        gene_label <- ifelse(!is.na(regions$Prioritized_Gene[i]) && regions$Prioritized_Gene[i] != "",
+                            regions$Prioritized_Gene[i],
+                            regions$nearest_gene_1[i])
+
+        # Get PP.H4 for this region (take max if multiple)
+        region_dt <- dt[CHR_var == regions$CHR_var[i] &
+                       BP_START_var == regions$BP_START_var[i] &
+                       BP_STOP_var == regions$BP_STOP_var[i]]
+        max_pph4 <- max(region_dt$PP.H4.abf)
+
+        data.frame(
+          id = paste0("region_", i),
+          label = gene_label,
+          title = paste0("Gene: ", gene_label, "<br>",
+                        "Region: chr", regions$CHR_var[i], ":",
+                        regions$BP_START_var[i], "-", regions$BP_STOP_var[i], "<br>",
+                        "Max PP.H4: ", round(max_pph4, 3)),
+          shape = "dot",
+          size = 10 + 30 * max_pph4,  # Size by PP.H4
+          color = region_color,
+          stringsAsFactors = FALSE
+        )
+      })
+
+      region_nodes <- do.call(rbind, region_nodes_list)
+      nodes <- rbind(central_node, region_nodes)
+
+      # Apply custom labels if any
+      labels <- trait_custom_labels()
+      if (length(labels) > 0) {
+        for (node_id in names(labels)) {
+          if (node_id %in% nodes$id) {
+            nodes$label[nodes$id == node_id] <- labels[[node_id]]
+          }
+        }
+      }
+
+      # Create edges with directionality
+      edge_list <- lapply(1:nrow(regions), function(i) {
+        # Get first matching row for this region
+        region_dt <- dt[CHR_var == regions$CHR_var[i] &
+                       BP_START_var == regions$BP_START_var[i] &
+                       BP_STOP_var == regions$BP_STOP_var[i]]
+        row <- region_dt[1]  # Take first row
+
+        # Determine color and label based on directionality
+        edge_color <- "#848484"  # Default gray
+        dir_label <- "N/A"
+
+        if ("directionality" %in% names(row) && !is.na(row$directionality)) {
+          dir_val <- as.character(row$directionality)
+          if (dir_val != "") {
+            # Check if positive
+            if (grepl("positive|concordant", dir_val, ignore.case = TRUE) ||
+                (suppressWarnings(!is.na(as.numeric(dir_val))) && as.numeric(dir_val) > 0)) {
+              edge_color <- "#e67e22"  # Orange
+              dir_label <- "Positive"
+            }
+            # Check if negative
+            else if (grepl("negative|discordant", dir_val, ignore.case = TRUE) ||
+                     (suppressWarnings(!is.na(as.numeric(dir_val))) && as.numeric(dir_val) < 0)) {
+              edge_color <- "#3498db"  # Blue
+              dir_label <- "Negative"
+            }
+          }
+        }
+
+        data.frame(
+          from = "trait",
+          to = paste0("region_", i),
+          width = 4,
+          color = edge_color,
+          title = paste0("PP.H4: ", round(row$PP.H4.abf, 3), "<br>",
+                        "Directionality: ", dir_label),
+          stringsAsFactors = FALSE
+        )
+      })
+
+      edges <- do.call(rbind, edge_list)
+
+      list(nodes = nodes, edges = edges)
+    })
+
+    # === Outputs ===
+    
+    # Display current study info
+    output$current_study_info <- renderUI({
+      if (!is.null(current_study())) {
+        div(
+          style = "background-color: #e8f4f8; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
+          p(HTML(paste0("<strong>Currently Loaded:</strong> ", current_study())),
+            style = "margin: 0;")
+        )
+      } else {
+        div(
+          style = "background-color: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
+          p("No study auto-loaded. Upload your own data below.", style = "margin: 0; color: #666;")
+        )
+      }
+    })
+    
+    # Create combined study selector with colors, checkboxes, and info buttons
+    output$study_selector <- renderUI({
+      # Get counts for current region
+      counts <- study_counts_for_region()
+
+      # Create grouped study items by category
+      category_sections <- lapply(names(study_categories), function(category) {
+        studies_in_category <- study_categories[[category]]
+        # Filter to only include studies that exist in study_colors
+        studies_in_category <- studies_in_category[studies_in_category %in% names(study_colors)]
+
+        # Filter out pho_ca unless Calcium or Phosphate is selected
+        if (!is.null(current_study()) && !current_study() %in% c("Calcium", "Phosphate")) {
+          studies_in_category <- studies_in_category[studies_in_category != "pho_ca"]
+        }
+
+        if (length(studies_in_category) == 0) return(NULL)
+
+        # Calculate category total
+        category_total <- sum(sapply(studies_in_category, function(s) {
+          if (!is.null(counts) && s %in% names(counts)) counts[s] else 0
+        }))
+
+        study_items <- lapply(studies_in_category, function(study) {
+          display_name <- get_study_display_name(study)
+
+          # Get count for this study
+          study_count <- if (!is.null(counts) && study %in% names(counts)) counts[study] else 0
+
+          # Style: gray out if count is 0
+          count_style <- if (study_count == 0) {
+            "font-size: 10px; color: #999; margin-left: 3px;"
+          } else {
+            "font-size: 10px; color: #27ae60; font-weight: bold; margin-left: 3px;"
+          }
+
+          div(style = "margin: 0; padding: 0; display: flex; align-items: center;",
+              # Checkbox
+              tags$div(style = "margin: 0; padding: 0;",
+                checkboxInput(paste0("study_", study),
+                             label = NULL,
+                             value = TRUE,
+                             width = "20px")),
+              # Color square
+              tags$span(style = paste0("display: inline-block; width: 14px; height: 14px; ",
+                                      "background-color: ", study_colors[study],
+                                      "; margin-left: -5px; margin-right: 8px; border: 1px solid #ddd;")),
+              # Study name (smaller font for compactness)
+              tags$span(style = "font-size: 12px;", display_name),
+              # Count badge
+              tags$span(style = count_style, paste0("(", study_count, ")")),
+              # Info button
+              actionLink(paste0("info_", study),
+                        label = icon("info-circle"),
+                        style = "font-size: 12px; color: #3498db; margin-left: 6px;")
+          )
+        })
+
+        # Return category section with header including total
+        category_header_style <- if (category_total == 0) {
+          "font-weight: bold; font-size: 11px; color: #999; margin-top: 8px; margin-bottom: 3px;"
+        } else {
+          "font-weight: bold; font-size: 11px; color: #555; margin-top: 8px; margin-bottom: 3px;"
+        }
+
+        tagList(
+          tags$div(style = category_header_style,
+                   paste0(category, " (", category_total, ")")),
+          study_items
+        )
+      })
+
+      do.call(tagList, category_sections)
+    })
+
+    # Create reactive for selected studies (combines individual checkboxes)
+    selected_studies <- reactive({
+      studies <- names(study_colors)
+      selected <- sapply(studies, function(study) {
+        val <- input[[paste0("study_", study)]]
+        if (is.null(val)) TRUE else val  # Default to TRUE
+      })
+      studies[selected]
+    })
+
+    # Compute coloc counts per study for current region (before study filtering)
+    study_counts_for_region <- reactive({
+      req(coloc_data(), current_region())
+
+      # Parse region
+      region_parts <- strsplit(current_region(), ":")[[1]]
+      chr <- region_parts[1]
+      pos_parts <- strsplit(region_parts[2], "-")[[1]]
+      start_pos <- as.numeric(pos_parts[1])
+      end_pos <- as.numeric(pos_parts[2])
+
+      # Filter data for region only (apply PP.H4 and nlog10P filters, but NOT study filter)
+      dt <- coloc_data()[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
+      dt <- dt[PP.H4.abf >= input$min_pph4]
+      dt <- dt[sumstats_2_max_nlog10P >= input$min_nlog10P]
+
+      # Count by source_study
+      counts <- dt[, .N, by = source_study]
+      setNames(counts$N, counts$source_study)
+    })
+
+    # Create observers for info buttons
+    lapply(names(study_colors), function(study) {
+      observeEvent(input[[paste0("info_", study)]], {
+        showModal(modalDialog(
+          title = get_study_display_name(study),
+          format_study_info(study),
+          easyClose = TRUE,
+          footer = modalButton("Close")
+        ))
+      })
+    })
+    
+    # Render network
+    output$network <- renderVisNetwork({
+      net_data <- network_data()
+
+      if (nrow(net_data$nodes) == 0) {
+        visNetwork(data.frame(id = 1, label = "No data"), data.frame()) %>%
+          visNodes(shape = "text", font = list(size = 20))
+      } else {
+        # Filter nodes based on selection (if any selected)
+        visible <- input$visible_nodes
+        if (!is.null(visible) && length(visible) > 0) {
+          # Filter nodes to only show selected ones
+          nodes_filtered <- net_data$nodes[net_data$nodes$id %in% visible, ]
+          # Filter edges to only include those connecting visible nodes
+          edges_filtered <- net_data$edges[
+            net_data$edges$from %in% visible & net_data$edges$to %in% visible,
+          ]
+        } else {
+          # No selection means show all (during initial load)
+          nodes_filtered <- net_data$nodes
+          edges_filtered <- net_data$edges
+        }
+
+        # Show notification for large networks (dismissed when stabilized)
+        n_nodes <- nrow(nodes_filtered)
+        if (n_nodes > 100) {
+          showNotification(
+            paste0("Rendering network (", n_nodes, " nodes)... please wait"),
+            id = "region_network_loading",
+            duration = NULL,
+            type = "message"
+          )
+        }
+
+        visNetwork(nodes_filtered, edges_filtered) %>%
+          visNodes(
+            font = list(color = "#000000", size = 14, face = "arial")
+          ) %>%
+          visOptions(
+            highlightNearest = list(enabled = TRUE, degree = 1, hover = TRUE)
+          ) %>%
+          visPhysics(enabled = input$physics,
+                     stabilization = list(enabled = TRUE, iterations = 200)) %>%
+          visLayout(randomSeed = 123) %>%
+          visInteraction(
+            dragNodes = TRUE,
+            dragView = TRUE,
+            zoomView = TRUE
+          ) %>%
+          visEvents(
+            select = "function(nodes) {
+              Shiny.setInputValue('selected_node', nodes.nodes[0]);
+            }",
+            stabilizationIterationsDone = "function() {
+              Shiny.setInputValue('region_network_stabilized', Math.random());
+            }"
+          )
+      }
+    })
+
+    # Dismiss loading notification when region network stabilizes
+    observeEvent(input$region_network_stabilized, {
+      removeNotification(id = "region_network_loading")
+    })
+    
+    # Show node info when selected
+    output$node_info <- renderPrint({
+      req(input$selected_node)
+      net_data <- network_data()
+      
+      node <- net_data$nodes[net_data$nodes$id == input$selected_node, ]
+      if (nrow(node) > 0) {
+        cat("Node ID:", node$id, "\n")
+        cat("Label:", node$label, "\n")
+        cat("Group:", node$group, "\n")
+        # Parse and display HTML title content
+        title_text <- gsub("<br>", "\n", node$title)
+        cat("\nDetails:\n", title_text)
+      }
+    })
+    # Download handler
+    output$download_data <- downloadHandler(
+      filename = function() {
+        paste0("coloc_", gsub(":", "_", current_region()), "_", Sys.Date(), ".csv")
+      },
+      content = function(file) {
+        fwrite(filtered_data(), file)
+      }
+    )
+
+    # === Regional Plot Logic (Region View) ===
+
+    # Path to regional plot data
+    # Note: regional_plots_data is at data/regional_plots_data/{study}/regions/{region}/
+    regional_data_path <- reactive({
+      req(current_study())
+      folder_name <- available_studies[[current_study()]]
+      file.path("data/regional_plots_data", folder_name)
+    })
+
+    # Get available traits for current region (from filtered colocalization data)
+    regional_traits_available <- reactive({
+      req(filtered_data())
+      dt <- filtered_data()
+
+      if (nrow(dt) == 0) return(NULL)
+
+      # Get unique traits with their study source
+      # trait_name = filename-safe name, trait_display = human-readable name
+      trait_info <- unique(dt[, .(
+        source_study,
+        trait_name = get_trait_name(.SD),
+        trait_display = get_trait_display_name(.SD)
+      ), by = seq_len(nrow(dt))])
+      trait_info[, trait_label := paste0(trait_display, " (", source_study, ")")]
+
+      # Build choices: file-friendly name -> display label
+      traits_list <- setNames(
+        paste0(trait_info$source_study, "__", trait_info$trait_name),
+        trait_info$trait_label
+      )
+
+      traits_list
+    })
+
+    # Helper to extract trait name from filtered_data row
+    # MUST match file naming in get_trait_name_for_regional() from ckdgen_genepicoloc_functions.R
+    get_trait_name <- function(row) {
+      source <- row$source_study[1]
+
+      trait_name <- switch(source,
+        "eQTLGen" = {
+          # eQTLGen uses gene_name_ENSG format
+          if ("eQTLGen_gene_name" %in% names(row) && !is.na(row$eQTLGen_gene_name[1])) {
+            # Try to extract ENSG from sumstats_2_file if available
+            if ("sumstats_2_file" %in% names(row)) {
+              ensg <- gsub(".*_(ENSG[0-9]+).*", "\\1", basename(row$sumstats_2_file[1]))
+              paste0(row$eQTLGen_gene_name[1], "_", ensg)
+            } else {
+              row$eQTLGen_gene_name[1]
+            }
+          } else {
+            "Unknown"
+          }
+        },
+        "UKB_PPP_EUR" = {
+          if ("UKB_PPP_EUR_olink_target_fullname" %in% names(row)) {
+            row$UKB_PPP_EUR_olink_target_fullname[1]
+          } else "Unknown"
+        },
+        "Icelanders_pGWAS" = {
+          if ("Icelanders_pGWAS_Protein..short.name." %in% names(row)) {
+            row$`Icelanders_pGWAS_Protein..short.name.`[1]
+          } else "Unknown"
+        },
+        "GCKD_mGWAS_plasma" = {
+          if ("GCKD_mGWAS_plasma_BIOCHEMICAL" %in% names(row)) {
+            row$GCKD_mGWAS_plasma_BIOCHEMICAL[1]
+          } else "Unknown"
+        },
+        "GCKD_mGWAS_urine" = {
+          if ("GCKD_mGWAS_urine_BIOCHEMICAL" %in% names(row)) {
+            row$GCKD_mGWAS_urine_BIOCHEMICAL[1]
+          } else "Unknown"
+        },
+        "FinnGen_r9" = {
+          if ("FinnGen_r9_phenotype" %in% names(row)) {
+            row$FinnGen_r9_phenotype[1]
+          } else "Unknown"
+        },
+        "UKB_TOPMed" = {
+          if ("UKB_TOPMed_phenostring" %in% names(row)) {
+            row$UKB_TOPMed_phenostring[1]
+          } else "Unknown"
+        },
+        "MVP_R4" = {
+          if ("MVP_R4_Title.of.analysis" %in% names(row)) {
+            row$`MVP_R4_Title.of.analysis`[1]
+          } else "Unknown"
+        },
+        "CKDGen_r5" = {
+          if ("CKDGen_r5_ckdgen_r5_name" %in% names(row)) {
+            row$CKDGen_r5_ckdgen_r5_name[1]
+          } else "Unknown"
+        },
+        "pho_ca" = {
+          if ("pho_ca_pho_ca_name" %in% names(row)) {
+            row$pho_ca_pho_ca_name[1]
+          } else "Unknown"
+        },
+        "Unknown"
+      )
+
+      # Clean trait name for filename safety (match extraction function)
+      if (!is.null(trait_name) && trait_name != "Unknown") {
+        trait_name <- gsub("[^A-Za-z0-9_.-]", "_", trait_name)
+        trait_name <- gsub("_+", "_", trait_name)
+        trait_name <- gsub("^_|_$", "", trait_name)
+      }
+
+      return(trait_name)
+    }
+
+    # Helper to get human-readable display name (for dropdown labels)
+    # For most studies, same as get_trait_name; for MVP_R4, use full phecode description
+    get_trait_display_name <- function(row) {
+      source <- row$source_study[1]
+
+      # MVP_R4: Use Analyzed.variable (full phecode name) instead of Title.of.analysis (phecode)
+      if (source == "MVP_R4") {
+        if ("MVP_R4_Analyzed.variable" %in% names(row) && !is.na(row$`MVP_R4_Analyzed.variable`[1])) {
+          display_name <- row$`MVP_R4_Analyzed.variable`[1]
+          # Clean up: replace dots with spaces for readability
+          display_name <- gsub("\\.", " ", display_name)
+          display_name <- gsub("  +", " ", display_name)
+          display_name <- trimws(display_name)
+          return(display_name)
+        }
+      }
+
+      # For all other studies, use the same as get_trait_name (already clean)
+      get_trait_name(row)
+    }
+
+    # Update trait selector when region changes
+    observe({
+      traits <- regional_traits_available()
+
+      if (is.null(traits) || length(traits) == 0) {
+        updateSelectInput(session, "regional_trait_selector",
+                         choices = c("No colocalized traits" = ""),
+                         selected = "")
+      } else {
+        updateSelectInput(session, "regional_trait_selector",
+                         choices = traits,
+                         selected = traits[1])
+      }
+    })
+
+    # Load base study sumstats for current region
+    regional_base_sumstats <- reactive({
+      req(regional_data_path(), current_region())
+
+      # Parse region
+      region_parts <- strsplit(current_region(), ":")[[1]]
+      if (length(region_parts) < 2) return(NULL)
+
+      chr <- region_parts[1]
+      # Add "chr" prefix if not present (folder format: chr10_111687920_112687920)
+      if (!grepl("^chr", chr)) chr <- paste0("chr", chr)
+      pos_parts <- strsplit(region_parts[2], "-")[[1]]
+      start_pos <- pos_parts[1]
+      end_pos <- pos_parts[2]
+
+      region_folder <- paste0(chr, "_", start_pos, "_", end_pos)
+      sumstats_file <- file.path(regional_data_path(), "regions", region_folder, "sumstats_1.RDS")
+
+      if (file.exists(sumstats_file)) {
+        readRDS(sumstats_file)
+      } else {
+        NULL
+      }
+    })
+
+    # Load trait sumstats for selected colocalized trait
+    regional_trait_sumstats <- reactive({
+      req(regional_data_path(), input$regional_trait_selector, current_region())
+
+      if (input$regional_trait_selector == "") return(NULL)
+
+      # Parse region for folder path
+      region_parts <- strsplit(current_region(), ":")[[1]]
+      chr <- region_parts[1]
+      # Add "chr" prefix if not present
+      if (!grepl("^chr", chr)) chr <- paste0("chr", chr)
+      pos_parts <- strsplit(region_parts[2], "-")[[1]]
+      start_pos <- pos_parts[1]
+      end_pos <- pos_parts[2]
+      region_folder <- paste0(chr, "_", start_pos, "_", end_pos)
+
+      # Build path to trait file: regions/{region}/traits/{study}__{trait}.RDS
+      trait_file <- file.path(regional_data_path(), "regions", region_folder, "traits",
+                              paste0(input$regional_trait_selector, ".RDS"))
+
+      if (file.exists(trait_file)) {
+        readRDS(trait_file)
+      } else {
+        NULL
+      }
+    })
+
+    # Get lead SNP for current region
+    regional_lead_snp <- reactive({
+      req(filtered_data())
+      dt <- filtered_data()
+
+      if (nrow(dt) > 0 && "sumstats_1_ind_Name" %in% names(dt)) {
+        dt$sumstats_1_ind_Name[1]
+      } else {
+        NULL
+      }
+    })
+
+    # Render base study plot title
+    output$regional_plot_title_base <- renderText({
+      req(current_study())
+      paste0("Base Study: ", current_study())
+    })
+
+    # Render trait plot title
+    output$regional_plot_title_trait <- renderText({
+      req(input$regional_trait_selector)
+      if (input$regional_trait_selector == "") return("Select a trait")
+      # Get display name from available traits (the label, not the value)
+      traits <- regional_traits_available()
+      if (!is.null(traits) && input$regional_trait_selector %in% traits) {
+        names(traits)[which(traits == input$regional_trait_selector)]
+      } else {
+        gsub("__", " - ", input$regional_trait_selector)
+      }
+    })
+
+    # Render coloc info
+    output$regional_coloc_info <- renderText({
+      req(filtered_data(), input$regional_trait_selector)
+      dt <- filtered_data()
+
+      if (input$regional_trait_selector == "" || nrow(dt) == 0) {
+        return("")
+      }
+
+      # Find PP.H4 for selected trait
+      parts <- strsplit(input$regional_trait_selector, "__")[[1]]
+      if (length(parts) == 2) {
+        trait_rows <- dt[source_study == parts[1]]
+        if (nrow(trait_rows) > 0) {
+          max_pph4 <- max(trait_rows$PP.H4.abf, na.rm = TRUE)
+          return(paste0("PP.H4: ", round(max_pph4, 3)))
+        }
+      }
+      ""
+    })
+
+    # Calculate shared X-axis range for Region View plots
+    regional_x_range <- reactive({
+      base_sumstats <- regional_base_sumstats()
+      trait_sumstats <- regional_trait_sumstats()
+
+      # Collect all positions from both datasets
+      all_pos <- c()
+      if (!is.null(base_sumstats) && nrow(base_sumstats) > 0) {
+        all_pos <- c(all_pos, base_sumstats$POS)
+      }
+      if (!is.null(trait_sumstats) && nrow(trait_sumstats) > 0) {
+        all_pos <- c(all_pos, trait_sumstats$POS)
+      }
+
+      if (length(all_pos) > 0) {
+        # Add small padding (1% on each side)
+        range_span <- max(all_pos) - min(all_pos)
+        padding <- range_span * 0.01
+        return(c(min(all_pos) - padding, max(all_pos) + padding))
+      }
+      NULL
+    })
+
+    # Render base study regional plot (interactive)
+    output$regional_plot_base <- renderPlotly({
+      sumstats <- regional_base_sumstats()
+      lead_snp <- if (input$regional_highlight_lead) regional_lead_snp() else NULL
+      x_range <- regional_x_range()
+
+      plot_regional_association_interactive(
+        sumstats_dt = sumstats,
+        title = "",
+        highlight_snp = lead_snp,
+        color = "#2ecc71",  # Green for base study
+        x_range = x_range
+      )
+    })
+
+    # Render trait regional plot (interactive)
+    output$regional_plot_trait <- renderPlotly({
+      sumstats <- regional_trait_sumstats()
+      lead_snp <- if (input$regional_highlight_lead) regional_lead_snp() else NULL
+      x_range <- regional_x_range()
+
+      # Get color based on study type
+      trait_sel <- input$regional_trait_selector
+      study_color <- "#3498db"  # Default blue
+      if (!is.null(trait_sel) && trait_sel != "") {
+        study <- strsplit(trait_sel, "__")[[1]][1]
+        if (study %in% names(study_colors)) {
+          study_color <- study_colors[[study]]
+        }
+      }
+
+      plot_regional_association_interactive(
+        sumstats_dt = sumstats,
+        title = "",
+        highlight_snp = lead_snp,
+        color = study_color,
+        x_range = x_range
+      )
+    })
+
+    # Render gene track (Region View)
+    output$regional_gene_track <- renderPlotly({
+      req(current_region())
+
+      # Parse region coordinates from current_region()
+      region_sel <- current_region()
+      region_parts <- strsplit(region_sel, ":")[[1]]
+      chr <- region_parts[1]
+      pos_parts <- strsplit(region_parts[2], "-")[[1]]
+      start_pos <- as.numeric(pos_parts[1])
+      end_pos <- as.numeric(pos_parts[2])
+
+      plot_gene_track(chr, start_pos, end_pos, source = "regional_gene_track")
+    })
+
+    # Store selected gene for info panel
+    selected_gene <- reactiveVal(NULL)
+
+    # Handle click on gene track (Region View)
+    observeEvent(event_data("plotly_click", source = "regional_gene_track"), {
+      click_data <- event_data("plotly_click", source = "regional_gene_track")
+      if (!is.null(click_data) && !is.null(click_data$customdata)) {
+        clicked_gene <- click_data$customdata
+        # Look up gene in annotation
+        if (!is.null(gene_annotation)) {
+          gene_info <- gene_annotation[gene_name == clicked_gene]
+          if (nrow(gene_info) > 0) {
+            selected_gene(gene_info[1])
+          }
+        }
+      }
+    })
+
+    # Render gene info panel
+    output$gene_info_panel <- renderUI({
+      gene <- selected_gene()
+      if (is.null(gene)) return(NULL)
+
+      # Helper for source tooltip (ⓘ with hover description, not clickable)
+      source_tip <- function(source_name, desc, source_url) {
+        tags$span(
+          title = paste0(source_name, " - ", desc),
+          style = "color: #999; margin-left: 4px; cursor: help;",
+          "ⓘ"
+        )
+      }
+
+      # Build info sections
+      info_items <- list()
+
+      # Gene name and full name
+      info_items[[length(info_items) + 1]] <- tags$h4(
+        gene$gene_name,
+        if (!is.null(gene$full_name) && gene$full_name != "")
+          tags$span(style = "color: #666; margin-left: 10px; font-weight: normal;", gene$full_name)
+      )
+
+      # Coordinates (from Gencode)
+      info_items[[length(info_items) + 1]] <- tags$p(
+        tags$strong("Location: "),
+        paste0("chr", gene$chr, ":", format(gene$start, big.mark = ","), "-", format(gene$end, big.mark = ","),
+               " (", gene$strand, " strand)"),
+        source_tip("Gencode v49", "comprehensive gene annotation", "https://www.gencodegenes.org/")
+      )
+
+      # Gene family (from HGNC)
+      if (!is.null(gene$gene_family) && gene$gene_family != "") {
+        info_items[[length(info_items) + 1]] <- tags$p(
+          tags$strong("Gene Family: "), gene$gene_family,
+          source_tip("HGNC", "HUGO Gene Nomenclature Committee", "https://www.genenames.org/")
+        )
+      }
+
+      # NCBI description
+      if (!is.null(gene$ncbi_description) && gene$ncbi_description != "") {
+        info_items[[length(info_items) + 1]] <- tags$p(
+          tags$strong("Description: "), gene$ncbi_description,
+          source_tip("NCBI Gene", "gene-specific information", "https://www.ncbi.nlm.nih.gov/gene/")
+        )
+      }
+
+      # Pathways (from Reactome, top 5)
+      if (!is.null(gene$pathways) && gene$pathways != "") {
+        info_items[[length(info_items) + 1]] <- tags$p(
+          tags$strong("Pathways (top 5): "), gene$pathways,
+          source_tip("Reactome", "curated biological pathways", "https://reactome.org/")
+        )
+      }
+
+      # Phenotypes (from HPO, top 5)
+      if (!is.null(gene$phenotypes) && gene$phenotypes != "") {
+        info_items[[length(info_items) + 1]] <- tags$p(
+          tags$strong("HPO Phenotypes (top 5): "), gene$phenotypes,
+          source_tip("HPO", "Human Phenotype Ontology", "https://hpo.jax.org/")
+        )
+      }
+
+      # External links
+      info_items[[length(info_items) + 1]] <- tags$p(
+        tags$a(href = paste0("https://www.genecards.org/cgi-bin/carddisp.pl?gene=", gene$gene_name),
+               target = "_blank", "GeneCards"),
+        tags$span(" | ", style = "color: #999;"),
+        tags$a(href = paste0("https://www.genenames.org/tools/search/#!/?query=", gene$gene_name),
+               target = "_blank", "HGNC"),
+        tags$span(" | ", style = "color: #999;"),
+        tags$a(href = paste0("https://www.ncbi.nlm.nih.gov/gene/?term=", gene$gene_name),
+               target = "_blank", "NCBI"),
+        tags$span(" | ", style = "color: #999;"),
+        tags$a(href = paste0("https://hpo.jax.org/browse/search?q=", gene$gene_name, "&navFilter=all"),
+               target = "_blank", "HPO")
+      )
+
+      # Wrap in a styled panel
+      wellPanel(
+        style = "background-color: #f8f9fa; border: 1px solid #dee2e6; margin-top: 10px;",
+        do.call(tagList, info_items)
+      )
+    })
+
+    # === Trait View Outputs ===
+
+    # === Trait View Node Selection for Export ===
+
+    # Store available trait nodes
+    trait_available_nodes <- reactiveVal(NULL)
+
+    # Update trait node selector choices when network data changes
+    observe({
+      req(trait_network_data())
+      net_data <- trait_network_data()
+
+      if (nrow(net_data$nodes) > 0) {
+        # Create node choices: id -> label (group)
+        node_choices <- setNames(
+          net_data$nodes$id,
+          paste0(net_data$nodes$label, " (", net_data$nodes$group, ")")
+        )
+        # Store for quick selection buttons
+        trait_available_nodes(net_data$nodes)
+
+        # Update selectize with all nodes selected by default
+        updateSelectizeInput(session, "trait_visible_nodes",
+                            choices = node_choices,
+                            selected = net_data$nodes$id)
+
+        # Auto-enable physics simulation for large networks (>150 nodes)
+        if (nrow(net_data$nodes) > 150 && !input$trait_physics) {
+          updateCheckboxInput(session, "trait_physics", value = TRUE)
+        }
+      }
+    })
+
+    # Trait node selection: All
+    observeEvent(input$trait_nodes_all, {
+      req(trait_available_nodes())
+      updateSelectizeInput(session, "trait_visible_nodes",
+                          selected = trait_available_nodes()$id)
+    })
+
+    # Trait node selection: None
+    observeEvent(input$trait_nodes_none, {
+      updateSelectizeInput(session, "trait_visible_nodes", selected = character(0))
+    })
+
+    # Trait node selection: Top 10 by PP.H4
+    observeEvent(input$trait_nodes_top10, {
+      req(trait_filtered_data(), trait_available_nodes())
+      dt <- trait_filtered_data()
+
+      # Get top 10 by PP.H4
+      top_10 <- head(dt[order(-PP.H4.abf)], 10)
+
+      # Build matching node IDs (region nodes have format "region_X")
+      top_node_ids <- paste0("region_", seq_len(nrow(top_10)))
+
+      # Always include the central trait node
+      selected_ids <- c("trait", top_node_ids)
+
+      updateSelectizeInput(session, "trait_visible_nodes", selected = selected_ids)
+    })
+
+    # === Trait View Customize for Export ===
+
+    # Reactive values for trait view custom labels
+    trait_custom_labels <- reactiveVal(list())  # node_id -> custom_label
+
+    # When a trait node is clicked, populate the label input with current label
+    observe({
+      req(input$trait_selected_node)
+      net_data <- trait_network_data()
+
+      node <- net_data$nodes[net_data$nodes$id == input$trait_selected_node, ]
+      if (nrow(node) > 0) {
+        # Check if there's a custom label, otherwise use the original
+        labels <- trait_custom_labels()
+        current_label <- if (input$trait_selected_node %in% names(labels)) {
+          labels[[input$trait_selected_node]]
+        } else {
+          node$label
+        }
+        updateTextInput(session, "trait_custom_node_label", value = current_label)
+      }
+    })
+
+    # Apply custom label when button is clicked
+    observeEvent(input$trait_apply_label, {
+      req(input$trait_selected_node, input$trait_custom_node_label)
+
+      labels <- trait_custom_labels()
+      labels[[input$trait_selected_node]] <- input$trait_custom_node_label
+      trait_custom_labels(labels)
+
+      # Show confirmation
+      showNotification(
+        paste0("Label updated for: ", input$trait_selected_node),
+        type = "message",
+        duration = 2
+      )
+    })
+
+    # Trait PNG Export via JavaScript
+    observeEvent(input$trait_export_png, {
+      # Get current trait name for filename
+      trait_name <- switch(input$trait_view_type,
+        "Phenotypes" = input$selected_trait_pheno,
+        "pQTL" = input$selected_protein_pqtl,
+        "eQTL" = input$selected_gene_eqtl,
+        "mQTL" = input$selected_metabolite_mqtl,
+        "trait"
+      )
+      filename <- paste0(gsub("[^a-zA-Z0-9]", "_", trait_name), "_network.png")
+
+      # Trigger JavaScript export (reuse same handler, different network ID)
+      session$sendCustomMessage("exportTraitNetwork", list(filename = filename))
+    })
+
+    # Trait HTML Export (interactive)
+    output$trait_export_html <- downloadHandler(
+      filename = function() {
+        trait_name <- switch(input$trait_view_type,
+          "Phenotypes" = input$selected_trait_pheno,
+          "pQTL" = input$selected_protein_pqtl,
+          "eQTL" = input$selected_gene_eqtl,
+          "mQTL" = input$selected_metabolite_mqtl,
+          "trait"
+        )
+        if (is.null(trait_name) || trait_name == "") trait_name <- "trait"
+        paste0(gsub("[^a-zA-Z0-9]", "_", trait_name), "_network.html")
+      },
+      content = function(file) {
+        net <- trait_network_data()
+
+        # Check if we have data
+        if (is.null(net) || nrow(net$nodes) == 0) {
+          # Create empty network
+          network <- visNetwork(data.frame(id = 1, label = "No data"), data.frame())
+          visSave(network, file)
+          return()
+        }
+
+        # Filter nodes based on selection
+        visible <- input$trait_visible_nodes
+        if (!is.null(visible) && length(visible) > 0) {
+          nodes_filtered <- net$nodes[net$nodes$id %in% visible, ]
+          edges_filtered <- net$edges[
+            net$edges$from %in% visible & net$edges$to %in% visible,
+          ]
+        } else {
+          nodes_filtered <- net$nodes
+          edges_filtered <- net$edges
+        }
+
+        # Create visNetwork and save
+        network <- visNetwork(nodes_filtered, edges_filtered) %>%
+          visOptions(
+            highlightNearest = list(enabled = TRUE, degree = 1, hover = TRUE)
+          ) %>%
+          visPhysics(enabled = FALSE) %>%
+          visLayout(randomSeed = 123) %>%
+          visInteraction(
+            dragNodes = TRUE,
+            dragView = TRUE,
+            zoomView = TRUE
+          )
+
+        visSave(network, file)
+      }
+    )
+
+    # Render trait network
+    output$trait_network <- renderVisNetwork({
+      net <- trait_network_data()
+
+      if (nrow(net$nodes) == 0) {
+        visNetwork(data.frame(id = 1, label = "No data"), data.frame()) %>%
+          visNodes(shape = "text", font = list(size = 20))
+      } else {
+        # Filter nodes based on selection (if any selected)
+        visible <- input$trait_visible_nodes
+        if (!is.null(visible) && length(visible) > 0) {
+          # Filter nodes to only show selected ones
+          nodes_filtered <- net$nodes[net$nodes$id %in% visible, ]
+          # Filter edges to only include those connecting visible nodes
+          edges_filtered <- net$edges[
+            net$edges$from %in% visible & net$edges$to %in% visible,
+          ]
+        } else {
+          # No selection means show all (during initial load)
+          nodes_filtered <- net$nodes
+          edges_filtered <- net$edges
+        }
+
+        # Show notification for large networks (dismissed when stabilized)
+        n_nodes <- nrow(nodes_filtered)
+        if (n_nodes > 100) {
+          showNotification(
+            paste0("Rendering network (", n_nodes, " nodes)... please wait"),
+            id = "trait_network_loading",
+            duration = NULL,
+            type = "message"
+          )
+        }
+
+        visNetwork(nodes_filtered, edges_filtered) %>%
+          visOptions(
+            highlightNearest = list(enabled = TRUE, degree = 1, hover = TRUE)
+          ) %>%
+          visPhysics(enabled = input$trait_physics,
+                     stabilization = list(enabled = TRUE, iterations = 200)) %>%
+          visLayout(randomSeed = 123) %>%
+          visInteraction(
+            dragNodes = TRUE,
+            dragView = TRUE,
+            zoomView = TRUE
+          ) %>%
+          visEvents(
+            select = "function(nodes) {
+              Shiny.setInputValue('trait_selected_node', nodes.nodes[0]);
+            }",
+            stabilizationIterationsDone = "function() {
+              Shiny.setInputValue('trait_network_stabilized', Math.random());
+            }"
+          )
+      }
+    })
+
+    # Dismiss loading notification when trait network stabilizes
+    observeEvent(input$trait_network_stabilized, {
+      removeNotification(id = "trait_network_loading")
+    })
+
+    # Trait/Protein/Gene/Metabolite information summary (unified)
+    output$trait_info <- renderPrint({
+      req(trait_filtered_data(), input$trait_view_type)
+      dt <- trait_filtered_data()
+
+      if (input$trait_view_type == "Phenotypes") {
+        req(input$selected_trait_pheno, input$selected_pheno_study)
+        cat("Study:", input$selected_pheno_study, "\n")
+        cat("Trait:", input$selected_trait_pheno, "\n\n")
+      } else if (input$trait_view_type == "pQTL") {
+        req(input$selected_protein_pqtl, input$selected_pqtl_study)
+        cat("Study:", input$selected_pqtl_study, "\n")
+        cat("Protein:", input$selected_protein_pqtl, "\n\n")
+      } else if (input$trait_view_type == "eQTL") {
+        req(input$selected_gene_eqtl, input$selected_eqtl_study)
+        cat("Study:", input$selected_eqtl_study, "\n")
+        cat("Gene:", input$selected_gene_eqtl, "\n\n")
+      } else {  # mQTL
+        req(input$selected_metabolite_mqtl, input$selected_mqtl_study)
+        cat("Study:", input$selected_mqtl_study, "\n")
+        cat("Metabolite:", input$selected_metabolite_mqtl, "\n\n")
+      }
+
+      cat("Genomic regions:", length(unique(paste(dt$CHR_var, dt$BP_START_var, dt$BP_STOP_var))), "\n")
+      cat("Total colocalizations:", nrow(dt), "\n\n")
+      cat("Mean PP.H4:", round(mean(dt$PP.H4.abf), 3), "\n")
+      cat("Median PP.H4:", round(median(dt$PP.H4.abf), 3), "\n")
+      cat("Max PP.H4:", round(max(dt$PP.H4.abf), 3), "\n")
+    })
+
+    # === Trait View Regional Plot Logic ===
+
+    # Get available regions for current trait (from trait_filtered_data)
+    trait_regional_regions_available <- reactive({
+      req(trait_filtered_data())
+      dt <- trait_filtered_data()
+
+      if (nrow(dt) == 0) return(NULL)
+
+      # Get unique regions with their gene labels
+      regions <- unique(dt[, .(
+        CHR_var, BP_START_var, BP_STOP_var,
+        gene = ifelse(!is.na(Prioritized_Gene) & Prioritized_Gene != "",
+                     Prioritized_Gene, nearest_gene_1),
+        max_pph4 = max(PP.H4.abf)
+      ), by = .(CHR_var, BP_START_var, BP_STOP_var)])
+
+      # Build choices: region_id -> display label
+      regions[, region_id := paste0("chr", CHR_var, ":", BP_START_var, "-", BP_STOP_var)]
+      regions[, region_label := paste0(gene, " (", region_id, ") PP.H4=", round(max_pph4, 2))]
+
+      # Sort by PP.H4
+      regions <- regions[order(-max_pph4)]
+
+      setNames(regions$region_id, regions$region_label)
+    })
+
+    # Update region selector when trait changes
+    observe({
+      regions <- trait_regional_regions_available()
+
+      if (is.null(regions) || length(regions) == 0) {
+        updateSelectInput(session, "trait_regional_region_selector",
+                         choices = c("No colocalized regions" = ""),
+                         selected = "")
+      } else {
+        updateSelectInput(session, "trait_regional_region_selector",
+                         choices = regions,
+                         selected = regions[1])
+      }
+    })
+
+    # Get current trait name for file lookup
+    trait_view_current_trait_name <- reactive({
+      req(input$trait_view_type)
+
+      trait_name <- switch(input$trait_view_type,
+        "Phenotypes" = input$selected_trait_pheno,
+        "pQTL" = input$selected_protein_pqtl,
+        "eQTL" = input$selected_gene_eqtl,
+        "mQTL" = input$selected_metabolite_mqtl,
+        NULL
+      )
+
+      trait_name
+    })
+
+    # Get current study type for file lookup
+    trait_view_current_study_type <- reactive({
+      req(input$trait_view_type)
+
+      study_type <- switch(input$trait_view_type,
+        "Phenotypes" = input$selected_pheno_study,
+        "pQTL" = input$selected_pqtl_study,
+        "eQTL" = "eQTLGen",
+        "mQTL" = input$selected_mqtl_study,
+        NULL
+      )
+
+      study_type
+    })
+
+    # Load base study sumstats for selected region in Trait View
+    trait_regional_base_sumstats <- reactive({
+      req(regional_data_path(), input$trait_regional_region_selector)
+
+      if (input$trait_regional_region_selector == "") return(NULL)
+
+      # Parse region
+      region_parts <- strsplit(input$trait_regional_region_selector, ":")[[1]]
+      chr <- region_parts[1]
+      # Add "chr" prefix if not present (folder format: chr10_111687920_112687920)
+      if (!grepl("^chr", chr)) chr <- paste0("chr", chr)
+      pos_parts <- strsplit(region_parts[2], "-")[[1]]
+      start_pos <- pos_parts[1]
+      end_pos <- pos_parts[2]
+
+      region_folder <- paste0(chr, "_", start_pos, "_", end_pos)
+      sumstats_file <- file.path(regional_data_path(), "regions", region_folder, "sumstats_1.RDS")
+
+      if (file.exists(sumstats_file)) {
+        readRDS(sumstats_file)
+      } else {
+        NULL
+      }
+    })
+
+    # Helper function to get trait file name from trait_filtered_data
+    # This maps from the UI trait name (e.g. MVP_R4_Analyzed.variable) to the file name column
+    get_trait_file_name <- function(dt, study, ui_trait_name, region_chr, region_start, region_end) {
+      # Map study to UI column and file name column
+      col_map <- list(
+        "MVP_R4" = list(ui = "MVP_R4_Analyzed.variable", file = "MVP_R4_Title.of.analysis"),
+        "FinnGen_r9" = list(ui = "FinnGen_r9_phenotype", file = "FinnGen_r9_phenotype"),
+        "UKB_TOPMed" = list(ui = "UKB_TOPMed_phenostring", file = "UKB_TOPMed_phenostring"),
+        "UKB_PPP_EUR" = list(ui = "UKB_PPP_EUR_olink_target_fullname", file = "UKB_PPP_EUR_olink_target_fullname"),
+        "Icelanders_pGWAS" = list(ui = "Icelanders_pGWAS_Protein..short.name.", file = "Icelanders_pGWAS_Protein..short.name."),
+        "eQTLGen" = list(ui = "eQTLGen_gene_name", file = NULL),  # eQTLGen uses special ENSG format
+        "GCKD_mGWAS_plasma" = list(ui = "GCKD_mGWAS_plasma_BIOCHEMICAL", file = "GCKD_mGWAS_plasma_BIOCHEMICAL"),
+        "GCKD_mGWAS_urine" = list(ui = "GCKD_mGWAS_urine_BIOCHEMICAL", file = "GCKD_mGWAS_urine_BIOCHEMICAL")
+      )
+
+      if (!study %in% names(col_map)) return(ui_trait_name)
+
+      ui_col <- col_map[[study]]$ui
+      file_col <- col_map[[study]]$file
+
+      # Filter to matching region and trait
+      matching <- dt[CHR_var == region_chr &
+                     BP_START_var == region_start &
+                     BP_STOP_var == region_end &
+                     source_study == study]
+
+      if (ui_col %in% names(matching)) {
+        matching <- matching[get(ui_col) == ui_trait_name]
+      }
+
+      if (nrow(matching) == 0) return(ui_trait_name)
+
+      # Get file name from file column
+      if (!is.null(file_col) && file_col %in% names(matching)) {
+        file_name <- matching[[file_col]][1]
+        if (!is.na(file_name) && file_name != "") {
+          # Clean for filename safety (same as get_trait_name_for_regional)
+          file_name <- gsub("[^A-Za-z0-9_.-]", "_", file_name)
+          file_name <- gsub("_+", "_", file_name)
+          file_name <- gsub("^_|_$", "", file_name)
+          return(file_name)
+        }
+      }
+
+      # For eQTLGen, construct from gene name and ENSG
+      if (study == "eQTLGen" && "eQTLGen_gene_name" %in% names(matching) &&
+          "sumstats_2_file" %in% names(matching)) {
+        gene_name <- matching$eQTLGen_gene_name[1]
+        ensg <- gsub(".*_(ENSG[0-9]+).*", "\\1", basename(matching$sumstats_2_file[1]))
+        if (!is.na(gene_name) && gene_name != "" && grepl("^ENSG", ensg)) {
+          return(paste0(gene_name, "_", ensg))
+        }
+      }
+
+      return(ui_trait_name)
+    }
+
+    # Load trait sumstats for current trait in Trait View
+    trait_regional_trait_sumstats <- reactive({
+      req(regional_data_path(), trait_view_current_study_type(), trait_view_current_trait_name(),
+          input$trait_regional_region_selector, trait_filtered_data())
+
+      if (input$trait_regional_region_selector == "") return(NULL)
+
+      # Parse region for folder path
+      region_parts <- strsplit(input$trait_regional_region_selector, ":")[[1]]
+      chr <- region_parts[1]
+      # Add "chr" prefix if not present (for folder path)
+      chr_folder <- chr
+      if (!grepl("^chr", chr_folder)) chr_folder <- paste0("chr", chr_folder)
+      pos_parts <- strsplit(region_parts[2], "-")[[1]]
+      start_pos <- pos_parts[1]
+      end_pos <- pos_parts[2]
+      region_folder <- paste0(chr_folder, "_", start_pos, "_", end_pos)
+
+      # Get file name from data (maps UI name to file name)
+      study <- trait_view_current_study_type()
+      ui_trait <- trait_view_current_trait_name()
+      dt <- trait_filtered_data()
+
+      # Strip "chr" prefix for data lookup (data uses "12", not "chr12")
+      chr_for_lookup <- gsub("^chr", "", chr)
+
+      file_trait_name <- get_trait_file_name(dt, study, ui_trait, chr_for_lookup,
+                                             as.numeric(start_pos), as.numeric(end_pos))
+
+      trait_file_name <- paste0(study, "__", file_trait_name, ".RDS")
+      trait_file <- file.path(regional_data_path(), "regions", region_folder, "traits", trait_file_name)
+
+      if (file.exists(trait_file)) {
+        readRDS(trait_file)
+      } else {
+        NULL
+      }
+    })
+
+    # Get lead SNP for selected region in Trait View
+    trait_regional_lead_snp <- reactive({
+      req(trait_filtered_data(), input$trait_regional_region_selector)
+
+      if (input$trait_regional_region_selector == "") return(NULL)
+
+      dt <- trait_filtered_data()
+
+      # Parse region
+      region_parts <- strsplit(input$trait_regional_region_selector, ":")[[1]]
+      chr <- region_parts[1]
+      pos_parts <- strsplit(region_parts[2], "-")[[1]]
+      start_pos <- as.numeric(pos_parts[1])
+      end_pos <- as.numeric(pos_parts[2])
+
+      # Filter to selected region
+      region_dt <- dt[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
+
+      if (nrow(region_dt) > 0 && "sumstats_1_ind_Name" %in% names(region_dt)) {
+        region_dt$sumstats_1_ind_Name[1]
+      } else {
+        NULL
+      }
+    })
+
+    # Render base study plot title (Trait View)
+    output$trait_regional_plot_title_base <- renderText({
+      req(current_study())
+      paste0("Base Study: ", current_study())
+    })
+
+    # Render trait plot title (Trait View)
+    output$trait_regional_plot_title_trait <- renderText({
+      req(trait_view_current_study_type(), trait_view_current_trait_name())
+      paste0(trait_view_current_study_type(), ": ", trait_view_current_trait_name())
+    })
+
+    # Render coloc info (Trait View)
+    output$trait_regional_coloc_info <- renderText({
+      req(trait_filtered_data(), input$trait_regional_region_selector)
+
+      if (input$trait_regional_region_selector == "") return("")
+
+      dt <- trait_filtered_data()
+
+      # Parse region
+      region_parts <- strsplit(input$trait_regional_region_selector, ":")[[1]]
+      chr <- region_parts[1]
+      pos_parts <- strsplit(region_parts[2], "-")[[1]]
+      start_pos <- as.numeric(pos_parts[1])
+      end_pos <- as.numeric(pos_parts[2])
+
+      # Filter to selected region
+      region_dt <- dt[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
+
+      if (nrow(region_dt) > 0) {
+        max_pph4 <- max(region_dt$PP.H4.abf, na.rm = TRUE)
+        paste0("PP.H4: ", round(max_pph4, 3))
+      } else {
+        ""
+      }
+    })
+
+    # Calculate shared X-axis range for Trait View plots
+    trait_regional_x_range <- reactive({
+      base_sumstats <- trait_regional_base_sumstats()
+      trait_sumstats <- trait_regional_trait_sumstats()
+
+      # Collect all positions from both datasets
+      all_pos <- c()
+      if (!is.null(base_sumstats) && nrow(base_sumstats) > 0) {
+        all_pos <- c(all_pos, base_sumstats$POS)
+      }
+      if (!is.null(trait_sumstats) && nrow(trait_sumstats) > 0) {
+        all_pos <- c(all_pos, trait_sumstats$POS)
+      }
+
+      if (length(all_pos) > 0) {
+        # Add small padding (1% on each side)
+        range_span <- max(all_pos) - min(all_pos)
+        padding <- range_span * 0.01
+        return(c(min(all_pos) - padding, max(all_pos) + padding))
+      }
+      NULL
+    })
+
+    # Render base study regional plot (Trait View - interactive)
+    output$trait_regional_plot_base <- renderPlotly({
+      sumstats <- trait_regional_base_sumstats()
+      lead_snp <- if (input$trait_regional_highlight_lead) trait_regional_lead_snp() else NULL
+      x_range <- trait_regional_x_range()
+
+      plot_regional_association_interactive(
+        sumstats_dt = sumstats,
+        title = "",
+        highlight_snp = lead_snp,
+        color = "#2ecc71",  # Green for base study
+        x_range = x_range
+      )
+    })
+
+    # Render trait regional plot (Trait View - interactive)
+    output$trait_regional_plot_trait <- renderPlotly({
+      sumstats <- trait_regional_trait_sumstats()
+      lead_snp <- if (input$trait_regional_highlight_lead) trait_regional_lead_snp() else NULL
+      x_range <- trait_regional_x_range()
+
+      # Get color based on study type
+      study_type <- trait_view_current_study_type()
+      study_color <- "#3498db"  # Default blue
+      if (!is.null(study_type) && study_type %in% names(study_colors)) {
+        study_color <- study_colors[[study_type]]
+      }
+
+      plot_regional_association_interactive(
+        sumstats_dt = sumstats,
+        title = "",
+        highlight_snp = lead_snp,
+        color = study_color,
+        x_range = x_range
+      )
+    })
+
+    # Render gene track (Trait View)
+    output$trait_regional_gene_track <- renderPlotly({
+      req(input$trait_regional_region_selector)
+
+      # Parse region coordinates
+      region_sel <- input$trait_regional_region_selector
+      region_parts <- strsplit(region_sel, ":")[[1]]
+      chr <- region_parts[1]
+      pos_parts <- strsplit(region_parts[2], "-")[[1]]
+      start_pos <- as.numeric(pos_parts[1])
+      end_pos <- as.numeric(pos_parts[2])
+
+      plot_gene_track(chr, start_pos, end_pos, source = "trait_regional_gene_track")
+    })
+
+    # Store selected gene for Trait View info panel
+    trait_selected_gene <- reactiveVal(NULL)
+
+    # Handle click on gene track (Trait View)
+    observeEvent(event_data("plotly_click", source = "trait_regional_gene_track"), {
+      click_data <- event_data("plotly_click", source = "trait_regional_gene_track")
+      if (!is.null(click_data) && !is.null(click_data$customdata)) {
+        clicked_gene <- click_data$customdata
+        if (!is.null(gene_annotation)) {
+          gene_info <- gene_annotation[gene_name == clicked_gene]
+          if (nrow(gene_info) > 0) {
+            trait_selected_gene(gene_info[1])
+          }
+        }
+      }
+    })
+
+    # Render gene info panel (Trait View)
+    output$trait_gene_info_panel <- renderUI({
+      gene <- trait_selected_gene()
+      if (is.null(gene)) return(NULL)
+
+      # Helper for source tooltip (ⓘ with hover description, not clickable)
+      source_tip <- function(source_name, desc, source_url) {
+        tags$span(
+          title = paste0(source_name, " - ", desc),
+          style = "color: #999; margin-left: 4px; cursor: help;",
+          "ⓘ"
+        )
+      }
+
+      info_items <- list()
+
+      info_items[[length(info_items) + 1]] <- tags$h4(
+        gene$gene_name,
+        if (!is.null(gene$full_name) && gene$full_name != "")
+          tags$span(style = "color: #666; margin-left: 10px; font-weight: normal;", gene$full_name)
+      )
+
+      info_items[[length(info_items) + 1]] <- tags$p(
+        tags$strong("Location: "),
+        paste0("chr", gene$chr, ":", format(gene$start, big.mark = ","), "-", format(gene$end, big.mark = ","),
+               " (", gene$strand, " strand)"),
+        source_tip("Gencode v49", "comprehensive gene annotation", "https://www.gencodegenes.org/")
+      )
+
+      if (!is.null(gene$gene_family) && gene$gene_family != "") {
+        info_items[[length(info_items) + 1]] <- tags$p(
+          tags$strong("Gene Family: "), gene$gene_family,
+          source_tip("HGNC", "HUGO Gene Nomenclature Committee", "https://www.genenames.org/")
+        )
+      }
+
+      if (!is.null(gene$ncbi_description) && gene$ncbi_description != "") {
+        info_items[[length(info_items) + 1]] <- tags$p(
+          tags$strong("Description: "), gene$ncbi_description,
+          source_tip("NCBI Gene", "gene-specific information", "https://www.ncbi.nlm.nih.gov/gene/")
+        )
+      }
+
+      if (!is.null(gene$pathways) && gene$pathways != "") {
+        info_items[[length(info_items) + 1]] <- tags$p(
+          tags$strong("Pathways (top 5): "), gene$pathways,
+          source_tip("Reactome", "curated biological pathways", "https://reactome.org/")
+        )
+      }
+
+      if (!is.null(gene$phenotypes) && gene$phenotypes != "") {
+        info_items[[length(info_items) + 1]] <- tags$p(
+          tags$strong("HPO Phenotypes (top 5): "), gene$phenotypes,
+          source_tip("HPO", "Human Phenotype Ontology", "https://hpo.jax.org/")
+        )
+      }
+
+      # External links
+      info_items[[length(info_items) + 1]] <- tags$p(
+        tags$a(href = paste0("https://www.genecards.org/cgi-bin/carddisp.pl?gene=", gene$gene_name),
+               target = "_blank", "GeneCards"),
+        tags$span(" | ", style = "color: #999;"),
+        tags$a(href = paste0("https://www.genenames.org/tools/search/#!/?query=", gene$gene_name),
+               target = "_blank", "HGNC"),
+        tags$span(" | ", style = "color: #999;"),
+        tags$a(href = paste0("https://www.ncbi.nlm.nih.gov/gene/?term=", gene$gene_name),
+               target = "_blank", "NCBI"),
+        tags$span(" | ", style = "color: #999;"),
+        tags$a(href = paste0("https://hpo.jax.org/browse/search?q=", gene$gene_name, "&navFilter=all"),
+               target = "_blank", "HPO")
+      )
+
+      wellPanel(
+        style = "background-color: #f8f9fa; border: 1px solid #dee2e6; margin-top: 10px;",
+        do.call(tagList, info_items)
+      )
+    })
+
+    # Workflow diagram for Documentation tab
+    output$workflow_diagram <- renderPlot({
+      par(mar = c(1, 1, 3, 1), bg = "white")
+      plot(NULL, xlim = c(0, 10), ylim = c(0, 11), 
+           xlab = "", ylab = "", axes = FALSE)
+      
+      title("From GWAS Discovery to Biological Insight", 
+            cex.main = 1.5, font.main = 2)
+      
+      # Box colors
+      col_gwas <- "#3498db"
+      col_challenge <- "#e74c3c"
+      col_resources <- "#2ecc71"
+      col_solution <- "#f39c12"
+      
+      # Level 1: GWAS Studies
+      rect(1, 9.2, 3, 10.3, col = col_gwas, border = "black", lwd = 2)
+      text(2, 9.9, "Multiple GWAS", cex = 0.9, font = 2, col = "white")
+      text(2, 9.5, "Meta-analyses", cex = 0.8, col = "white")
+      
+      # Arrow down
+      arrows(2, 9.2, 2, 8.3, lwd = 2, length = 0.15)
+      
+      # Level 2: Loci discovered
+      rect(0.8, 7.3, 3.2, 8.2, col = col_challenge, border = "black", lwd = 2)
+      text(2, 7.9, "Hundreds-Thousands", cex = 0.85, font = 2, col = "white")
+      text(2, 7.5, "of Significant Loci", cex = 0.85, font = 2, col = "white")
+      
+      # Challenge boxes
+      rect(4, 8.4, 5.8, 9.2, col = "#ecf0f1", border = col_challenge, lwd = 2)
+      text(4.9, 8.8, "Many are intergenic", cex = 0.7)
+      
+      rect(4, 7.3, 5.8, 8.1, col = "#ecf0f1", border = col_challenge, lwd = 2)
+      text(4.9, 7.7, "Gene function", cex = 0.7)
+      text(4.9, 7.5, "often unknown", cex = 0.7)
+      
+      # Arrow to question
+      arrows(2, 7.3, 2, 6.4, lwd = 2, length = 0.15)
+      
+      # Question box
+      rect(0.8, 5.4, 3.2, 6.3, col = col_challenge, border = "black", lwd = 2)
+      text(2, 6, "What biological/", cex = 0.85, font = 2, col = "white")
+      text(2, 5.6, "clinical pathways?", cex = 0.85, font = 2, col = "white")
+      
+      # Resources column (right side)
+      text(7.5, 10.2, "Integration Resources", cex = 1.1, font = 2)
+      
+      resource_y <- seq(9.5, 6, length.out = 7)
+      resources <- c("PheWAS", "Phenotypes", "pGWAS", "Proteomics", 
+                     "eQTL (blood)", "Tissue eQTL", "Other GWAS")
+      
+      for (i in seq_along(resources)) {
+        rect(6.5, resource_y[i] - 0.25, 8.5, resource_y[i] + 0.25, 
+             col = col_resources, border = "black", lwd = 1)
+        text(7.5, resource_y[i], resources[i], cex = 0.7, col = "white", font = 2)
+      }
+      
+      # Arrows connecting
+      arrows(3.2, 5.85, 4.2, 4.8, lwd = 2.5, length = 0.15, col = col_solution)
+      arrows(6.5, 7.75, 5.8, 4.8, lwd = 2.5, length = 0.15, col = col_solution)
+      
+      # Solution box
+      rect(3.5, 3.8, 6.5, 5.3, col = col_solution, border = "black", lwd = 3)
+      text(5, 4.95, "Colocalization", cex = 1.1, font = 2)
+      text(5, 4.55, "Analysis", cex = 1.1, font = 2)
+      text(5, 4.1, "Network Viewer", cex = 0.9, font = 1)
+      
+      # Bottom: Benefits
+      rect(0.5, 0.5, 9.5, 2.8, col = "#ecf0f1", border = col_solution, lwd = 2)
+      text(5, 2.4, "Benefits of This Tool:", cex = 1, font = 2)
+      text(5, 1.9, "• Identify multi-trait associations across all resources simultaneously", 
+           cex = 0.75, adj = 0.5)
+      text(5, 1.4, "• Discover biological pathways and cross-phenotype relationships", 
+           cex = 0.75, adj = 0.5)
+      text(5, 0.9, "• Generate hypotheses about gene function and clinical connections", 
+           cex = 0.75, adj = 0.5)
+      
+    }, height = 450)
+    
+  }
+
+# Run the application
+shinyApp(ui = ui, server = server)
