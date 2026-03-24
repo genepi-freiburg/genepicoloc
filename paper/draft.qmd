@@ -1,0 +1,264 @@
+---
+title: "genepicoloc: A Kidney Genomics Colocalization Atlas Integrating Proteomics, Metabolomics, and Clinical Phenotypes"
+author:
+  - name: Oleg Borisov
+    affiliations:
+      - Institute of Genetic Epidemiology, Faculty of Medicine and Medical Center, University of Freiburg, Germany
+    orcid: 0000-0001-8700-4335
+    corresponding: true
+    email: oleg.borisov@uniklinik-freiburg.de
+  - name: "[co-authors TBD]"
+format:
+  html:
+    toc: true
+    number-sections: true
+  docx:
+    reference-doc: /home/oleg/Work/bioinfo/tools/custom-reference.docx
+bibliography: references.bib
+---
+
+# Abstract
+
+Genetic colocalization analysis identifies shared causal variants between traits,
+enabling molecular interpretation of GWAS loci. However, systematic application
+across diverse molecular and clinical datasets remains challenging due to data
+heterogeneity, computational scale, and lack of integrated visualization tools.
+Here we present genepicoloc, an R package for scalable colocalization analysis
+with a standalone implementation of the approximate Bayes factor (ABF) method,
+and apply it to build a comprehensive kidney genomics colocalization atlas.
+
+Using CKDGen round 4 GWAS for six kidney function traits (eGFR, BUN, UACR,
+microalbuminuria, urate, gout), we performed 22,667 high-confidence
+colocalizations (PP.H4 > 0.8) across 553 genomic regions against 11 datasets
+encompassing plasma proteomics (UKB PPP, deCODE), metabolomics (GCKD plasma and
+urine), clinical phenotypes (MVP, FinnGen, UKB TOPMed), kidney-specific gene
+expression, and kidney MRI volumes. We find that plasma protein QTLs provide
+the strongest colocalization signal for kidney traits (14,710 colocalizations),
+substantially outperforming blood eQTLs (1,194), and identify 136 loci where
+eGFR-associated variants also determine kidney structure as measured by MRI.
+The atlas is accessible through an interactive Shiny application enabling
+network visualization and regional association plots.
+
+# Introduction
+
+## Genetic colocalization in the post-GWAS era
+
+- GWAS identifies loci but not mechanisms
+- Colocalization tests whether two traits share a causal variant at a locus
+- ABF method [@giambartolomei2014] is the standard approach
+- GPMap [@elmore2026] provides broad pleiotropy mapping - we complement with kidney-specific depth
+
+## The kidney genomics opportunity
+
+- CKDGen consortium: largest kidney function GWAS (N > 1M for eGFR)
+- Rich molecular data available: plasma proteomics, metabolomics, kidney eQTL
+- Unique datasets: kidney MRI volumes, GCKD cohort metabolomics
+- No existing kidney-focused colocalization resource
+
+## Gaps addressed
+
+- Scalable pipeline for colocalization across heterogeneous data sources
+- Standalone ABF implementation without dependency on the coloc package
+- Integration of kidney-specific datasets (MRI volumes, kidney eQTL, metabolomics)
+- Interactive visualization for exploring molecular chains
+
+# Methods
+
+## Standalone ABF colocalization
+
+- Clean-room implementation from published equations [@giambartolomei2014; @wallace2020]
+- Zero external dependencies (base R only)
+- Verified exact match with coloc::coloc.abf() across 25+ real-data tests
+- ~80 lines of code: `compute_labf()`, `combine_abf()`, `coloc_abf()`
+
+## Preprocessing pipeline
+
+- `genepi_liftover()`: hg19 to hg38 coordinate conversion
+- `name_by_position()`: standardized variant naming via Ensembl VCFs
+- `handle_underflow()`: p-value precision for extreme significance (p < 1e-324)
+- `match_cols()`: column standardization across diverse GWAS formats
+
+## Scalable architecture
+
+- Region detection with `get_coloc_regions()` (configurable window, threshold)
+- Job-based parallelization: regions split into jobs, datasets processed in parallel
+- Tar-based storage for efficient I/O with thousands of result files
+- YAML-based study configuration for reproducible analyses
+
+## Input data
+
+### Query GWAS (CKDGen round 4)
+
+| Trait | Publication | Type | N |
+|-------|------------|------|---|
+| eGFR | Wuttke et al. 2019 | Quantitative | ~1.2M |
+| BUN | Wuttke et al. 2019 | Quantitative | ~243K |
+| UACR | Teumer et al. 2019 | Quantitative | ~547K |
+| Microalbuminuria | Teumer et al. 2019 | Case-control | ~52K |
+| Urate | Tin et al. 2019 | Quantitative | ~289K |
+| Gout | Tin et al. 2019 | Case-control | ~13K |
+
+### Target datasets (sumstats_2)
+
+| Category | Study | N datasets | Description |
+|----------|-------|-----------|-------------|
+| pQTL | UKB PPP EUR | 2,940 | Olink plasma proteomics |
+| pQTL | deCODE/Icelanders | 4,907 | SomaScan plasma proteomics |
+| PheWAS | MVP EUR | 1,669 | Million Veteran Program |
+| PheWAS | FinnGen r9 | 2,272 | Finnish clinical endpoints |
+| PheWAS | UKB TOPMed | 1,419 | UK Biobank phenotypes |
+| mQTL | GCKD plasma | 1,297 | Metabolon plasma metabolomics |
+| mQTL | GCKD urine | 1,409 | Metabolon urine metabolomics |
+| eQTL | eQTLGen | 1 | Blood eQTL (N=31,684) |
+| eQTL | Kidney eQTL | 5 | Susztak kidney tissue |
+| GWAS | CKDGen r4 | 6 | Cross-kidney-trait coloc |
+| Imaging | UKB kidney MRI | 5 | Kidney volume phenotypes |
+
+## Visualization
+
+- Interactive Shiny application with network visualization (visNetwork)
+- Region-centered view: genomic region -> colocalized traits
+- Trait-centered view: selected trait -> genomic regions
+- Regional association plots (LocusZoom-style) with plotly
+- Gene annotation panel (NCBI, Reactome, HPO)
+
+# Results
+
+## Atlas overview
+
+- 6 CKDGen traits x 11 studies x ~16,000 datasets
+- 22,667 high-confidence colocalizations (PP.H4 > 0.8)
+- 553 unique genomic regions
+- Processing time: ~17 hours per trait on 20 cores
+
+### Colocalizations by data type
+
+| Data type | Colocalizations | % of total |
+|-----------|-----------------|------------|
+| pQTL (UKB PPP + deCODE) | 10,710 | 47% |
+| PheWAS (MVP + FinnGen + UKB TOPMed) | 9,021 | 40% |
+| mQTL (GCKD plasma + urine) | 717 | 3% |
+| eQTL (eQTLGen + Kidney eQTL) | 1,194 | 5% |
+| GWAS (CKDGen r4) | 889 | 4% |
+| Imaging (kidney MRI) | 136 | 1% |
+
+**Key finding:** Plasma protein QTLs provide the strongest molecular signal for
+kidney GWAS interpretation, substantially outperforming blood eQTLs. This
+reflects the kidney-specific nature of these GWAS signals - kidney genes are
+not expressed in blood.
+
+## Showcase region 1: UMOD/PDILT (chr16)
+
+- 944 colocalizations across eGFR, BUN, urate
+- 8 studies contributing
+- Kidney MRI volumes: all 4 phenotypes colocalize (PP.H4 = 1.0)
+- 232 plasma proteins colocalize (trans-pQTL effects)
+- Kidney eQTL confirms regulatory effect
+- Known biology: uromodulin, most abundant urinary protein, kidney tubule marker
+
+## Showcase region 2: GCKR (chr2)
+
+- 4,368 colocalizations (largest region in the atlas)
+- All 6 kidney traits colocalize - the metabolic hub
+- 10 of 11 studies contribute
+- Extensive metabolomics signal (GCKD plasma + urine)
+- Known biology: glucokinase regulatory protein, central metabolic regulator
+
+## Showcase region 3: SHROOM3 (chr4)
+
+- 216 colocalizations across eGFR, BUN, UACR, MA
+- Notably absent: urate and gout (kidney-specific, not urate pathway)
+- Kidney MRI: 9 volume colocalizations (cortex, fullvol, TKV)
+- pQTL: 69 proteins, including kidney structure markers
+- Known biology: actin-binding protein, podocyte cytoskeleton, glomerular development
+
+## Showcase region 4: SLC2A9 (chr4)
+
+- 27 colocalizations specific to eGFR, urate, gout
+- Clean specificity: does NOT colocalize with UACR, MA, or BUN
+- Known biology: major urate transporter (URAT1), uricosuric drug target
+
+## Cross-trait architecture
+
+- GCKR region shared by all 6 kidney traits
+- UMOD/PDILT shared by eGFR + BUN + urate (function + structure)
+- SHROOM3 shared by eGFR + BUN + UACR + MA (glomerular traits only)
+- SLC2A9 shared by eGFR + urate + gout (urate pathway only)
+- Clear biological clustering: glomerular vs tubular vs metabolic pathways
+
+## Kidney MRI volumes as a unique colocalization layer
+
+- 136 high-confidence colocalizations across 39 genomic regions
+- STC1 (stanniocalcin-1): only locus colocalizing with all 5 volume phenotypes
+- UMOD/PDILT: 4 of 5 volumes (no hilus)
+- BCAS3: 4 of 5 volumes, shared across eGFR + gout + urate
+- These are kidney-structure-determining loci not captured by any molecular assay
+
+## Blood eQTL vs kidney eQTL
+
+- eQTLGen (blood, N=31,684): 89 colocalizations for eGFR
+- Kidney eQTL (N=73-686): 498 colocalizations for eGFR
+- Despite 50x smaller sample size, kidney eQTL has 5.6x more colocalizations
+- Highlights tissue-specificity of kidney GWAS signals
+- Caveat: kidney eQTL uses p < 1e-5 threshold (may include false positives)
+
+# Discussion
+
+## Proteomics as the dominant molecular layer for kidney genetics
+
+- pQTL accounts for 47% of all colocalizations
+- This contrasts with the conventional eQTL-first approach
+- Explanation: kidney genes are not expressed in blood; proteins circulate
+- Implication: plasma proteomics should be prioritized for kidney GWAS follow-up
+
+## Kidney MRI volumes: a unique structural phenotype
+
+- Only 136 colocalizations but extremely high biological value
+- Identifies loci where genetic variants affect both kidney function AND structure
+- Not available in any other colocalization resource (GPMap, Open Targets)
+- Potential for identifying therapeutic targets that preserve kidney structure
+
+## Comparison with GPMap
+
+- GPMap: 49.3M colocalization pairs, 16K traits, broad scope
+- genepicoloc: 22,667 focused on kidney, with unique datasets
+- Complementary: GPMap for broad pleiotropy, genepicoloc for kidney depth
+- Unique to genepicoloc: GCKD metabolomics, kidney MRI volumes, kidney eQTL
+
+## Standalone coloc implementation
+
+- Zero-dependency ABF computation (~80 lines of R)
+- Exact match with coloc::coloc.abf() verified
+- Reduces installation complexity (coloc has multiple dependencies)
+- Enables lightweight deployment and CRAN submission
+
+## Limitations
+
+- Single causal variant assumption (ABF, not SuSiE-based fine-mapping)
+- Kidney eQTL data has p < 1e-5 threshold limitation
+- CKDGen r4 GWAS are European-ancestry predominant
+- Regional plots require substantial disk space (50GB+ for full atlas)
+
+## Data and code availability
+
+- R package: https://github.com/genepi-freiburg/genepicoloc
+- Interactive browser: [URL TBD]
+- Atlas results: [repository TBD]
+- All CKDGen input data publicly available from GWAS Catalog
+
+# References
+
+::: {#refs}
+:::
+
+# Supplementary Material
+
+## Supplementary Table 1: Complete atlas statistics by trait and study
+
+## Supplementary Table 2: All 136 kidney MRI volume colocalizations
+
+## Supplementary Table 3: Cross-trait shared regions
+
+## Supplementary Figure 1: Genome-wide colocalization landscape for all 6 traits
+
+## Supplementary Figure 2: Sensitivity analysis - PP.H4 threshold comparison

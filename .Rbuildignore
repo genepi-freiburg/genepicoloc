@@ -7,3 +7,4 @@
 ^_quarto\.yml$
 ^index\.qmd$
 ^atlas\.qmd$
+paper/
