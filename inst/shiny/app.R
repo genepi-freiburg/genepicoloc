@@ -14,6 +14,7 @@ source("R/study_metadata.R")
 # Source plot functions and gene annotation
 source("R/plots.R")
 source("R/gene_track.R")
+source("R/trait_names.R")
 
   # UI ----
   ui <- fluidPage(
@@ -1043,9 +1044,6 @@ source("R/gene_track.R")
           }
 
           # Filter out disabled studies
-          if (!INCLUDE_CKDGEN_R5 && "source_study" %in% names(data)) {
-            data <- data[source_study != "CKDGen_r5"]
-          }
 
           showNotification(
             paste("Successfully loaded:", current_study()),

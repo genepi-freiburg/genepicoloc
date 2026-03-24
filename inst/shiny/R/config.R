@@ -4,7 +4,6 @@
 study_colors <- c(
   # Phenotypes
   "CKDGen_r4" = "#F39B7F",
-  "CKDGen_r5" = "#4A90E2",
   "FinnGen_r9" = "#7BA3D9",
   "MVP_R4" = "#2E5C8A",
   "MVP_R4_EUR" = "#2E5C8A",
@@ -28,7 +27,7 @@ study_colors <- c(
 
 # Study categories for grouped display
 study_categories <- list(
-  "Phenotypes" = c("CKDGen_r4", "CKDGen_r5", "FinnGen_r9", "MVP_R4", "MVP_R4_EUR", "UKB_TOPMed"),
+  "Phenotypes" = c("CKDGen_r4", "FinnGen_r9", "MVP_R4", "MVP_R4_EUR", "UKB_TOPMed"),
   "pQTL" = c("UKB_PPP_EUR", "Icelanders_pGWAS"),
   "eQTL" = c("eQTLGen", "Kidney_eQTL"),
   "mQTL" = c("GCKD_mGWAS_plasma", "GCKD_mGWAS_urine"),
@@ -75,5 +74,5 @@ DEFAULT_AVAILABLE_STUDIES <- discover_studies(DATA_PATH)
 DEFAULT_STUDY_BASE_PATH <- DATA_PATH
 
 # Feature toggles
-INCLUDE_CKDGEN_R5 <- TRUE
-SHOW_EXPORT_CUSTOMIZATION <- TRUE
+# INCLUDE_CKDGEN_R5 removed - not relevant for public package
+SHOW_EXPORT_CUSTOMIZATION <- FALSE
