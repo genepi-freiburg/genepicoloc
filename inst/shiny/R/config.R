@@ -35,8 +35,10 @@ study_categories <- list(
 )
 
 # Data path: use option, env var, or default
+# In Docker, /app/data is the mount point; locally, use "data" relative to app dir
 DATA_PATH <- getOption("genepicoloc.data_path",
-  Sys.getenv("GENEPICOLOC_DATA", "data"))
+  Sys.getenv("GENEPICOLOC_DATA",
+    if (dir.exists("/app/data")) "/app/data" else "data"))
 
 # Auto-discover available studies from RDS files
 # Supports two layouts:
