@@ -129,43 +129,40 @@ study_info <- list(
 )
 
 # Input sumstats metadata (for Home page study cards)
-input_sumstats_info <- list(
-  "Albumin" = list(
-    ancestry = "Multi-ancestry",
-    description = "Serum albumin levels",
-    regional_plot = "Not available"
-  ),
-  "Calcium" = list(
-    ancestry = "Multi-ancestry",
-    description = "Serum calcium levels",
-    regional_plot = "Available"
-  ),
-  "eGFR (creatinine)" = list(
-    ancestry = "Multi-ancestry",
-    description = "Estimated glomerular filtration rate (creatinine-based)",
-    regional_plot = "Available"
-  ),
-  "eGFR (cystatin C)" = list(
-    ancestry = "Multi-ancestry",
-    description = "Estimated glomerular filtration rate (cystatin C-based)",
-    regional_plot = "Available"
-  ),
-  "Phosphate" = list(
-    ancestry = "Multi-ancestry",
-    description = "Serum phosphate levels",
-    regional_plot = "Available"
-  ),
-  "UACR" = list(
-    ancestry = "Multi-ancestry",
-    description = "Urinary albumin-to-creatinine ratio",
-    regional_plot = "Available"
-  ),
-  "Urate" = list(
-    ancestry = "Multi-ancestry",
-    description = "Serum urate levels",
-    regional_plot = "Not available"
-  )
+# Display names for input GWAS traits
+input_sumstats_display_names <- c(
+  "eGFR" = "eGFR (creatinine)",
+  "BUN" = "Blood Urea Nitrogen",
+  "UACR" = "Urinary Albumin-to-Creatinine Ratio",
+  "urate" = "Serum Urate",
+  "gout" = "Gout",
+  "MA" = "Microalbuminuria"
 )
+
+input_sumstats_descriptions <- c(
+  "eGFR" = "Estimated glomerular filtration rate - primary kidney function marker (Wuttke et al. 2019)",
+  "BUN" = "Blood urea nitrogen - kidney filtration marker (Wuttke et al. 2019)",
+  "UACR" = "Urinary albumin-to-creatinine ratio - kidney damage marker (Teumer et al. 2019)",
+  "urate" = "Serum urate levels - associated with gout and CKD (Tin et al. 2019)",
+  "gout" = "Gout - inflammatory arthritis caused by urate crystal deposition (Tin et al. 2019)",
+  "MA" = "Microalbuminuria - early marker of kidney damage (Teumer et al. 2019)"
+)
+
+# Build input_sumstats_info dynamically from discovered studies
+# Regional plot availability is auto-detected from the data directory
+input_sumstats_info <- lapply(names(DEFAULT_AVAILABLE_STUDIES), function(study_name) {
+  regional_dir <- file.path(DATA_PATH, "regional_plots", study_name)
+  has_regional <- dir.exists(regional_dir) && length(list.dirs(regional_dir, recursive = FALSE)) > 0
+  list(
+    display_name = if (study_name %in% names(input_sumstats_display_names))
+      input_sumstats_display_names[[study_name]] else study_name,
+    ancestry = "Multi-ancestry",
+    description = if (study_name %in% names(input_sumstats_descriptions))
+      input_sumstats_descriptions[[study_name]] else NULL,
+    regional_plot = if (has_regional) "Available" else "Not available"
+  )
+})
+names(input_sumstats_info) <- names(DEFAULT_AVAILABLE_STUDIES)
 
 # Helper function to get display name
 get_study_display_name <- function(study_code) {

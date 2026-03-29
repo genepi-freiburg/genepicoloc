@@ -98,18 +98,18 @@ source("R/trait_names.R")
     
     tabsetPanel(
       id = "main_tabs",
-      tabPanel("CKDGen Round 5 Traits", 
+      tabPanel("Studies",
                fluidRow(
                  column(12,
                         h1("GWAS Colocalization Network Viewer", style = "text-align: center; margin-bottom: 30px;"),
                         h3("Select a Study to Analyze", style = "text-align: center; color: #7f8c8d; margin-bottom: 40px;")
                  )
                ),
-               
+
                fluidRow(
                  column(12,
                         h3("Available Studies", class = "category-header"),
-                        p("Click on any study below to load and analyze its colocalization data:", 
+                        p("Click on any study below to load and analyze its colocalization data:",
                           style = "text-align: center; margin-bottom: 30px;")
                  )
                ),
@@ -127,7 +127,7 @@ source("R/trait_names.R")
                    column(4,
                           div(class = "study-card",
                               onclick = paste0("Shiny.setInputValue('selected_study', '", study_name, "', {priority: 'event'});"),
-                              h4(study_name),
+                              h4(if (!is.null(study_meta$display_name)) study_meta$display_name else study_name),
 
                               # Ancestry badge
                               if (!is.null(study_meta$ancestry)) {
