@@ -79,15 +79,18 @@ source("R/trait_names.R")
                )
       ),
       tabPanel("Region View",
-               titlePanel("Region-Centered Network View"),
-               
                # Add notification area for study loading
                fluidRow(
                  column(12,
                         uiOutput("study_notification")
                  )
                ),
-               
+
+               # Mini Manhattan - full width, click to select region
+               fluidRow(
+                 column(12, uiOutput("mini_manhattan_ui"))
+               ),
+
                fluidRow(
                  # Left sidebar panel
                  column(
@@ -102,21 +105,29 @@ source("R/trait_names.R")
                      
                      hr(),
                      
-                     # Region selector
-                     selectInput("selected_region",
-                                 "Select Region (by prioritized gene):",
+                     # Region selector - searchable
+                     selectizeInput("selected_region",
+                                 "Search region (gene, chr:pos, rsID):",
                                  choices = NULL,
-                                 selected = NULL),
+                                 selected = NULL,
+                                 options = list(
+                                   placeholder = "Type to search...",
+                                   maxOptions = 500
+                                 )),
 
                      # Alternative region selector by index variant
-                     selectInput("selected_region_coord",
+                     selectizeInput("selected_region_coord",
                                  "Or select by index variant:",
                                  choices = NULL,
-                                 selected = NULL),
+                                 selected = NULL,
+                                 options = list(
+                                   placeholder = "Type to search...",
+                                   maxOptions = 500
+                                 )),
 
-                     # Info note about multiple regions - placed after index variant selector
+                     # Info note
                      HTML('<p style="font-size: 11px; color: #7f8c8d; margin: 5px 0 10px 0; font-style: italic;">
-                           Note: Some genes have multiple colocalizing loci. Use index variant to distinguish them.
+                           Tip: Search by gene name, chromosome (e.g. "chr16"), or coordinates.
                           </p>'),
 
                      hr(),
@@ -129,6 +140,10 @@ source("R/trait_names.R")
                      sliderInput("min_nlog10P",
                                  "Minimum -log10(p-value):",
                                  min = 7.308, max = 100, value = 7.308, step = 0.5),
+
+                     sliderInput("max_traits",
+                                 "Max traits in network:",
+                                 min = 10, max = 500, value = 50, step = 10),
 
                      hr(),
 
@@ -218,31 +233,24 @@ source("R/trait_names.R")
                      # Tab 1: Network visualization
                      tabPanel(
                        "Network",
-                       br(),
-                       # Export buttons row
-                       fluidRow(
-                         column(12,
-                           div(style = "text-align: right; margin-bottom: 5px;",
-                             actionButton("export_png", "Export PNG",
-                                         icon = icon("image"),
-                                         class = "btn-sm btn-default",
-                                         style = "margin-right: 5px;"),
-                             downloadButton("export_html", "Export HTML",
-                                           class = "btn-sm btn-primary")
-                           )
-                         )
+                       # Export buttons - compact, right-aligned
+                       div(style = "text-align: right; margin: 4px 0;",
+                         actionButton("export_png", "PNG",
+                                     icon = icon("image"),
+                                     class = "btn-xs btn-default",
+                                     style = "margin-right: 3px;"),
+                         downloadButton("export_html", "HTML",
+                                       class = "btn-xs btn-default")
                        ),
                        # Network visualization
-                       visNetworkOutput("network", height = "700px"),
-                       br(),
-                       h4("Selected Node Details"),
+                       visNetworkOutput("network", height = "650px"),
+                       h5("Selected Node Details", style = "margin: 4px 0;"),
                        verbatimTextOutput("node_info")
                      ),  # End Network tab
 
                      # Tab 2: Regional Association Plot
                      tabPanel(
                        "Regional Plot",
-                       br(),
                        fluidRow(
                          column(4,
                            selectInput("regional_trait_selector",
@@ -970,15 +978,18 @@ source("R/trait_names.R")
       req(regions_data())
       regions <- regions_data()
 
-      # Update gene-based selector - use Prioritized_Gene if available, otherwise nearest_gene_1
+      # Update gene-based selector - include gene, chr:pos, and coloc count for search
       gene_display <- ifelse(!is.na(regions$Prioritized_Gene),
                             regions$Prioritized_Gene,
                             regions$nearest_gene_1)
       gene_choices <- setNames(
         paste0(regions$CHR_var, ":", regions$BP_START_var, "-", regions$BP_STOP_var),
-        paste0(gene_display, " (", regions$N, " coloc)")
+        paste0(gene_display, " - chr", regions$CHR_var, ":",
+               format(regions$BP_START_var, big.mark = ","), " (",
+               regions$N, " coloc)")
       )
-      updateSelectInput(session, "selected_region", choices = gene_choices)
+      updateSelectizeInput(session, "selected_region", choices = gene_choices,
+                           server = TRUE)
 
       # Update index variant selector
       has_index <- "clump_index_Name" %in% names(regions) && any(!is.na(regions$clump_index_Name))
@@ -997,24 +1008,149 @@ source("R/trait_names.R")
           paste0(regions$region_id, " - ", gene_display)
         )
       }
-      updateSelectInput(session, "selected_region_coord", choices = index_choices)
+      updateSelectizeInput(session, "selected_region_coord", choices = index_choices,
+                           server = TRUE)
     })
     
     # Synchronize selectors
     observeEvent(input$selected_region, {
       if (!is.null(input$selected_region) && input$selected_region != "") {
-        updateSelectInput(session, "selected_region_coord", selected = input$selected_region)
+        updateSelectizeInput(session, "selected_region_coord", selected = input$selected_region)
       }
     })
-    
+
     observeEvent(input$selected_region_coord, {
       if (!is.null(input$selected_region_coord) && input$selected_region_coord != "") {
-        updateSelectInput(session, "selected_region", selected = input$selected_region_coord)
+        updateSelectizeInput(session, "selected_region", selected = input$selected_region_coord)
       }
     })
     
+    # === Mini Manhattan Plot ===
+
+    output$mini_manhattan_ui <- renderUI({
+      req(regions_data(), coloc_data())
+      plotlyOutput("mini_manhattan", height = "150px")
+    })
+
+    output$mini_manhattan <- renderPlotly({
+      req(regions_data(), coloc_data())
+      regions <- regions_data()
+      dt <- coloc_data()
+
+      # Get max nlog10P per region from sumstats_1
+      region_stats <- dt[, .(max_nlog10P = max(sumstats_1_max_nlog10P, na.rm = TRUE),
+                             n_coloc = .N),
+                         by = .(CHR_var, BP_START_var, BP_STOP_var)]
+
+      # Numeric chr for x-axis
+      region_stats[, CHR_num := as.integer(gsub("X", "23", gsub("Y", "24", CHR_var)))]
+      region_stats[, mid_pos := (BP_START_var + BP_STOP_var) / 2]
+
+      # Cumulative position for Manhattan layout
+      chr_offsets <- region_stats[, .(max_pos = max(mid_pos)), by = CHR_num]
+      setorder(chr_offsets, CHR_num)
+      chr_offsets[, offset := cumsum(c(0, head(max_pos, -1))) + (seq_len(.N) - 1) * 5e7]
+      region_stats <- merge(region_stats, chr_offsets[, .(CHR_num, offset)], by = "CHR_num")
+      region_stats[, x_pos := mid_pos + offset]
+
+      # Gene labels
+      region_stats <- merge(region_stats,
+        unique(regions[, .(CHR_var, BP_START_var, nearest_gene_1, Prioritized_Gene)]),
+        by = c("CHR_var", "BP_START_var"), all.x = TRUE)
+      region_stats[, gene := ifelse(!is.na(Prioritized_Gene), Prioritized_Gene, nearest_gene_1)]
+      region_stats[, region_key := paste0(CHR_var, ":", BP_START_var, "-", BP_STOP_var)]
+
+      # Alternating chr colors
+      region_stats[, chr_color := ifelse(CHR_num %% 2 == 0, "#3498db", "#2c3e50")]
+
+      # Highlight selected region
+      sel <- if (!is.null(input$selected_region) && input$selected_region != "") {
+        input$selected_region
+      } else NULL
+
+      region_stats[, is_selected := region_key == sel]
+
+      # Hover text
+      region_stats[, hover := paste0(
+        "<b>", gene, "</b><br>",
+        "chr", CHR_var, ":", format(BP_START_var, big.mark = ","), "<br>",
+        "-log10(P): ", round(max_nlog10P, 1), "<br>",
+        n_coloc, " colocalizations"
+      )]
+
+      # Chr tick labels
+      chr_ticks <- region_stats[, .(mid_x = mean(x_pos)), by = CHR_num]
+      setorder(chr_ticks, CHR_num)
+
+      p <- plot_ly() %>%
+        add_trace(
+          data = region_stats[is_selected == FALSE],
+          x = ~x_pos, y = ~max_nlog10P,
+          type = "scatter", mode = "markers",
+          marker = list(color = ~chr_color, size = ~pmin(5 + n_coloc / 10, 15), opacity = 0.7),
+          text = ~hover, hoverinfo = "text",
+          customdata = ~region_key,
+          name = "Regions"
+        )
+
+      if (any(region_stats$is_selected)) {
+        p <- p %>% add_trace(
+          data = region_stats[is_selected == TRUE],
+          x = ~x_pos, y = ~max_nlog10P,
+          type = "scatter", mode = "markers",
+          marker = list(color = "red", size = 14, symbol = "diamond", opacity = 1),
+          text = ~hover, hoverinfo = "text",
+          customdata = ~region_key,
+          name = "Selected"
+        )
+      }
+
+      # Add gene labels for top 20 regions by coloc count
+      top_labeled <- region_stats[order(-n_coloc, -max_nlog10P)][1:min(20, nrow(region_stats))]
+      # Clean gene name: remove "(within)" etc
+      top_labeled[, gene_short := gsub("\\(.*\\)", "", gene)]
+      top_labeled[, gene_short := trimws(gsub("INTERGENIC: ", "", gene_short))]
+
+      gene_annotations <- lapply(seq_len(nrow(top_labeled)), function(i) {
+        list(
+          x = top_labeled$x_pos[i],
+          y = top_labeled$max_nlog10P[i],
+          text = top_labeled$gene_short[i],
+          showarrow = FALSE,
+          font = list(size = 8, color = "#555"),
+          yshift = 10
+        )
+      })
+
+      p %>% layout(
+        annotations = gene_annotations,
+        xaxis = list(
+          title = "", showgrid = FALSE,
+          tickvals = chr_ticks$mid_x,
+          ticktext = chr_ticks$CHR_num,
+          tickfont = list(size = 9),
+          range = c(min(region_stats$x_pos) * 0.98, max(region_stats$x_pos) * 1.02)
+        ),
+        yaxis = list(title = list(text = "-log10(P)", font = list(size = 10)),
+                     tickfont = list(size = 9)),
+        margin = list(t = 5, b = 25, l = 40, r = 5),
+        showlegend = FALSE,
+        hovermode = "closest"
+      ) %>% config(displayModeBar = FALSE) %>%
+        event_register("plotly_click")
+    })
+
+    # Handle Manhattan click -> select region
+    observeEvent(event_data("plotly_click", source = "A"), {
+      click <- event_data("plotly_click", source = "A")
+      if (!is.null(click) && !is.null(click$customdata)) {
+        region_key <- click$customdata
+        updateSelectizeInput(session, "selected_region", selected = region_key)
+      }
+    })
+
     # === Reactive Data Processing ===
-    
+
     # Get current selected region
     current_region <- reactive({
       if (!is.null(input$selected_region) && input$selected_region != "") {
@@ -1091,7 +1227,10 @@ source("R/trait_names.R")
       region_counts <- dt[, .N, by = .(CHR_var, BP_START_var, BP_STOP_var)]
       regions <- merge(regions, region_counts, by = c("CHR_var", "BP_START_var", "BP_STOP_var"))
 
-      setorder(regions, CHR_var, BP_START_var)
+      # Sort numerically by chromosome then position
+      regions[, CHR_num := as.integer(gsub("X", "23", gsub("Y", "24", CHR_var)))]
+      setorder(regions, CHR_num, BP_START_var)
+      regions[, CHR_num := NULL]
       regions
     })
     
@@ -1117,6 +1256,11 @@ source("R/trait_names.R")
 
       # Apply study filter
       dt <- dt[source_study %in% selected_studies()]
+
+      # Limit traits for network performance (keep top by PP.H4)
+      if (nrow(dt) > input$max_traits) {
+        dt <- dt[order(-PP.H4.abf)][1:input$max_traits]
+      }
 
       dt
     })
@@ -1936,7 +2080,7 @@ source("R/trait_names.R")
         # Build key from annotation: source_study__basename(sumstats_2_file)
         trait_info <- unique(dt[, .(
           source_study,
-          trait_display = get_trait_display_name(.SD),
+          trait_display = tryCatch(get_trait_display_name(.SD), error = function(e) "Unknown"),
           bundle_key = paste0(source_study, "__", basename(sumstats_2_file))
         ), by = seq_len(nrow(dt))])
 
@@ -1950,8 +2094,8 @@ source("R/trait_names.R")
         # Legacy layout: use get_trait_name for filename matching
         trait_info <- unique(dt[, .(
           source_study,
-          trait_name = get_trait_name(.SD),
-          trait_display = get_trait_display_name(.SD)
+          trait_name = tryCatch(get_trait_name(.SD), error = function(e) "Unknown"),
+          trait_display = tryCatch(get_trait_display_name(.SD), error = function(e) "Unknown")
         ), by = seq_len(nrow(dt))])
         trait_info[, trait_label := paste0(trait_display, " (", source_study, ")")]
 
@@ -1966,6 +2110,7 @@ source("R/trait_names.R")
     # MUST match file naming in get_trait_name_for_regional() from ckdgen_genepicoloc_functions.R
     get_trait_name <- function(row) {
       source <- row$source_study[1]
+      if (is.null(source) || is.na(source)) return("Unknown")
 
       trait_name <- switch(source,
         "eQTLGen" = {
@@ -2048,7 +2193,7 @@ source("R/trait_names.R")
       )
 
       # Clean trait name for filename safety (match extraction function)
-      if (!is.null(trait_name) && trait_name != "Unknown") {
+      if (!is.null(trait_name) && !is.na(trait_name) && trait_name != "Unknown") {
         trait_name <- gsub("[^A-Za-z0-9_.-]", "_", trait_name)
         trait_name <- gsub("_+", "_", trait_name)
         trait_name <- gsub("^_|_$", "", trait_name)
@@ -2061,6 +2206,7 @@ source("R/trait_names.R")
     # For most studies, same as get_trait_name; for MVP_R4, use full phecode description
     get_trait_display_name <- function(row) {
       source <- row$source_study[1]
+      if (is.null(source) || is.na(source)) return("Unknown")
 
       # MVP_R4: Use Analyzed.variable (full phecode name) instead of Title.of.analysis (phecode)
       if (source == "MVP_R4") {
@@ -2080,7 +2226,7 @@ source("R/trait_names.R")
 
     # Update trait selector when region changes
     observe({
-      traits <- regional_traits_available()
+      traits <- tryCatch(regional_traits_available(), error = function(e) NULL)
 
       if (is.null(traits) || length(traits) == 0) {
         updateSelectInput(session, "regional_trait_selector",
