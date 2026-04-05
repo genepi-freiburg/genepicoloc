@@ -7,6 +7,13 @@ library(visNetwork)
 library(data.table)
 library(plotly)
 
+# LLM packages (optional - graceful fallback if not installed)
+has_llm <- tryCatch({
+  library(ellmer)
+  library(shinychat)
+  TRUE
+}, error = function(e) FALSE)
+
 # Source configuration and metadata
 source("R/config.R")
 source("R/study_metadata.R")
@@ -15,6 +22,7 @@ source("R/study_metadata.R")
 source("R/plots.R")
 source("R/gene_track.R")
 source("R/trait_names.R")
+source("R/llm.R")
 
   # UI ----
   ui <- fluidPage(
@@ -316,7 +324,25 @@ source("R/trait_names.R")
                      hr(style = "margin: 8px 0;"),
 
                      uiOutput("study_selector")
-                   )  # End wellPanel
+                   ),  # End wellPanel
+
+                   # AI Insights (collapsible)
+                   if (has_llm) tags$details(
+                     style = "margin-top: 10px;",
+                     tags$summary(
+                       style = "cursor: pointer; font-weight: bold; font-size: 13px; padding: 8px; background: #f8f9fa; border-radius: 4px;",
+                       icon("brain"), " AI Insights"
+                     ),
+                     div(style = "margin-top: 8px; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 4px;",
+                       actionButton("llm_summarize", "Interpret Region",
+                                    icon = icon("magic"),
+                                    class = "btn-xs btn-primary",
+                                    style = "margin-bottom: 8px; width: 100%;"),
+                       div(style = "max-height: 400px; overflow-y: auto; font-size: 12px;",
+                         shinychat::output_markdown_stream("llm_output")
+                       )
+                     )
+                   )
                  )  # End right column
                )  # End fluidRow
       ),
@@ -1460,6 +1486,51 @@ source("R/trait_names.R")
 
       list(nodes = nodes, edges = edges)
     })
+
+    # === LLM Insights ===
+
+    if (has_llm) {
+      observeEvent(input$llm_summarize, {
+        api_key <- Sys.getenv("ANTHROPIC_API_KEY")
+        if (!nzchar(api_key)) {
+          shinychat::markdown_stream("llm_output",
+            "*AI Summary unavailable: ANTHROPIC_API_KEY not configured.*",
+            session = session)
+          return()
+        }
+
+        req(filtered_data(), current_region())
+        dt <- filtered_data()
+
+        if (nrow(dt) == 0) {
+          shinychat::markdown_stream("llm_output",
+            "No colocalization data available for this region.",
+            session = session)
+          return()
+        }
+
+        context <- build_coloc_context(dt, gene_annotation)
+        if (is.null(context)) {
+          shinychat::markdown_stream("llm_output",
+            "Could not build context for this region.",
+            session = session)
+          return()
+        }
+
+        user_prompt <- paste0(
+          "Interpret the colocalization results for this genomic region:\n\n",
+          context)
+
+        chat <- ellmer::chat_anthropic(
+          model = "claude-sonnet-4-5-20250929",
+          system_prompt = COLOC_SYSTEM_PROMPT,
+          credentials = function() api_key,
+          echo = "none"
+        )
+        stream <- chat$stream_async(user_prompt)
+        shinychat::markdown_stream("llm_output", stream, session = session)
+      })
+    }
 
     # === Unified Trait View Reactives ===
 
