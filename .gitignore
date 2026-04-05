@@ -12,7 +12,7 @@ CLAUDE.md
 *.tbi
 vignettes/*.html
 vignettes/*_files/
-docs/
+/_site/
 
 /.quarto/
 **/*.quarto_ipynb

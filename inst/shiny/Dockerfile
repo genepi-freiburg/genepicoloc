@@ -1,10 +1,10 @@
 # genepicoloc Colocalization Viewer
 #
 # Build:
-#   docker build -t genepicoloc-shiny .
+#   podman build -t genepicoloc-shiny .
 #
 # Run with data mounted:
-#   docker run -d -p 3838:3838 \
+#   podman run -d -p 3838:3838 \
 #     -v /path/to/data:/app/data:ro \
 #     --name genepicoloc-shiny genepicoloc-shiny
 #
@@ -28,8 +28,8 @@ RUN apt-get update && \
       libssl-dev libcurl4-openssl-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Install R packages (ordered by change frequency for layer caching)
-RUN R -e "install.packages(c('data.table', 'visNetwork', 'plotly'), repos='https://cloud.r-project.org/')"
+# Install R packages from Posit PPM (precompiled binaries, much faster)
+RUN R -e "install.packages(c('data.table', 'visNetwork', 'plotly'), repos='https://packagemanager.posit.co/cran/__linux__/jammy/latest')"
 
 # Create app directory
 WORKDIR /app
