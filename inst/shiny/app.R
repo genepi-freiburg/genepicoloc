@@ -19,43 +19,7 @@ source("R/trait_names.R")
   # UI ----
   ui <- fluidPage(
     tags$head(
-      tags$style(HTML("
-    .study-card {
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 15px;
-      margin: 10px;
-      cursor: pointer;
-      transition: all 0.3s;
-      background-color: white;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .study-card:hover {
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-      transform: translateY(-2px);
-    }
-    .study-card h4 {
-      margin-top: 0;
-      color: #2c3e50;
-    }
-    .study-card p {
-      color: #7f8c8d;
-      margin-bottom: 10px;
-    }
-    .category-header {
-      color: #34495e;
-      border-bottom: 2px solid #3498db;
-      padding-bottom: 10px;
-      margin-top: 30px;
-      margin-bottom: 20px;
-    }
-    /* Compact checkbox styling for study selector */
-    .checkbox {
-      margin-top: 0px;
-      margin-bottom: 0px;
-      padding: 0;
-    }
-  ")),
+      tags$link(rel = "stylesheet", type = "text/css", href = "landing.css"),
       # JavaScript for PNG export
       tags$script(HTML("
         // Region View network export
@@ -98,68 +62,20 @@ source("R/trait_names.R")
     
     tabsetPanel(
       id = "main_tabs",
-      tabPanel("Studies",
-               fluidRow(
-                 column(12,
-                        h1("GWAS Colocalization Network Viewer", style = "text-align: center; margin-bottom: 30px;"),
-                        h3("Select a Study to Analyze", style = "text-align: center; color: #7f8c8d; margin-bottom: 40px;")
-                 )
+      tabPanel("Atlas",
+               # Landing page with category cards
+               div(class = "landing-hero",
+                   h1("Kidney Genomics Colocalization Atlas"),
+                   p(class = "subtitle", "Explore colocalization results across kidney disease, imaging, and metabolomics datasets")
                ),
 
-               fluidRow(
-                 column(12,
-                        h3("Available Studies", class = "category-header"),
-                        p("Click on any study below to load and analyze its colocalization data:",
-                          style = "text-align: center; margin-bottom: 30px;")
-                 )
-               ),
-               
-               # Create study cards in a grid layout
-               fluidRow(
-                 lapply(names(available_studies), function(study_name) {
-                   # Get study info if available
-                   study_meta <- if (study_name %in% names(input_sumstats_info)) {
-                     input_sumstats_info[[study_name]]
-                   } else {
-                     list(ancestry = NULL, description = NULL)
-                   }
+               # Category cards
+               uiOutput("landing_categories"),
 
-                   column(4,
-                          div(class = "study-card",
-                              onclick = paste0("Shiny.setInputValue('selected_study', '", study_name, "', {priority: 'event'});"),
-                              h4(if (!is.null(study_meta$display_name)) study_meta$display_name else study_name),
-
-                              # Ancestry badge
-                              if (!is.null(study_meta$ancestry)) {
-                                tags$span(
-                                  class = "badge",
-                                  style = "background-color: #3498db; color: white; font-size: 10px; padding: 3px 8px; margin-bottom: 8px;",
-                                  study_meta$ancestry
-                                )
-                              },
-
-                              # Description
-                              if (!is.null(study_meta$description)) {
-                                p(style = "font-size: 11px; color: #7f8c8d; margin-top: 5px;",
-                                  study_meta$description)
-                              },
-
-                              # Regional Plot status
-                              if (!is.null(study_meta$regional_plot)) {
-                                p(style = "font-size: 11px; margin-top: 5px;",
-                                  tags$strong("Regional Plot: "),
-                                  if (study_meta$regional_plot == "Available") {
-                                    tags$span(style = "color: #27ae60;", study_meta$regional_plot)
-                                  } else {
-                                    tags$span(style = "color: #95a5a6;", study_meta$regional_plot)
-                                  }
-                                )
-                              },
-
-                              tags$button(class = "btn btn-primary btn-sm", "Load Study")
-                          )
-                   )
-                 })
+               div(class = "landing-legend",
+                   p(tags$span(style = "border-left: 3px solid #27ae60; padding-left: 6px; margin-right: 12px;",
+                               "Regional plots available"),
+                     tags$span(style = "opacity: 0.5; margin-right: 12px;", "Coming soon"))
                )
       ),
       tabPanel("Region View",
@@ -657,8 +573,98 @@ source("R/trait_names.R")
   
   server <- function(input, output, session) {
 
+    # === Landing Page ===
+
+    # Category definitions for the landing page
+    atlas_categories <- list(
+      list(
+        id = "kidney_disease",
+        icon = "\U0001F9EC",
+        title = "Kidney Disease Traits",
+        description = "CKDGen Round 4 GWAS - kidney function and disease phenotypes colocalized against 11 molecular and clinical datasets",
+        traits = list(
+          list(id = "eGFR", label = "eGFR (creatinine)", desc = "Estimated glomerular filtration rate"),
+          list(id = "BUN", label = "Blood Urea Nitrogen", desc = "Kidney filtration marker"),
+          list(id = "UACR", label = "UACR", desc = "Urinary albumin-to-creatinine ratio"),
+          list(id = "urate", label = "Serum Urate", desc = "Urate levels"),
+          list(id = "gout", label = "Gout", desc = "Inflammatory arthritis"),
+          list(id = "MA", label = "Microalbuminuria", desc = "Early kidney damage marker")
+        )
+      ),
+      list(
+        id = "kidney_mri",
+        icon = "\U0001F9F2",
+        title = "Kidney MRI Volumes",
+        description = "UK Biobank kidney MRI - structural imaging phenotypes (coming soon)",
+        traits = list(
+          list(id = "TKV", label = "Total Kidney Volume", desc = "BSA-adjusted", disabled = TRUE),
+          list(id = "cortex", label = "Cortex Volume", desc = "BSA-adjusted", disabled = TRUE),
+          list(id = "medulla", label = "Medulla Volume", desc = "BSA-adjusted", disabled = TRUE),
+          list(id = "hilus", label = "Hilus Volume", desc = "BSA-adjusted", disabled = TRUE)
+        )
+      ),
+      list(
+        id = "metabolomics",
+        icon = "\U0001F9EA",
+        title = "Urine Metabolomics",
+        description = "GCKD VAE-derived metabolite modules (coming soon)",
+        traits = list(
+          list(id = "ME19", label = "ME19 Module", desc = "VAE metabolite module", disabled = TRUE),
+          list(id = "ME30", label = "ME30 Module", desc = "VAE metabolite module", disabled = TRUE)
+        )
+      )
+    )
+
+    output$landing_categories <- renderUI({
+      div(class = "category-grid",
+        lapply(atlas_categories, function(cat) {
+          # Count available and total traits
+          available <- sapply(cat$traits, function(t) {
+            !isTRUE(t$disabled) && t$id %in% names(DEFAULT_AVAILABLE_STUDIES)
+          })
+          n_available <- sum(available)
+          n_total <- length(cat$traits)
+          stats_text <- if (n_available > 0) {
+            paste0(n_available, " traits available")
+          } else {
+            "Coming soon"
+          }
+
+          div(class = "category-card",
+            div(class = "card-icon", cat$icon),
+            h3(cat$title),
+            p(class = "card-description", cat$description),
+            p(class = "card-stats", stats_text),
+            div(class = "trait-list",
+              lapply(cat$traits, function(trait) {
+                is_disabled <- isTRUE(trait$disabled) || !trait$id %in% names(DEFAULT_AVAILABLE_STUDIES)
+                has_regional <- !is_disabled && (
+                  dir.exists(file.path(DATA_PATH, "regional", trait$id)) ||
+                  dir.exists(file.path(DATA_PATH, "regional_plots", trait$id))
+                )
+                css_class <- paste("trait-btn",
+                  if (is_disabled) "disabled",
+                  if (has_regional) "has-regional"
+                )
+                if (is_disabled) {
+                  tags$span(class = css_class, title = trait$desc, trait$label)
+                } else {
+                  tags$span(
+                    class = css_class,
+                    title = trait$desc,
+                    onclick = paste0("Shiny.setInputValue('selected_study', '", trait$id, "', {priority: 'event'});"),
+                    trait$label
+                  )
+                }
+              })
+            )
+          )
+        })
+      )
+    })
+
     # === Reactive Values ===
-    
+
     # Reactive value to store the current loaded study
     current_study <- reactiveVal(NULL)
 
@@ -696,7 +702,7 @@ source("R/trait_names.R")
 
     # Handle back to home button
     observeEvent(input$back_to_home, {
-      updateTabsetPanel(session, "main_tabs", selected = "CKDGen Round 5 Traits")
+      updateTabsetPanel(session, "main_tabs", selected = "Atlas")
     })
 
     # Select all studies
@@ -1893,41 +1899,67 @@ source("R/trait_names.R")
 
     # Path to regional plot data
     # Supports two layouts:
-    #   1. CKDGen: data/regional_plots_data/{folder}/regions/{region}/
-    #   2. Atlas:  {DATA_PATH}/regional_plots/{study}/regions/{region}/
+    #   1. Bundled: {DATA_PATH}/regional/{study}/         (new: one RDS per region)
+    #   2. Legacy:  {DATA_PATH}/regional_plots/{study}/   (old: dirs with many small files)
     regional_data_path <- reactive({
       req(current_study())
-      # Try atlas layout first
-      atlas_path <- file.path(DATA_PATH, "regional_plots", current_study())
-      if (dir.exists(atlas_path)) return(atlas_path)
-      # Fall back to CKDGen layout
-      folder_name <- available_studies[[current_study()]]
-      ckdgen_path <- file.path("data/regional_plots_data", folder_name)
-      if (dir.exists(ckdgen_path)) return(ckdgen_path)
+      # Try bundled layout first
+      bundled_path <- file.path(DATA_PATH, "regional", current_study())
+      if (dir.exists(bundled_path)) return(bundled_path)
+      # Fall back to legacy layout
+      legacy_path <- file.path(DATA_PATH, "regional_plots", current_study())
+      if (dir.exists(legacy_path)) return(legacy_path)
       NULL
+    })
+
+    # Detect layout: bundled (one RDS per region) vs legacy (directory per region)
+    regional_layout <- reactive({
+      req(regional_data_path())
+      # Bundled layout has .RDS files directly in the trait folder
+      rds_files <- list.files(regional_data_path(), pattern = "\\.RDS$", full.names = FALSE)
+      if (length(rds_files) > 0) "bundled" else "legacy"
     })
 
     # Get available traits for current region
     regional_traits_available <- reactive({
-      req(filtered_data())
+      req(filtered_data(), regional_data_path(), regional_layout(), current_region())
       dt <- filtered_data()
       if (nrow(dt) == 0) return(NULL)
 
-      # Get unique traits with their study source
-      trait_info <- unique(dt[, .(
-        source_study,
-        trait_name = get_trait_name(.SD),
-        trait_display = get_trait_display_name(.SD)
-      ), by = seq_len(nrow(dt))])
-      trait_info[, trait_label := paste0(trait_display, " (", source_study, ")")]
+      if (regional_layout() == "bundled") {
+        # Bundled layout: match annotation rows to bundle keys
+        region_data <- load_region_bundle(regional_data_path(), current_region())
+        if (is.null(region_data) || length(region_data$traits) == 0) return(NULL)
 
-      # Build choices: file-friendly name -> display label
-      traits_list <- setNames(
-        paste0(trait_info$source_study, "__", trait_info$trait_name),
-        trait_info$trait_label
-      )
+        bundle_keys <- names(region_data$traits)
 
-      traits_list
+        # Build key from annotation: source_study__basename(sumstats_2_file)
+        trait_info <- unique(dt[, .(
+          source_study,
+          trait_display = get_trait_display_name(.SD),
+          bundle_key = paste0(source_study, "__", basename(sumstats_2_file))
+        ), by = seq_len(nrow(dt))])
+
+        # Keep only traits that exist in the bundle
+        trait_info <- trait_info[bundle_key %in% bundle_keys]
+        if (nrow(trait_info) == 0) return(NULL)
+
+        trait_info[, trait_label := paste0(trait_display, " (", source_study, ")")]
+        setNames(trait_info$bundle_key, trait_info$trait_label)
+      } else {
+        # Legacy layout: use get_trait_name for filename matching
+        trait_info <- unique(dt[, .(
+          source_study,
+          trait_name = get_trait_name(.SD),
+          trait_display = get_trait_display_name(.SD)
+        ), by = seq_len(nrow(dt))])
+        trait_info[, trait_label := paste0(trait_display, " (", source_study, ")")]
+
+        setNames(
+          paste0(trait_info$source_study, "__", trait_info$trait_name),
+          trait_info$trait_label
+        )
+      }
     })
 
     # Helper to extract trait name from filtered_data row
@@ -2061,61 +2093,102 @@ source("R/trait_names.R")
       }
     })
 
-    # Load base study sumstats for current region
-    regional_base_sumstats <- reactive({
-      req(regional_data_path(), current_region())
-
-      # Parse region
-      region_parts <- strsplit(current_region(), ":")[[1]]
+    # Helper: parse region string "chr:start-end" into folder name "chr_start_end"
+    parse_region_id <- function(region_str) {
+      region_parts <- strsplit(region_str, ":")[[1]]
       if (length(region_parts) < 2) return(NULL)
-
       chr <- region_parts[1]
-      # Add "chr" prefix if not present (folder format: chr10_111687920_112687920)
       if (!grepl("^chr", chr)) chr <- paste0("chr", chr)
       pos_parts <- strsplit(region_parts[2], "-")[[1]]
-      start_pos <- pos_parts[1]
-      end_pos <- pos_parts[2]
+      paste0(chr, "_", pos_parts[1], "_", pos_parts[2])
+    }
 
-      region_folder <- paste0(chr, "_", start_pos, "_", end_pos)
-      sumstats_file <- file.path(regional_data_path(), "regions", region_folder, "sumstats_1.RDS")
-
-      if (file.exists(sumstats_file)) {
-        readRDS(sumstats_file)
-      } else {
-        NULL
+    # Helper: reconstruct Name column if missing (slim format)
+    reconstruct_name <- function(dt) {
+      if (!"Name" %in% names(dt) && all(c("CHR", "POS", "A1", "A2") %in% names(dt))) {
+        dt$Name <- paste0("chr", dt$CHR, ":", dt$POS, ":", dt$A1, ":", dt$A2)
       }
+      dt
+    }
+
+    # Load bundled region data (one RDS per region)
+    # Returns list(base = dt, traits = list("study__trait" = dt, ...)) or NULL
+    # Cached per region to avoid re-reading
+    loaded_region_cache <- reactiveVal(list(id = NULL, data = NULL))
+
+    load_region_bundle <- function(data_path, region_str) {
+      region_id <- parse_region_id(region_str)
+      if (is.null(region_id)) return(NULL)
+
+      # Check cache
+      cache <- loaded_region_cache()
+      cache_key <- paste(data_path, region_id)
+      if (identical(cache$id, cache_key)) return(cache$data)
+
+      rds_file <- file.path(data_path, paste0(region_id, ".RDS"))
+      if (!file.exists(rds_file)) return(NULL)
+
+      region_data <- readRDS(rds_file)
+
+      # Reconstruct Name in base and all traits
+      if (!is.null(region_data$base)) {
+        region_data$base <- reconstruct_name(region_data$base)
+      }
+      region_data$traits <- lapply(region_data$traits, reconstruct_name)
+
+      loaded_region_cache(list(id = cache_key, data = region_data))
+      region_data
+    }
+
+    # Load base sumstats: supports bundled and legacy layouts
+    load_base_sumstats <- function(data_path, region_str, layout) {
+      if (layout == "bundled") {
+        region_data <- load_region_bundle(data_path, region_str)
+        if (is.null(region_data)) return(NULL)
+        return(region_data$base)
+      }
+      # Legacy layout
+      region_id <- parse_region_id(region_str)
+      sumstats_file <- file.path(data_path, "regions", region_id, "sumstats_1.RDS")
+      if (!file.exists(sumstats_file)) return(NULL)
+      reconstruct_name(readRDS(sumstats_file))
+    }
+
+    # Load base study sumstats for current region
+    regional_base_sumstats <- reactive({
+      req(regional_data_path(), regional_layout(), current_region())
+      load_base_sumstats(regional_data_path(), current_region(), regional_layout())
     })
+
+    # Load trait sumstats: supports bundled and legacy layouts
+    load_trait_sumstats <- function(data_path, region_str, trait_selector, layout) {
+      if (layout == "bundled") {
+        region_data <- load_region_bundle(data_path, region_str)
+        if (is.null(region_data)) return(NULL)
+        return(region_data$traits[[trait_selector]])
+      }
+      # Legacy layout
+      region_id <- parse_region_id(region_str)
+      trait_file <- file.path(data_path, "regions", region_id, "traits",
+                              paste0(trait_selector, ".RDS"))
+      if (!file.exists(trait_file)) return(NULL)
+
+      dt <- reconstruct_name(readRDS(trait_file))
+      # Filter to region bounds (legacy files may span multiple regions)
+      region_parts <- strsplit(region_str, ":")[[1]]
+      pos_parts <- strsplit(region_parts[2], "-")[[1]]
+      if (is.data.frame(dt) && nrow(dt) > 0 && "POS" %in% names(dt)) {
+        dt <- dt[dt$POS >= as.numeric(pos_parts[1]) & dt$POS <= as.numeric(pos_parts[2]), ]
+      }
+      dt
+    }
 
     # Load trait sumstats for selected colocalized trait
     regional_trait_sumstats <- reactive({
-      req(regional_data_path(), input$regional_trait_selector, current_region())
-
+      req(regional_data_path(), regional_layout(), input$regional_trait_selector, current_region())
       if (input$regional_trait_selector == "") return(NULL)
-
-      # Parse region for folder path
-      region_parts <- strsplit(current_region(), ":")[[1]]
-      chr <- region_parts[1]
-      # Add "chr" prefix if not present
-      if (!grepl("^chr", chr)) chr <- paste0("chr", chr)
-      pos_parts <- strsplit(region_parts[2], "-")[[1]]
-      start_pos <- pos_parts[1]
-      end_pos <- pos_parts[2]
-      region_folder <- paste0(chr, "_", start_pos, "_", end_pos)
-
-      # Build path to trait file: regions/{region}/traits/{study}__{trait}.RDS
-      trait_file <- file.path(regional_data_path(), "regions", region_folder, "traits",
-                              paste0(input$regional_trait_selector, ".RDS"))
-
-      if (file.exists(trait_file)) {
-        dt <- readRDS(trait_file)
-        # Filter to region bounds (some files span multiple regions)
-        if (is.data.frame(dt) && nrow(dt) > 0 && "POS" %in% names(dt)) {
-          dt <- dt[dt$POS >= as.numeric(start_pos) & dt$POS <= as.numeric(end_pos), ]
-        }
-        dt
-      } else {
-        NULL
-      }
+      load_trait_sumstats(regional_data_path(), current_region(),
+                          input$regional_trait_selector, regional_layout())
     })
 
     # Get lead SNP for current region
@@ -2696,27 +2769,9 @@ source("R/trait_names.R")
 
     # Load base study sumstats for selected region in Trait View
     trait_regional_base_sumstats <- reactive({
-      req(regional_data_path(), input$trait_regional_region_selector)
-
+      req(regional_data_path(), regional_layout(), input$trait_regional_region_selector)
       if (input$trait_regional_region_selector == "") return(NULL)
-
-      # Parse region
-      region_parts <- strsplit(input$trait_regional_region_selector, ":")[[1]]
-      chr <- region_parts[1]
-      # Add "chr" prefix if not present (folder format: chr10_111687920_112687920)
-      if (!grepl("^chr", chr)) chr <- paste0("chr", chr)
-      pos_parts <- strsplit(region_parts[2], "-")[[1]]
-      start_pos <- pos_parts[1]
-      end_pos <- pos_parts[2]
-
-      region_folder <- paste0(chr, "_", start_pos, "_", end_pos)
-      sumstats_file <- file.path(regional_data_path(), "regions", region_folder, "sumstats_1.RDS")
-
-      if (file.exists(sumstats_file)) {
-        readRDS(sumstats_file)
-      } else {
-        NULL
-      }
+      load_base_sumstats(regional_data_path(), input$trait_regional_region_selector, regional_layout())
     })
 
     # Helper function to get trait file name from trait_filtered_data
@@ -2805,14 +2860,9 @@ source("R/trait_names.R")
       file_trait_name <- get_trait_file_name(dt, study, ui_trait, chr_for_lookup,
                                              as.numeric(start_pos), as.numeric(end_pos))
 
-      trait_file_name <- paste0(study, "__", file_trait_name, ".RDS")
-      trait_file <- file.path(regional_data_path(), "regions", region_folder, "traits", trait_file_name)
-
-      if (file.exists(trait_file)) {
-        readRDS(trait_file)
-      } else {
-        NULL
-      }
+      trait_key <- paste0(study, "__", file_trait_name)
+      load_trait_sumstats(regional_data_path(), input$trait_regional_region_selector,
+                          trait_key, regional_layout())
     })
 
     # Get lead SNP for selected region in Trait View

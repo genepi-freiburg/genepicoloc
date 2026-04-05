@@ -151,7 +151,11 @@ input_sumstats_descriptions <- c(
 # Build input_sumstats_info dynamically from discovered studies
 # Regional plot availability is auto-detected from the data directory
 input_sumstats_info <- lapply(names(DEFAULT_AVAILABLE_STUDIES), function(study_name) {
-  regional_dir <- file.path(DATA_PATH, "regional_plots", study_name)
+  # Check clean layout (regional/) then legacy (regional_plots/)
+  regional_dir <- file.path(DATA_PATH, "regional", study_name)
+  if (!dir.exists(regional_dir)) {
+    regional_dir <- file.path(DATA_PATH, "regional_plots", study_name)
+  }
   has_regional <- dir.exists(regional_dir) && length(list.dirs(regional_dir, recursive = FALSE)) > 0
   list(
     display_name = if (study_name %in% names(input_sumstats_display_names))

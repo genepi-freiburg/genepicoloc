@@ -41,13 +41,25 @@ DATA_PATH <- getOption("genepicoloc.data_path",
     if (dir.exists("/app/data")) "/app/data" else "data"))
 
 # Auto-discover available studies from RDS files
-# Supports two layouts:
-#   1. Flat: data/<trait>_annot_filt.RDS (atlas layout)
-#   2. Nested: data/<folder>/annot/annot_filt.RDS (CKDGen layout)
+# Supports three layouts (checked in order):
+#   1. Clean:  data/coloc/<trait>.RDS              (new atlas layout)
+#   2. Flat:   data/<trait>_annot_filt.RDS          (legacy flat layout)
+#   3. Nested: data/<folder>/annot/annot_filt.RDS   (legacy CKDGen layout)
 discover_studies <- function(data_path) {
   studies <- list()
 
-  # Try flat layout first
+  # Try clean layout first (coloc/ subdir)
+  coloc_dir <- file.path(data_path, "coloc")
+  if (dir.exists(coloc_dir)) {
+    coloc_files <- list.files(coloc_dir, pattern = "\\.RDS$", full.names = TRUE)
+    for (f in coloc_files) {
+      name <- tools::file_path_sans_ext(basename(f))
+      studies[[name]] <- f
+    }
+    if (length(studies) > 0) return(studies)
+  }
+
+  # Try flat layout
   flat_files <- list.files(data_path, pattern = "_annot_filt\\.RDS$", full.names = TRUE)
   if (length(flat_files) > 0) {
     for (f in flat_files) {

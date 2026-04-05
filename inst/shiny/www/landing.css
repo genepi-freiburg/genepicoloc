@@ -1,0 +1,161 @@
+/* Landing page styles */
+
+.landing-hero {
+  text-align: center;
+  padding: 40px 20px 20px;
+}
+
+.landing-hero h1 {
+  font-size: 2.2em;
+  color: #2c3e50;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.landing-hero .subtitle {
+  font-size: 1.1em;
+  color: #7f8c8d;
+  margin-bottom: 0;
+}
+
+/* Category cards */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  padding: 20px 40px 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.category-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 24px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: all 0.25s ease;
+}
+
+.category-card:hover {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  transform: translateY(-3px);
+}
+
+.category-card .card-icon {
+  font-size: 2.4em;
+  margin-bottom: 12px;
+}
+
+.category-card h3 {
+  margin: 0 0 4px;
+  color: #2c3e50;
+  font-size: 1.3em;
+}
+
+.category-card .card-description {
+  color: #7f8c8d;
+  font-size: 0.9em;
+  margin-bottom: 16px;
+}
+
+.category-card .card-stats {
+  font-size: 0.8em;
+  color: #95a5a6;
+  margin-bottom: 16px;
+}
+
+/* Trait buttons inside category cards */
+.trait-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trait-btn {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.85em;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  background: #f8f9fa;
+  color: #2c3e50;
+  transition: all 0.2s ease;
+}
+
+.trait-btn:hover {
+  background: #3498db;
+  color: white;
+  border-color: #3498db;
+}
+
+.trait-btn.has-regional {
+  border-left: 3px solid #27ae60;
+}
+
+.trait-btn.disabled {
+  opacity: 0.5;
+  cursor: default;
+  background: #f0f0f0;
+  color: #aaa;
+}
+
+.trait-btn.disabled:hover {
+  background: #f0f0f0;
+  color: #aaa;
+  border-color: #ddd;
+}
+
+/* Study cards (existing, slightly refined) */
+.study-card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  margin: 10px;
+  cursor: pointer;
+  transition: all 0.3s;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.study-card:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  transform: translateY(-2px);
+}
+
+.study-card h4 {
+  margin-top: 0;
+  color: #2c3e50;
+}
+
+.study-card p {
+  color: #7f8c8d;
+  margin-bottom: 10px;
+}
+
+.category-header {
+  color: #34495e;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 10px;
+  margin-top: 30px;
+  margin-bottom: 20px;
+}
+
+/* Compact checkbox styling for study selector */
+.checkbox {
+  margin-top: 0px;
+  margin-bottom: 0px;
+  padding: 0;
+}
+
+/* Legend */
+.landing-legend {
+  text-align: center;
+  padding: 0 40px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  font-size: 0.8em;
+  color: #95a5a6;
+}
