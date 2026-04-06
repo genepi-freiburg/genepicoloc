@@ -91,97 +91,74 @@ has_llm <- tryCatch({
                  )
                ),
 
-               # Mini Manhattan - full width, click to select region
+               # Top row: Search (left) + mini Manhattan (right)
                fluidRow(
-                 column(12, uiOutput("mini_manhattan_ui"))
+                 column(
+                   width = 2,
+                   div(style = "padding: 8px;",
+                     selectizeInput("selected_region",
+                       "Search by gene:",
+                       choices = NULL,
+                       selected = NULL,
+                       options = list(
+                         placeholder = "Type gene name...",
+                         closeAfterSelect = TRUE
+                       ),
+                       width = "100%")
+                   )
+                 ),
+                 column(10, uiOutput("mini_manhattan_ui"))
                ),
 
                fluidRow(
                  # Left sidebar panel
                  column(
-                   width = 3,
+                   width = 2,
                    wellPanel(
+                     style = "padding: 10px;",
                      # Current study indicator
                      uiOutput("current_study_info"),
 
                      # Back to study selection
-                     actionButton("back_to_home", "Select Different Study", 
-                                  class = "btn-info", width = "100%", icon = icon("arrow-left")),
-                     
-                     hr(),
-                     
-                     # Region selector - searchable
-                     selectizeInput("selected_region",
-                                 "Search region (gene, chr:pos, rsID):",
-                                 choices = NULL,
-                                 selected = NULL,
-                                 options = list(
-                                   placeholder = "Type to search...",
-                                   maxOptions = 500
-                                 )),
+                     actionButton("back_to_home", "Different study",
+                                  class = "btn-xs btn-info btn-block",
+                                  icon = icon("arrow-left"),
+                                  style = "margin-bottom: 8px;"),
 
-                     # Alternative region selector by index variant
-                     selectizeInput("selected_region_coord",
-                                 "Or select by index variant:",
-                                 choices = NULL,
-                                 selected = NULL,
-                                 options = list(
-                                   placeholder = "Type to search...",
-                                   maxOptions = 500
-                                 )),
+                     hr(style = "margin: 8px 0;"),
 
-                     # Info note
-                     HTML('<p style="font-size: 11px; color: #7f8c8d; margin: 5px 0 10px 0; font-style: italic;">
-                           Tip: Search by gene name, chromosome (e.g. "chr16"), or coordinates.
-                          </p>'),
+                     # Colocalized traits - category cards (moved from main panel)
+                     h6("Colocalized traits", style = "margin: 0 0 4px 0; color: #555;"),
+                     div(style = "font-size: 10px; color: #999; margin-bottom: 4px;",
+                       "Click to explore."),
+                     uiOutput("conv_category_cards"),
 
-                     hr(),
+                     hr(style = "margin: 8px 0;"),
 
                      # Filter options
-                     sliderInput("min_pph4",
-                                 "Minimum PP.H4:",
-                                 min = 0.8, max = 1, value = 0.8, step = 0.01),
-
-                     sliderInput("min_nlog10P",
-                                 "Minimum -log10(p-value):",
-                                 min = 7.308, max = 100, value = 7.308, step = 0.5),
-
-                     sliderInput("max_traits",
-                                 "Max traits in network:",
-                                 min = 10, max = 500, value = 50, step = 10),
-
-                     hr(),
-
-                     # Edge color legend
-                     h5("Edge Colors (Directionality)"),
-                     HTML('
-                       <div style="margin: 2px 0;">
-                         <span style="display: inline-block; width: 30px; height: 4px;
-                           background-color: #e67e22; margin-right: 5px; vertical-align: middle;"></span>
-                         <span style="font-size: 11px;">Concordant</span>
-                       </div>
-                       <div style="margin: 2px 0;">
-                         <span style="display: inline-block; width: 30px; height: 4px;
-                           background-color: #3498db; margin-right: 5px; vertical-align: middle;"></span>
-                         <span style="font-size: 11px;">Discordant</span>
-                       </div>
-                       <div style="margin: 2px 0;">
-                         <span style="display: inline-block; width: 30px; height: 4px;
-                           background-color: #848484; margin-right: 5px; vertical-align: middle;"></span>
-                         <span style="font-size: 11px;">Unknown/N/A</span>
-                       </div>
-                     '),
-
-                     hr(),
+                     # Filters (collapsible, collapsed by default to save space)
+                     tags$details(
+                       style = "margin-bottom: 6px;",
+                       tags$summary(style = "cursor: pointer; font-size: 11px; color: #555;",
+                                    "Filters"),
+                       div(style = "margin-top: 6px;",
+                         sliderInput("min_pph4", "Min PP.H4:",
+                                     min = 0.8, max = 1, value = 0.8, step = 0.01),
+                         sliderInput("min_nlog10P", "Min -log10(P):",
+                                     min = 7.308, max = 100, value = 7.308, step = 0.5),
+                         sliderInput("max_traits", "Max traits (network):",
+                                     min = 10, max = 500, value = 50, step = 10)
+                       )
+                     ),
 
                      # Include Studies (collapsed by default, dynamic)
                      tags$details(
-                       style = "margin-bottom: 10px;",
+                       style = "margin-bottom: 6px;",
                        tags$summary(
-                         style = "cursor: pointer; font-weight: bold; font-size: 12px;",
+                         style = "cursor: pointer; font-size: 11px; color: #555;",
                          "Include studies"
                        ),
-                       div(style = "margin-top: 8px;",
+                       div(style = "margin-top: 6px;",
                          fluidRow(
                            column(6, actionButton("select_all", "All",
                                                   class = "btn-xs btn-block",
@@ -194,13 +171,22 @@ has_llm <- tryCatch({
                        )
                      ),
 
-                     # Display options
-                     checkboxInput("physics", "Enable physics simulation", value = FALSE),
+                     # Display / download
+                     tags$details(
+                       style = "margin-bottom: 6px;",
+                       tags$summary(style = "cursor: pointer; font-size: 11px; color: #555;",
+                                    "More"),
+                       div(style = "margin-top: 6px;",
+                         checkboxInput("physics", "Enable physics simulation", value = FALSE),
+                         downloadButton("download_data", "Download filtered",
+                                        class = "btn-xs btn-block")
+                       )
+                     ),
 
-                     hr(),
-
-                     # Download button
-                     downloadButton("download_data", "Download filtered data"),
+                     # Hidden dummy input to preserve reactivity for legacy coord selector
+                     tags$div(style = "display: none;",
+                       selectizeInput("selected_region_coord", NULL,
+                                      choices = NULL, selected = NULL)),
 
                      # Customize for Export panel (conditional based on config)
                      if (SHOW_EXPORT_CUSTOMIZATION) {
@@ -267,20 +253,15 @@ has_llm <- tryCatch({
                          condition = "output.conv_trait_has_data",
                          plotlyOutput("conv_trait_plot", height = "200px")
                        ),
-                       # Panel 2: gene track
+                       # Panel 2: gene track + gene info panel (click a gene)
                        h6("Genes in region", style = "margin: 8px 0 2px 0; color: #555;"),
+                       div(style = "font-size: 10px; color: #999; margin-bottom: 2px;",
+                         "Click a gene for details."),
                        plotlyOutput("conv_gene_track", height = "100px"),
-                       # Panel 3 + 4: categories (left) and drill-down network (right)
-                       h6("Colocalized traits", style = "margin: 12px 0 2px 0; color: #555;"),
-                       div(style = "font-size: 10px; color: #999; margin-bottom: 6px;",
-                         "Click a category, then click a trait to see its regional plot above."),
-                       fluidRow(
-                         column(5, uiOutput("conv_category_cards")),
-                         column(7,
-                                uiOutput("conv_drilldown_header"),
-                                visNetworkOutput("conv_drilldown_network", height = "480px")
-                         )
-                       )
+                       uiOutput("gene_info_panel"),
+                       # Panel 3: trait tiles for selected category
+                       uiOutput("conv_drilldown_header"),
+                       uiOutput("conv_trait_tiles")
                      ),
 
                      # Tab 1: Network visualization
@@ -301,50 +282,15 @@ has_llm <- tryCatch({
                        verbatimTextOutput("node_info")
                      ),  # End Network tab
 
-                     # Tab 2: Regional Association Plot
-                     tabPanel(
-                       "Regional Plot",
-                       fluidRow(
-                         column(4,
-                           selectInput("regional_trait_selector",
-                                      "Select Colocalized Trait:",
-                                      choices = NULL)
-                         ),
-                         column(4,
-                           checkboxInput("regional_highlight_lead",
-                                        "Highlight Lead SNP",
-                                        value = TRUE)
-                         ),
-                         column(4,
-                           div(style = "margin-top: 25px;",
-                             textOutput("regional_coloc_info")
-                           )
-                         )
-                       ),
-                       # Two stacked regional plots (interactive with plotly)
-                       h5(textOutput("regional_plot_title_base"), style = "margin-top: 10px;"),
-                       plotlyOutput("regional_plot_base", height = "300px"),
-                       tags$p(style = "color: #888; font-size: 12px; margin: 5px 0;",
-                              "Displayed loci are defined as 1 Mb windows around clumping index variants and may span multiple association peaks.",
-                              tags$span(
-                                title = "Displayed loci capture the local genetic architecture. Look for association peaks at similar positions in both traits - overlapping signals support true colocalization. See Documentation for additional interpretation guidance.",
-                                style = "cursor: help; margin-left: 4px;",
-                                "ⓘ"
-                              )),
-                       hr(),
-                       h5(textOutput("regional_plot_title_trait")),
-                       plotlyOutput("regional_plot_trait", height = "300px"),
-                       hr(),
-                       h5("Genes in Region", tags$span(style = "color: #666; font-weight: normal;", " - click gene for details")),
-                       plotlyOutput("regional_gene_track", height = "150px"),
-                       uiOutput("gene_info_panel")
-                     )  # End Regional Plot tab
+                     # Regional Plot tab removed - functionality moved into
+                     # the Convergence tab (click a trait tile, click a gene
+                     # on the gene track for details).
                    )  # End tabsetPanel
                  ),  # End main column
 
                  # Right panel (AI chat)
                  column(
-                   width = 2,
+                   width = 3,
                    if (has_llm) {
                      wellPanel(
                        style = "padding: 10px; height: calc(100vh - 260px); display: flex; flex-direction: column;",
@@ -1025,56 +971,112 @@ has_llm <- tryCatch({
     )
 
     # Update region selectors
+    # Map from bare region_key -> gene-prefixed selectize value
+    region_to_value_map <- reactiveVal(character(0))
+
     observe({
       req(regions_data())
       regions <- regions_data()
+      message("[gene_search] regions: ", nrow(regions),
+              " gene_annotation null?: ", is.null(gene_annotation),
+              " nrow: ", if (is.null(gene_annotation)) 0 else nrow(gene_annotation))
 
-      # Update gene-based selector - include gene, chr:pos, and coloc count for search
-      gene_display <- ifelse(!is.na(regions$Prioritized_Gene),
-                            regions$Prioritized_Gene,
-                            regions$nearest_gene_1)
-      gene_choices <- setNames(
-        paste0(regions$CHR_var, ":", regions$BP_START_var, "-", regions$BP_STOP_var),
-        paste0(gene_display, " - chr", regions$CHR_var, ":",
-               format(regions$BP_START_var, big.mark = ","), " (",
-               regions$N, " coloc)")
-      )
+      # Build gene -> region mapping by overlapping gene annotation with
+      # region coordinates. Any gene overlapping a region becomes searchable
+      # and jumps to that region.
+      gene_choices <- character(0)
+      if (!is.null(gene_annotation) && nrow(gene_annotation) > 0) {
+        regions_for_search <- as.data.table(regions)
+        regions_for_search[, chr_clean := sub("^chr", "", as.character(CHR_var))]
+        regions_for_search[, region_key := paste0(
+          CHR_var, ":", BP_START_var, "-", BP_STOP_var
+        )]
+        # Preserve original region coords so non-equi join columns don't
+        # overwrite them (data.table uses BP_START_var/BP_STOP_var as
+        # comparison RHS columns in the join).
+        regions_for_search[, orig_start := BP_START_var]
+        regions_for_search[, orig_stop := BP_STOP_var]
+        ga <- as.data.table(gene_annotation)
+        ga[, chr_clean := sub("^chr", "", as.character(chr))]
+
+        # Non-equi join: find genes overlapping each region
+        matched <- regions_for_search[
+          ga,
+          on = .(chr_clean, BP_START_var <= end, BP_STOP_var >= start),
+          nomatch = 0,
+          .(gene_name = i.gene_name, region_key, CHR_var,
+            BP_START_var = orig_start, BP_STOP_var = orig_stop)
+        ]
+
+        message("[gene_search] matched: ", nrow(matched),
+                " UMOD: ", nrow(matched[gene_name == "UMOD"]))
+
+        if (nrow(matched) > 0) {
+          # If a gene maps to multiple regions, disambiguate with suffix
+          matched[, gene_occurrences := .N, by = gene_name]
+          matched[, occurrence_idx := seq_len(.N), by = gene_name]
+          matched[, label := ifelse(
+            gene_occurrences > 1,
+            paste0(gene_name, " (chr", CHR_var, ":",
+                   format(BP_START_var, big.mark = ","), ")"),
+            gene_name
+          )]
+          setorder(matched, gene_name, occurrence_idx)
+          matched <- matched[!duplicated(label)]
+          # IMPORTANT: selectize deduplicates by VALUE, so we need a unique
+          # value per gene. Encode gene name into the value, then parse back
+          # in an observer to set the real region.
+          matched[, value := paste0(gene_name, "::", region_key)]
+          gene_choices <- setNames(matched$value, matched$label)
+          # Cache a region_key -> gene_prefixed_value map so the Manhattan
+          # click handler can resolve a bare region_key to a valid selectize
+          # choice (pick the first gene in that region).
+          first_value_per_region <- matched[, .(first_value = value[1]),
+                                             by = region_key]
+          region_to_value_map(setNames(first_value_per_region$first_value,
+                                         first_value_per_region$region_key))
+        }
+      }
+
+      # Fallback: if gene annotation is missing, use nearest_gene_1 as before
+      if (length(gene_choices) == 0) {
+        gene_display <- ifelse(!is.na(regions$Prioritized_Gene),
+                              regions$Prioritized_Gene,
+                              regions$nearest_gene_1)
+        gene_clean <- gsub("\\(.*\\)", "", gene_display)
+        gene_clean <- trimws(gsub("INTERGENIC:\\s*", "", gene_clean))
+        gene_clean <- sub("\\s*\\([^)]*\\)$", "", gene_clean)
+        gene_choices <- setNames(
+          paste0(regions$CHR_var, ":", regions$BP_START_var, "-", regions$BP_STOP_var),
+          gene_clean
+        )
+      }
+
+      message("[gene_search] final gene_choices length: ", length(gene_choices))
       updateSelectizeInput(session, "selected_region", choices = gene_choices,
                            server = TRUE)
-
-      # Update index variant selector
-      has_index <- "clump_index_Name" %in% names(regions) && any(!is.na(regions$clump_index_Name))
-      if (has_index) {
-        index_label <- ifelse(is.na(regions$clump_index_Name),
-                              paste0(regions$region_id, " - ", gene_display),
-                              paste0(regions$clump_index_Name, " - ", gene_display))
-        index_choices <- setNames(
-          paste0(regions$CHR_var, ":", regions$BP_START_var, "-", regions$BP_STOP_var),
-          index_label
-        )
-      } else {
-        # No index variants - use region coordinates
-        index_choices <- setNames(
-          paste0(regions$CHR_var, ":", regions$BP_START_var, "-", regions$BP_STOP_var),
-          paste0(regions$region_id, " - ", gene_display)
-        )
-      }
-      updateSelectizeInput(session, "selected_region_coord", choices = index_choices,
-                           server = TRUE)
+      # Legacy coord selector - same choices
+      updateSelectizeInput(session, "selected_region_coord",
+                           choices = gene_choices, server = TRUE)
     })
     
-    # Synchronize selectors
+    # Synchronize selectors (legacy coord selector is hidden but kept in sync)
+    .is_valid_sel <- function(x) {
+      !is.null(x) && length(x) > 0 && !is.na(x[1]) && nzchar(x[1])
+    }
     observeEvent(input$selected_region, {
-      if (!is.null(input$selected_region) && input$selected_region != "") {
-        updateSelectizeInput(session, "selected_region_coord", selected = input$selected_region)
+      if (.is_valid_sel(input$selected_region)) {
+        updateSelectizeInput(session, "selected_region_coord",
+                             selected = input$selected_region)
       }
-    })
+    }, ignoreNULL = FALSE)
 
     observeEvent(input$selected_region_coord, {
-      if (!is.null(input$selected_region_coord) && input$selected_region_coord != "") {
-        updateSelectizeInput(session, "selected_region", selected = input$selected_region_coord)
+      if (.is_valid_sel(input$selected_region_coord)) {
+        updateSelectizeInput(session, "selected_region",
+                             selected = input$selected_region_coord)
       }
-    })
+    }, ignoreNULL = FALSE)
     
     # === Mini Manhattan Plot ===
 
@@ -1114,12 +1116,10 @@ has_llm <- tryCatch({
       # Alternating chr colors
       region_stats[, chr_color := ifelse(CHR_num %% 2 == 0, "#3498db", "#2c3e50")]
 
-      # Highlight selected region
-      sel <- if (!is.null(input$selected_region) && input$selected_region != "") {
-        input$selected_region
-      } else NULL
-
-      region_stats[, is_selected := region_key == sel]
+      # Highlight currently selected region (strips gene:: prefix internally)
+      sel <- current_region()
+      if (is.null(sel)) sel <- NA_character_
+      region_stats[, is_selected := !is.na(sel) & region_key == sel]
 
       # Hover text
       region_stats[, hover := paste0(
@@ -1156,20 +1156,27 @@ has_llm <- tryCatch({
         )
       }
 
-      # Add gene labels for top 20 regions by coloc count
+      # Label top 20 regions by coloc count, PLUS the currently selected
+      # region (even if not in top 20). Selected gets bold red label.
       top_labeled <- region_stats[order(-n_coloc, -max_nlog10P)][1:min(20, nrow(region_stats))]
+      selected_row <- region_stats[is_selected == TRUE]
+      if (nrow(selected_row) > 0 && !selected_row$region_key[1] %in% top_labeled$region_key) {
+        top_labeled <- rbind(top_labeled, selected_row)
+      }
       # Clean gene name: remove "(within)" etc
       top_labeled[, gene_short := gsub("\\(.*\\)", "", gene)]
       top_labeled[, gene_short := trimws(gsub("INTERGENIC: ", "", gene_short))]
 
       gene_annotations <- lapply(seq_len(nrow(top_labeled)), function(i) {
+        is_sel <- isTRUE(top_labeled$is_selected[i])
         list(
           x = top_labeled$x_pos[i],
           y = top_labeled$max_nlog10P[i],
-          text = top_labeled$gene_short[i],
+          text = if (is_sel) paste0("<b>", top_labeled$gene_short[i], "</b>") else top_labeled$gene_short[i],
           showarrow = FALSE,
-          font = list(size = 13, color = "#333"),
-          yshift = 12
+          font = list(size = if (is_sel) 15 else 13,
+                      color = if (is_sel) "#e74c3c" else "#333"),
+          yshift = 14
         )
       })
 
@@ -1192,22 +1199,38 @@ has_llm <- tryCatch({
     })
 
     # Handle Manhattan click -> select region
+    # The selectize values use "gene::region" format; look up the first gene
+    # in the clicked region from region_to_value_map.
     observeEvent(event_data("plotly_click", source = "A"), {
       click <- event_data("plotly_click", source = "A")
       if (!is.null(click) && !is.null(click$customdata)) {
         region_key <- click$customdata
-        updateSelectizeInput(session, "selected_region", selected = region_key)
+        # Resolve to gene-prefixed value that selectize knows about
+        map <- region_to_value_map()
+        selected_val <- if (length(map) > 0 && region_key %in% names(map)) {
+          map[[region_key]]
+        } else {
+          region_key  # fallback - strip_gene_prefix handles bare keys
+        }
+        updateSelectizeInput(session, "selected_region", selected = selected_val)
       }
     })
 
     # === Reactive Data Processing ===
 
-    # Get current selected region
+    # Get current selected region (guard against NULL, NA, empty string)
+    # Values from the gene-search selectize are prefixed with "gene::region"
+    # so multiple genes in the same region can be distinguished. Strip the
+    # gene prefix here to get the plain region key.
+    strip_gene_prefix <- function(x) {
+      if (is.null(x) || length(x) == 0 || is.na(x)) return(x)
+      sub("^[^:]*::", "", x)
+    }
     current_region <- reactive({
-      if (!is.null(input$selected_region) && input$selected_region != "") {
-        input$selected_region
-      } else if (!is.null(input$selected_region_coord) && input$selected_region_coord != "") {
-        input$selected_region_coord
+      if (.is_valid_sel(input$selected_region)) {
+        strip_gene_prefix(input$selected_region)
+      } else if (.is_valid_sel(input$selected_region_coord)) {
+        strip_gene_prefix(input$selected_region_coord)
       } else {
         NULL
       }
@@ -1258,25 +1281,26 @@ has_llm <- tryCatch({
       req(coloc_data())
       dt <- coloc_data()
 
-      # Get unique regions with their info
-      if ("clump_index_Name" %in% names(dt)) {
-        regions <- unique(dt[, .(
-          CHR_var, BP_START_var, BP_STOP_var,
-          region_center_pos, nearest_gene_1, Prioritized_Gene,
-          clump_index_Name,
-          region_id = paste0("chr", CHR_var, ":", BP_START_var, "-", BP_STOP_var)
-        )])
-      } else {
-        regions <- unique(dt[, .(
-          CHR_var, BP_START_var, BP_STOP_var,
-          region_center_pos, nearest_gene_1, Prioritized_Gene,
-          region_id = paste0("chr", CHR_var, ":", BP_START_var, "-", BP_STOP_var)
-        )])
+      # Select whichever metadata columns exist (atlas data may lack
+      # Prioritized_Gene, clump_index_Name, etc.)
+      meta_cols <- c("CHR_var", "BP_START_var", "BP_STOP_var")
+      optional_cols <- c("region_center_pos", "nearest_gene_1",
+                         "Prioritized_Gene", "clump_index_Name")
+      sel_cols <- c(meta_cols, intersect(optional_cols, names(dt)))
+
+      regions <- unique(dt[, ..sel_cols])
+
+      # Ensure columns the rest of the app expects are present (NA if missing)
+      for (col in optional_cols) {
+        if (!col %in% names(regions)) regions[, (col) := NA_character_]
       }
+      regions[, region_id := paste0("chr", CHR_var, ":", BP_START_var, "-",
+                                     BP_STOP_var)]
 
       # Count colocalizations per region
       region_counts <- dt[, .N, by = .(CHR_var, BP_START_var, BP_STOP_var)]
-      regions <- merge(regions, region_counts, by = c("CHR_var", "BP_START_var", "BP_STOP_var"))
+      regions <- merge(regions, region_counts,
+                       by = c("CHR_var", "BP_START_var", "BP_STOP_var"))
 
       # Sort numerically by chromosome then position
       regions[, CHR_num := as.integer(gsub("X", "23", gsub("Y", "24", CHR_var)))]
@@ -2075,11 +2099,16 @@ has_llm <- tryCatch({
     # Panel 1: base trait regional plot (reuses existing plotting logic)
     output$conv_base_plot <- renderPlotly({
       req(regional_base_sumstats())
+      # Use full region bounds as x-range so the base plot and the selected
+      # trait plot (and gene track) share the same x-axis for comparison
+      coords <- conv_region_coords()
+      xr <- if (!is.null(coords)) c(coords$start, coords$end) else NULL
       plot_regional_association_interactive(
         regional_base_sumstats(),
         title = paste0(current_study(), " - ", current_region()),
         highlight_snp = NULL,
-        color = "#2c3e50"
+        color = "#2c3e50",
+        x_range = xr
       )
     })
 
@@ -2090,6 +2119,26 @@ has_llm <- tryCatch({
       plot_gene_track(coords$chr, coords$start, coords$end,
                       source = "conv_gene_track")
     })
+
+    # Handle click on convergence gene track - populates selected_gene
+    # (the same reactiveVal used by gene_info_panel)
+    observeEvent(event_data("plotly_click", source = "conv_gene_track"), {
+      click_data <- event_data("plotly_click", source = "conv_gene_track")
+      if (!is.null(click_data) && !is.null(click_data$customdata)) {
+        clicked_gene <- click_data$customdata
+        if (!is.null(gene_annotation)) {
+          gene_info <- gene_annotation[gene_name == clicked_gene]
+          if (nrow(gene_info) > 0) {
+            selected_gene(gene_info[1])
+          }
+        }
+      }
+    })
+
+    # Clear gene info panel when navigating to a new region
+    observeEvent(current_region(), {
+      selected_gene(NULL)
+    }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
     # === Panel 3: category overview cards ===
 
@@ -2188,19 +2237,10 @@ has_llm <- tryCatch({
       n_total <- tryCatch(counts[[sel]], error = function(e) 0L)
       if (is.null(n_total) || length(n_total) == 0 || is.na(n_total)) n_total <- 0L
       n_shown <- min(n_total, 50L)
-      div(style = "display: flex; align-items: center; justify-content: space-between; margin: 12px 0 4px 0;",
-        h6(style = "margin: 0;",
-           meta$icon, " ", meta$label,
-           tags$span(style = "font-size: 11px; color: #888; margin-left: 8px;",
-                     sprintf("(showing %d of %d)", n_shown, n_total))),
-        actionButton("conv_clear_cat", "Back",
-                     icon = icon("times"),
-                     class = "btn-xs btn-default")
-      )
-    })
-
-    observeEvent(input$conv_clear_cat, {
-      conv_selected_cat(NULL)
+      h6(style = "margin: 12px 0 4px 0;",
+         meta$icon, " ", meta$label,
+         tags$span(style = "font-size: 11px; color: #888; margin-left: 8px;",
+                   sprintf("(showing %d of %d)", n_shown, n_total)))
     })
 
     # Data for drill-down: filter by selected category, limit to 50 by signal strength
@@ -2211,88 +2251,108 @@ has_llm <- tryCatch({
       studies_in_cat <- TRAIT_CATEGORIES[[sel]]$studies
       dt <- dt[source_study %in% studies_in_cat]
       if (nrow(dt) == 0) return(NULL)
-      # Sort by sumstats_2 signal strength, take top 50
+      # Sort by sumstats_2 signal strength (full list; tiles cap to 50)
       if ("sumstats_2_max_nlog10P" %in% names(dt)) {
         setorder(dt, -sumstats_2_max_nlog10P)
       }
-      if (nrow(dt) > 50) dt <- dt[1:50]
       dt
     })
 
-    # Drill-down network: trait nodes colored by study, sized by signal strength
-    output$conv_drilldown_network <- renderVisNetwork({
+    # Top 50 subset for tile rendering performance
+    conv_drilldown_data_top <- reactive({
       dt <- conv_drilldown_data()
+      if (is.null(dt) || nrow(dt) <= 50) return(dt)
+      dt[1:50]
+    })
+
+    # Drill-down tiles: top 50 traits by -log10P (full list via dropdown)
+    output$conv_trait_tiles <- renderUI({
+      dt <- conv_drilldown_data_top()
       if (is.null(dt) || nrow(dt) == 0) {
-        return(visNetwork(
-          data.frame(id = 1, label = "(no traits - select a category)"),
-          data.frame()
-        ) %>% visNodes(shape = "text", font = list(size = 14)))
+        return(div(style = "font-size: 11px; color: #999; font-style: italic; margin: 12px 0;",
+                   "Select a category from the left panel to see traits."))
       }
 
       sel_cat <- conv_selected_cat()
       cat_meta <- TRAIT_CATEGORIES[[sel_cat]]
 
-      # Build nodes: one per trait, colored by study, sized by -log10P
-      # Node ID is a simple "t_N" index; bundle_key is stored separately so we
-      # can map the click back.
-      nodes_list <- dt[, {
+      # Build metadata for each tile and the id->bundle_key map
+      tiles_list <- dt[, {
         study <- source_study[1]
         trait_name <- tryCatch(get_trait_display_name(.SD),
                                error = function(e) basename(sumstats_2_file[1]))
         if (is.null(trait_name) || is.na(trait_name) || trait_name == "") {
           trait_name <- basename(sumstats_2_file[1])
         }
-        node_color <- if (exists("study_colors") && study %in% names(study_colors)) {
+        study_color <- if (exists("study_colors") && study %in% names(study_colors)) {
           study_colors[[study]]
         } else cat_meta$color
-
-        nlp <- if ("sumstats_2_max_nlog10P" %in% names(.SD)) sumstats_2_max_nlog10P[1] else 8
-        size <- 12 + pmin(20, (nlp - 7.3) * 2)
-
+        nlp <- if ("sumstats_2_max_nlog10P" %in% names(.SD)) sumstats_2_max_nlog10P[1] else NA
         list(
-          id = paste0("conv_t_", .I),
+          tile_id = paste0("conv_t_", .I),
           bundle_key = paste0(study, "__", basename(sumstats_2_file[1])),
-          label = substr(trait_name, 1, 30),
-          title = paste0(
-            "<b>", trait_name, "</b><br>",
-            "Study: ", study, "<br>",
-            "Trait -log10(P): ", round(nlp, 1), "<br>",
-            "PP.H4: ", round(PP.H4.abf[1], 3), "<br>",
-            "<em>Click to show regional plot</em>"
-          ),
-          color = node_color,
-          size = size,
-          group = study
+          trait_name = trait_name,
+          study = study,
+          study_color = study_color,
+          nlp = nlp
         )
       }, by = .I]
 
-      nodes <- data.frame(
-        id = nodes_list$id,
-        label = nodes_list$label,
-        title = nodes_list$title,
-        color = nodes_list$color,
-        size = nodes_list$size,
-        group = nodes_list$group,
-        shape = "dot",
-        stringsAsFactors = FALSE
+      # Update node/tile -> bundle_key map
+      conv_node_keys(setNames(tiles_list$bundle_key, tiles_list$tile_id))
+
+      # Build tile elements
+      tiles <- lapply(seq_len(nrow(tiles_list)), function(i) {
+        tl <- tiles_list[i]
+        is_selected <- !is.null(conv_selected_trait()) &&
+                        conv_selected_trait() == tl$bundle_key
+        border_color <- if (is_selected) "#3498db" else "#e0e0e0"
+        border_width <- if (is_selected) "2px" else "1px"
+        bg <- if (is_selected) "#f0f8ff" else "white"
+        p_text <- if (is.na(tl$nlp)) "-" else sprintf("%.1f", tl$nlp)
+
+        div(
+          class = "conv-tile",
+          onclick = paste0("Shiny.setInputValue('conv_trait_click','",
+                            tl$tile_id, "', {priority:'event'});"),
+          style = paste0(
+            "cursor: pointer; padding: 6px 8px; margin: 3px; ",
+            "border: ", border_width, " solid ", border_color, "; ",
+            "border-radius: 6px; background: ", bg, "; ",
+            "transition: all 0.15s; ",
+            "display: flex; flex-direction: column; gap: 2px; ",
+            "min-height: 52px;"
+          ),
+          title = paste0(tl$trait_name, " (", tl$study,
+                         ", -log10P=", p_text, ")"),
+          # Trait name (truncated with ellipsis via CSS)
+          div(style = "font-size: 11px; font-weight: 600; color: #2c3e50; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+              tl$trait_name),
+          # Study badge + p-value on one line
+          div(style = "display: flex; justify-content: space-between; align-items: center; gap: 4px;",
+              tags$span(
+                style = paste0(
+                  "display: inline-block; padding: 1px 5px; ",
+                  "border-radius: 8px; font-size: 9px; font-weight: 600; ",
+                  "color: white; background: ", tl$study_color, "; ",
+                  "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ",
+                  "max-width: 70%;"
+                ),
+                tl$study
+              ),
+              tags$span(
+                style = "font-size: 10px; color: #555; font-weight: 600;",
+                paste0("-log10P=", p_text)
+              )
+          )
+        )
+      })
+
+      # Wrap tiles in a responsive grid (5 columns on wide screens)
+      div(
+        style = "display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 4px; margin-top: 8px;",
+        tiles
       )
-
-      # Store the id -> bundle_key mapping for click handler to resolve
-      conv_node_keys(setNames(nodes_list$bundle_key, nodes_list$id))
-
-      visNetwork(nodes, data.frame(from = character(), to = character())) %>%
-        visNodes(font = list(color = "#000000", size = 12, face = "arial")) %>%
-        visPhysics(enabled = TRUE,
-                   solver = "forceAtlas2Based",
-                   forceAtlas2Based = list(gravitationalConstant = -50,
-                                           springLength = 80)) %>%
-        visInteraction(dragNodes = TRUE, zoomView = TRUE,
-                       tooltipDelay = 100) %>%
-        visEvents(select = "function(nodes) {
-          if (nodes.nodes.length > 0) {
-            Shiny.setInputValue('conv_trait_click', nodes.nodes[0], {priority: 'event'});
-          }
-        }")
     })
 
     # Track which trait is selected for regional plot display
@@ -2309,12 +2369,33 @@ has_llm <- tryCatch({
       }
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
-    # Reset selected trait when region or category changes
+    # When region changes: pick the first non-empty category and its top trait
     observeEvent(current_region(), {
-      conv_selected_trait(NULL)
+      counts <- conv_cat_counts()
+      # Find first category with > 0 entries
+      non_empty <- names(counts)[counts > 0]
+      if (length(non_empty) == 0) {
+        conv_selected_cat(NULL)
+        conv_selected_trait(NULL)
+        return()
+      }
+      conv_selected_cat(non_empty[1])
+      # The drill-down data reactive will emit; we set the trait in a
+      # dedicated observer below (driven by conv_drilldown_data)
     }, ignoreNULL = TRUE, ignoreInit = TRUE)
-    observeEvent(conv_selected_cat(), {
-      conv_selected_trait(NULL)
+
+    # When drill-down data updates (region or category changed), auto-select
+    # the top trait by signal strength
+    observeEvent(conv_drilldown_data(), {
+      dt <- conv_drilldown_data()
+      if (is.null(dt) || nrow(dt) == 0) {
+        conv_selected_trait(NULL)
+        return()
+      }
+      # Top row (already sorted by -sumstats_2_max_nlog10P in conv_drilldown_data)
+      study <- dt$source_study[1]
+      bundle_key <- paste0(study, "__", basename(dt$sumstats_2_file[1]))
+      conv_selected_trait(bundle_key)
     }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
     # Load selected trait sumstats
@@ -2376,18 +2457,53 @@ has_llm <- tryCatch({
 
     output$conv_trait_plot_header <- renderUI({
       req(conv_selected_trait())
-      label <- conv_selected_trait_label()
-      div(style = "display: flex; align-items: center; justify-content: space-between; margin: 12px 0 2px 0;",
-        h6(style = "margin: 0; color: #555;",
-           icon("chart-line"), " Selected trait: ", label),
-        actionButton("conv_clear_trait", "Clear",
-                     icon = icon("times"), class = "btn-xs btn-default")
+      dt <- conv_drilldown_data()
+      if (is.null(dt) || nrow(dt) == 0) {
+        return(h6(style = "margin: 12px 0 2px 0; color: #555;",
+                  icon("chart-line"), " Selected trait"))
+      }
+
+      # Build "label -> bundle_key" choices for all traits in the current
+      # category (same order as the tiles: by -log10P desc)
+      choices_list <- lapply(seq_len(nrow(dt)), function(i) {
+        row <- dt[i]
+        study <- row$source_study
+        trait_name <- tryCatch(get_trait_display_name(row),
+                               error = function(e) basename(row$sumstats_2_file))
+        if (is.null(trait_name) || is.na(trait_name) || trait_name == "") {
+          trait_name <- basename(row$sumstats_2_file)
+        }
+        nlp <- if ("sumstats_2_max_nlog10P" %in% names(row)) row$sumstats_2_max_nlog10P else NA
+        label <- paste0(trait_name, " (", study, ", -log10P=",
+                        if (is.na(nlp)) "-" else sprintf("%.1f", nlp), ")")
+        key <- paste0(study, "__", basename(row$sumstats_2_file))
+        list(label = label, key = key)
+      })
+      labels <- vapply(choices_list, `[[`, character(1), "label")
+      keys   <- vapply(choices_list, `[[`, character(1), "key")
+      choices <- setNames(keys, labels)
+
+      div(style = "display: flex; align-items: center; gap: 8px; margin: 12px 0 2px 0;",
+        h6(style = "margin: 0; color: #555; white-space: nowrap;",
+           icon("chart-line"), " Selected trait:"),
+        div(style = "flex: 1;",
+          selectizeInput("conv_trait_dropdown", label = NULL,
+                         choices = choices,
+                         selected = conv_selected_trait(),
+                         width = "100%",
+                         options = list(closeAfterSelect = TRUE))
+        )
       )
     })
 
-    observeEvent(input$conv_clear_trait, {
-      conv_selected_trait(NULL)
-    })
+    # Dropdown change -> update selected trait (and tile highlight follows)
+    observeEvent(input$conv_trait_dropdown, {
+      val <- input$conv_trait_dropdown
+      if (is.null(val) || length(val) == 0 || is.na(val) || val == "") return()
+      if (!identical(conv_selected_trait(), val)) {
+        conv_selected_trait(val)
+      }
+    }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
     # Render network
     output$network <- renderVisNetwork({
@@ -2962,11 +3078,17 @@ has_llm <- tryCatch({
       # Build info sections
       info_items <- list()
 
-      # Gene name and full name
-      info_items[[length(info_items) + 1]] <- tags$h4(
-        gene$gene_name,
-        if (!is.null(gene$full_name) && gene$full_name != "")
-          tags$span(style = "color: #666; margin-left: 10px; font-weight: normal;", gene$full_name)
+      # Gene name and full name + close button (right-aligned)
+      info_items[[length(info_items) + 1]] <- div(
+        style = "display: flex; align-items: center; justify-content: space-between;",
+        tags$h4(style = "margin: 0;",
+          gene$gene_name,
+          if (!is.null(gene$full_name) && gene$full_name != "")
+            tags$span(style = "color: #666; margin-left: 10px; font-weight: normal;", gene$full_name)
+        ),
+        actionButton("gene_info_close", "Close",
+                     icon = icon("times"),
+                     class = "btn-xs btn-default")
       )
 
       # Coordinates (from Gencode)
@@ -3029,6 +3151,11 @@ has_llm <- tryCatch({
         style = "background-color: #f8f9fa; border: 1px solid #dee2e6; margin-top: 10px;",
         do.call(tagList, info_items)
       )
+    })
+
+    # Close gene info panel
+    observeEvent(input$gene_info_close, {
+      selected_gene(NULL)
     })
 
     # === Trait View Outputs ===

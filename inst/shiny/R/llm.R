@@ -73,19 +73,67 @@ build_coloc_context <- function(region_data, gene_annotation = NULL) {
     ))
   }
 
-  # Add gene annotation if available
+  # Add info on ALL genes in the region (not just the nearest)
   if (!is.null(gene_annotation)) {
-    gene_name_clean <- gsub("\\(.*\\)", "", nearest_gene)
-    gene_name_clean <- trimws(gsub("INTERGENIC:.*", "", gene_name_clean))
-    gene_row <- gene_annotation[gene_annotation$gene_name == gene_name_clean, ]
-    if (nrow(gene_row) > 0) {
-      gene_row <- gene_row[1, ]
-      if ("description" %in% names(gene_row) && !is.na(gene_row$description))
-        sections <- c(sections, paste0("Gene description: ", gene_row$description))
-      if ("reactome_pathways" %in% names(gene_row) && !is.na(gene_row$reactome_pathways))
-        sections <- c(sections, paste0("Pathways: ", gene_row$reactome_pathways))
-      if ("hpo_terms" %in% names(gene_row) && !is.na(gene_row$hpo_terms))
-        sections <- c(sections, paste0("HPO phenotypes: ", gene_row$hpo_terms))
+    # Find all genes overlapping this region window
+    chr_clean <- sub("^chr", "", as.character(region_data$CHR_var[1]))
+    reg_start <- as.numeric(region_data$BP_START_var[1])
+    reg_stop  <- as.numeric(region_data$BP_STOP_var[1])
+    ga_chr <- sub("^chr", "", as.character(gene_annotation$chr))
+    in_region <- ga_chr == chr_clean &
+                 gene_annotation$end >= reg_start &
+                 gene_annotation$start <= reg_stop
+    genes_in <- gene_annotation[in_region, ]
+
+    if (nrow(genes_in) > 0) {
+      # Compact list of all gene symbols
+      sections <- c(sections, paste0(
+        "Genes in region (", nrow(genes_in), "): ",
+        paste(genes_in$gene_name, collapse = ", ")
+      ))
+
+      # Detailed annotation for up to ~12 genes (protein-coding, by size)
+      # to stay within token budget. Prioritize nearest_gene first.
+      nearest_clean <- gsub("\\(.*\\)", "", nearest_gene)
+      nearest_clean <- trimws(gsub("INTERGENIC:.*", "", nearest_clean))
+      genes_in <- as.data.frame(genes_in)
+      genes_in$is_nearest <- genes_in$gene_name == nearest_clean
+      # Sort: nearest first, then by description non-NA, then alphabetical
+      has_desc <- "description" %in% names(genes_in)
+      if (has_desc) {
+        ord <- order(-genes_in$is_nearest,
+                     -as.integer(!is.na(genes_in$description) & nchar(genes_in$description) > 0),
+                     genes_in$gene_name)
+      } else {
+        ord <- order(-genes_in$is_nearest, genes_in$gene_name)
+      }
+      genes_in <- genes_in[ord, ]
+      max_detail <- min(12, nrow(genes_in))
+
+      detail_lines <- character(0)
+      for (i in seq_len(max_detail)) {
+        g <- genes_in[i, ]
+        parts <- g$gene_name
+        if ("description" %in% names(g) && !is.na(g$description) && nchar(g$description) > 0) {
+          parts <- paste0(parts, ": ", g$description)
+        } else if ("full_name" %in% names(g) && !is.na(g$full_name)) {
+          parts <- paste0(parts, ": ", g$full_name)
+        }
+        if ("pathways" %in% names(g) && !is.na(g$pathways) && nchar(g$pathways) > 0) {
+          paths <- substr(g$pathways, 1, 200)
+          parts <- paste0(parts, " [pathways: ", paths, "]")
+        }
+        if ("phenotypes" %in% names(g) && !is.na(g$phenotypes) && nchar(g$phenotypes) > 0) {
+          phs <- substr(g$phenotypes, 1, 200)
+          parts <- paste0(parts, " [HPO: ", phs, "]")
+        }
+        detail_lines <- c(detail_lines, paste0("- ", parts))
+      }
+      if (length(detail_lines) > 0) {
+        sections <- c(sections,
+                      paste0("Gene details (top ", max_detail, " in region):\n",
+                             paste(detail_lines, collapse = "\n")))
+      }
     }
   }
 
