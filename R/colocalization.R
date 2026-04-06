@@ -47,11 +47,16 @@
 #' @param p_min_save Numeric. Minimum p-value threshold for saving summary 
 #'   statistics sumstats_2 (default: 5e-8). Only regions with at least one variant 
 #'   with p-value below this threshold will be saved when save_sumstats is TRUE
-#' @param batch_size Integer or NULL. Number of secondary datasets to process per 
-#'   subjob (default: NULL, which sets it to mc_cores * 10). Controls Level 2 
+#' @param batch_size Integer or NULL. Number of secondary datasets to process per
+#'   subjob (default: NULL, which sets it to mc_cores * 10). Controls Level 2
 #'   parallelization batching.
+#' @param exclude_mhc Logical. Exclude the extended MHC region (chr6:28510120-
+#'   33480577 hg38) from colocalization (default: TRUE). The MHC has extreme LD
+#'   complexity that breaks coloc's single-causal-variant assumption, leading to
+#'   unreliable PP.H4 estimates. Set to FALSE only if you specifically need
+#'   to analyze MHC loci.
 #'
-#' @return NULL (invisibly). This function is called for its side effects of 
+#' @return NULL (invisibly). This function is called for its side effects of
 #'   writing analysis results to disk in the specified output directory.
 #'
 #' @details
@@ -108,7 +113,23 @@ genepicoloc_wrapper <- function(dir_out,
                                 force_save_sumstats = FALSE,
                                 p_filt=1,
                                 p_min_save = 5e-8,
-                                batch_size = NULL) {
+                                batch_size = NULL,
+                                exclude_mhc = TRUE) {
+
+  # Exclude MHC region (chr6:28.51-33.48 Mb hg38) - extreme LD breaks coloc assumptions
+  if (isTRUE(exclude_mhc)) {
+    crp <- sumstats_1_args$coloc_regions_PASS
+    if (!is.null(crp) && nrow(crp) > 0) {
+      mhc_mask <- as.character(crp$CHR_var) == "6" &
+                  as.integer(crp$BP_START_var) < 33480577L &
+                  as.integer(crp$BP_STOP_var) > 28510120L
+      n_mhc <- sum(mhc_mask, na.rm = TRUE)
+      if (n_mhc > 0) {
+        if (verbose) message("Excluding ", n_mhc, " MHC region(s) from coloc (hg38 chr6:28510120-33480577)")
+        sumstats_1_args$coloc_regions_PASS <- crp[!mhc_mask, ]
+      }
+    }
+  }
   
   # Warning for save_sumstats = TRUE
   if (save_sumstats) {
