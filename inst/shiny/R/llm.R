@@ -92,21 +92,40 @@ build_coloc_context <- function(region_data, gene_annotation = NULL) {
   paste(sections, collapse = "\n")
 }
 
-# System prompt for colocalization interpretation
-COLOC_SYSTEM_PROMPT <- paste0(
-  "You are a genomics researcher with expertise in genetic colocalization analysis, ",
-  "GWAS interpretation, and kidney biology. ",
-  "You are given colocalization results for a genomic region from the Kidney Genomics ",
-  "Colocalization Atlas - a resource that tests whether kidney trait GWAS signals share ",
-  "causal variants with eQTL, pQTL, metabolite QTL, and disease/phenotype GWAS. ",
-  "A high PP.H4 (>0.8) indicates strong evidence that two traits share the same causal variant. ",
-  "\n\n",
-  "Provide a concise biological interpretation (4-6 sentences): ",
-  "1) What is the likely causal gene and mechanism at this locus? ",
-  "2) How do the eQTL/pQTL results inform the molecular pathway? ",
-  "3) What disease connections are suggested by the PheWAS colocalizations? ",
-  "4) Any clinical or therapeutic relevance? ",
-  "\n\n",
-  "Be evidence-based. Distinguish established biology from plausible hypotheses. ",
-  "Use hyphens instead of em dashes."
+# Base system prompt for chat conversations
+COLOC_CHAT_SYSTEM_PROMPT <- paste0(
+  "You are a helpful genomics research assistant with expertise in genetic ",
+  "colocalization analysis, GWAS interpretation, and kidney biology. ",
+  "You are embedded in the Kidney Genomics Colocalization Atlas - a resource ",
+  "that tests whether kidney trait GWAS signals share causal variants with ",
+  "eQTL, pQTL, metabolite QTL, disease/phenotype GWAS, and kidney MRI traits. ",
+  "PP.H4 > 0.8 indicates strong evidence of a shared causal variant.\n\n",
+  "The user is looking at a specific genomic region. The context for this ",
+  "region is provided below. Engage conversationally: answer questions about ",
+  "the likely causal gene and mechanism, the eQTL/pQTL/metabolite evidence, ",
+  "disease connections, and clinical relevance. Be evidence-based; distinguish ",
+  "established biology from plausible hypotheses. Keep answers focused and ",
+  "readable. Use hyphens instead of em dashes."
 )
+
+# Build a system prompt with embedded region context
+build_chat_system_prompt <- function(context) {
+  if (is.null(context) || nchar(context) == 0) return(COLOC_CHAT_SYSTEM_PROMPT)
+  paste0(COLOC_CHAT_SYSTEM_PROMPT,
+         "\n\n--- CURRENT REGION CONTEXT ---\n",
+         context)
+}
+
+# Build the opening greeting prompt (sent as first "user" turn to get an
+# initial assistant message that acknowledges the region)
+build_greeting_prompt <- function(region_str, nearest_gene) {
+  paste0(
+    "Please greet the user briefly (1-2 sentences). Mention that you see ",
+    "they are looking at region ", region_str,
+    if (!is.null(nearest_gene) && !is.na(nearest_gene) && nchar(nearest_gene) > 0) {
+      paste0(" near ", gsub("\\(.*\\)", "", nearest_gene))
+    } else "",
+    ", summarize in one sentence the groups of colocalizations you see, and ",
+    "invite them to ask questions. Do not repeat the full context; keep it short."
+  )
+}

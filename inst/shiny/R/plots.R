@@ -210,17 +210,6 @@ plot_regional_association_interactive <- function(sumstats_dt, title = "", highl
 }
 
 # Load gene annotation for gene tracks (Gencode v49 + HGNC + HPO + NCBI + Reactome)
-gene_annotation <- tryCatch({
-  # Check configured data path first, then local data/
-  gene_paths <- c(
-    file.path(DATA_PATH, "gene_annotation_hg38_full.tsv"),
-    "data/gene_annotation_hg38_full.tsv",
-    "data/gene_annotation_hg38_extended.tsv",
-    "data/gene_annotation_hg38.tsv",
-    system.file("extdata", "genes_chr.txt.gz", package = "genepicoloc")
-  )
-  gene_file <- gene_paths[file.exists(gene_paths)][1]
-  if (!is.na(gene_file)) fread(gene_file) else NULL
-}, error = function(e) NULL)
+# gene_annotation is loaded in gene_track.R
 
 # Gene track plot function

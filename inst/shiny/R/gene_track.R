@@ -1,18 +1,24 @@
 # Gene annotation and gene track visualization
 
 # Load gene annotation for gene tracks (Gencode v49 + HGNC + HPO + NCBI + Reactome)
-gene_annotation <- tryCatch({
-  # Check configured data path first, then local data/
+# Files in R/ are auto-sourced BEFORE app.R, so library(data.table) from app.R
+# is not yet attached. Use data.table::fread explicitly here.
+# Paths are absolute (DATA_PATH) to avoid wd-dependence under shiny runApp.
+gene_annotation <- local({
   gene_paths <- c(
+    file.path(DATA_PATH, "gene_annotation.tsv"),
     file.path(DATA_PATH, "gene_annotation_hg38_full.tsv"),
-    "data/gene_annotation_hg38_full.tsv",
-    "data/gene_annotation_hg38_extended.tsv",
-    "data/gene_annotation_hg38.tsv",
     system.file("extdata", "genes_chr.txt.gz", package = "genepicoloc")
   )
   gene_file <- gene_paths[file.exists(gene_paths)][1]
-  if (!is.na(gene_file)) fread(gene_file) else NULL
-}, error = function(e) NULL)
+  if (is.na(gene_file)) {
+    warning("gene_annotation not found. Checked: ",
+            paste(gene_paths, collapse = ", "))
+    return(NULL)
+  }
+  message("Loaded gene_annotation from ", gene_file)
+  data.table::fread(gene_file)
+})
 
 # Gene track plot function
 # Creates a plotly gene track showing genes in a genomic region

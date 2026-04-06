@@ -41,14 +41,38 @@ DATA_PATH <- getOption("genepicoloc.data_path",
     if (dir.exists("/app/data")) "/app/data" else "data"))
 
 # Auto-discover available studies from RDS files
-# Supports three layouts (checked in order):
-#   1. Clean:  data/coloc/<trait>.RDS              (new atlas layout)
-#   2. Flat:   data/<trait>_annot_filt.RDS          (legacy flat layout)
-#   3. Nested: data/<folder>/annot/annot_filt.RDS   (legacy CKDGen layout)
+# Supports layouts (checked in order):
+#   1. Category: data/<category>/coloc/<trait>.RDS   (new multi-category atlas)
+#   2. Flat:     data/coloc/<trait>.RDS              (single-category atlas)
+#   3. Legacy:   data/<trait>_annot_filt.RDS         (old flat layout)
+#   4. Nested:   data/<folder>/annot/annot_filt.RDS  (old CKDGen layout)
+#
+# Returns named list of trait -> file path, with attribute "category"
+# mapping trait -> category name (NULL if single-category layout).
 discover_studies <- function(data_path) {
   studies <- list()
+  categories <- list()
 
-  # Try clean layout first (coloc/ subdir)
+  # Try multi-category layout first: data/<category>/coloc/*.RDS
+  subdirs <- list.dirs(data_path, recursive = FALSE, full.names = TRUE)
+  for (d in subdirs) {
+    coloc_dir <- file.path(d, "coloc")
+    if (dir.exists(coloc_dir)) {
+      cat_name <- basename(d)
+      coloc_files <- list.files(coloc_dir, pattern = "\\.RDS$", full.names = TRUE)
+      for (f in coloc_files) {
+        name <- tools::file_path_sans_ext(basename(f))
+        studies[[name]] <- f
+        categories[[name]] <- cat_name
+      }
+    }
+  }
+  if (length(studies) > 0) {
+    attr(studies, "categories") <- categories
+    return(studies)
+  }
+
+  # Try single-category flat layout: data/coloc/*.RDS
   coloc_dir <- file.path(data_path, "coloc")
   if (dir.exists(coloc_dir)) {
     coloc_files <- list.files(coloc_dir, pattern = "\\.RDS$", full.names = TRUE)
@@ -59,7 +83,7 @@ discover_studies <- function(data_path) {
     if (length(studies) > 0) return(studies)
   }
 
-  # Try flat layout
+  # Try legacy flat layout: data/<trait>_annot_filt.RDS
   flat_files <- list.files(data_path, pattern = "_annot_filt\\.RDS$", full.names = TRUE)
   if (length(flat_files) > 0) {
     for (f in flat_files) {
@@ -69,9 +93,8 @@ discover_studies <- function(data_path) {
     return(studies)
   }
 
-  # Try nested layout
-  dirs <- list.dirs(data_path, recursive = FALSE)
-  for (d in dirs) {
+  # Try old nested layout: data/<folder>/annot/annot_filt.RDS
+  for (d in subdirs) {
     f <- file.path(d, "annot", "annot_filt.RDS")
     if (file.exists(f)) {
       name <- basename(d)

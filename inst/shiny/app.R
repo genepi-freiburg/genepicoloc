@@ -1,7 +1,14 @@
 # GWAS Colocalization Network Viewer with Prioritized Genes
 # Shiny application for visualizing GWAS colocalization results
+#
+# Loading order (managed by Shiny):
+#   1. R/*.R   - auto-sourced by Shiny BEFORE app.R (shiny.autoload.r=TRUE).
+#                Use data.table::fread etc. since packages aren't attached yet.
+#   2. app.R   - this file. library() calls below attach packages for runtime use.
+#
+# Do NOT source("R/*.R") here - auto-loader handles it (and duplicate sourcing
+# into different environments creates scoping bugs, see rstudio/shiny#2547).
 
-# Load required libraries
 library(shiny)
 library(visNetwork)
 library(data.table)
@@ -13,16 +20,6 @@ has_llm <- tryCatch({
   library(shinychat)
   TRUE
 }, error = function(e) FALSE)
-
-# Source configuration and metadata
-source("R/config.R")
-source("R/study_metadata.R")
-
-# Source plot functions and gene annotation
-source("R/plots.R")
-source("R/gene_track.R")
-source("R/trait_names.R")
-source("R/llm.R")
 
   # UI ----
   ui <- fluidPage(
@@ -177,6 +174,26 @@ source("R/llm.R")
 
                      hr(),
 
+                     # Include Studies (collapsed by default, dynamic)
+                     tags$details(
+                       style = "margin-bottom: 10px;",
+                       tags$summary(
+                         style = "cursor: pointer; font-weight: bold; font-size: 12px;",
+                         "Include studies"
+                       ),
+                       div(style = "margin-top: 8px;",
+                         fluidRow(
+                           column(6, actionButton("select_all", "All",
+                                                  class = "btn-xs btn-block",
+                                                  style = "margin-bottom: 3px;")),
+                           column(6, actionButton("select_none", "None",
+                                                  class = "btn-xs btn-block",
+                                                  style = "margin-bottom: 3px;"))
+                         ),
+                         uiOutput("study_selector")
+                       )
+                     ),
+
                      # Display options
                      checkboxInput("physics", "Enable physics simulation", value = FALSE),
 
@@ -238,6 +255,32 @@ source("R/llm.R")
                      id = "region_view_tabs",
                      type = "tabs",
 
+                     # Tab 0: Convergence (gene-centric view)
+                     tabPanel(
+                       "Convergence",
+                       div(style = "font-size: 11px; color: #777; margin: 6px 0;",
+                         "Evidence grouped by candidate gene (cis molecular colocs) ",
+                         "and by locus (trans pQTL, PheWAS, imaging, metabolites). ",
+                         "The atlas presents evidence; gene prioritization is left to you."),
+                       # Panel 1: trait of interest regional plot
+                       h6("Trait of interest", style = "margin: 8px 0 2px 0; color: #555;"),
+                       plotlyOutput("conv_base_plot", height = "200px"),
+                       # Panel 2: gene track
+                       h6("Genes in region", style = "margin: 8px 0 2px 0; color: #555;"),
+                       plotlyOutput("conv_gene_track", height = "100px"),
+                       # Panel 3: gene-attributed heatmap
+                       h6(icon("dna"), " Gene-attributed (cis) colocalizations",
+                          style = "margin: 12px 0 2px 0; color: #555;"),
+                       plotlyOutput("conv_gene_heatmap", height = "240px"),
+                       # Panel 4: locus-level bar
+                       h6(icon("map-marker-alt"), " Locus-level colocalizations",
+                          style = "margin: 12px 0 2px 0; color: #555;"),
+                       div(style = "font-size: 10px; color: #999; margin-bottom: 4px;",
+                         "Traits that colocalize with this locus but cannot be attributed ",
+                         "to a single cis gene (trans pQTL, PheWAS, imaging, metabolomics)."),
+                       plotlyOutput("conv_locus_bar", height = "200px")
+                     ),
+
                      # Tab 1: Network visualization
                      tabPanel(
                        "Network",
@@ -297,52 +340,28 @@ source("R/llm.R")
                    )  # End tabsetPanel
                  ),  # End main column
 
-                 # Right panel (study selector)
+                 # Right panel (AI chat)
                  column(
                    width = 2,
-                   wellPanel(
-                     style = "padding: 10px;",
-
-                     h5("Include Studies:", style = "margin-top: 0;"),
-
-                     # Select all/none buttons (top)
-                     fluidRow(
-                       column(6, actionButton("select_all", "All", class = "btn-sm btn-block", style = "margin-bottom: 3px;")),
-                       column(6, actionButton("select_none", "None", class = "btn-sm btn-block", style = "margin-bottom: 3px;"))
-                     ),
-
-                     # Group selection buttons
-                     fluidRow(
-                       column(6, actionButton("select_phenotypes", "Phenotypes", class = "btn-xs btn-block", style = "margin-bottom: 3px; font-size: 10px; padding: 2px;")),
-                       column(6, actionButton("select_pqtl", "pQTL", class = "btn-xs btn-block", style = "margin-bottom: 3px; font-size: 10px; padding: 2px;"))
-                     ),
-                     fluidRow(
-                       column(6, actionButton("select_eqtl", "eQTL", class = "btn-xs btn-block", style = "margin-bottom: 3px; font-size: 10px; padding: 2px;")),
-                       column(6, actionButton("select_mqtl", "mQTL", class = "btn-xs btn-block", style = "margin-bottom: 3px; font-size: 10px; padding: 2px;"))
-                     ),
-
-                     hr(style = "margin: 8px 0;"),
-
-                     uiOutput("study_selector")
-                   ),  # End wellPanel
-
-                   # AI Insights (collapsible)
-                   if (has_llm) tags$details(
-                     style = "margin-top: 10px;",
-                     tags$summary(
-                       style = "cursor: pointer; font-weight: bold; font-size: 13px; padding: 8px; background: #f8f9fa; border-radius: 4px;",
-                       icon("brain"), " AI Insights"
-                     ),
-                     div(style = "margin-top: 8px; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 4px;",
-                       actionButton("llm_summarize", "Interpret Region",
-                                    icon = icon("magic"),
-                                    class = "btn-xs btn-primary",
-                                    style = "margin-bottom: 8px; width: 100%;"),
-                       div(style = "max-height: 400px; overflow-y: auto; font-size: 12px;",
-                         shinychat::output_markdown_stream("llm_output")
+                   if (has_llm) {
+                     wellPanel(
+                       style = "padding: 10px; height: calc(100vh - 260px); display: flex; flex-direction: column;",
+                       h5(icon("comments"), " Ask the Atlas",
+                          style = "margin: 0 0 8px 0;"),
+                       # Start button shown until user clicks it
+                       uiOutput("chat_start_ui"),
+                       # Chat UI (populated only after user starts)
+                       div(style = "flex: 1; overflow-y: auto; min-height: 200px; padding: 4px; font-size: 12px; border: 1px solid #eee; border-radius: 4px; background: #fafafa; margin-top: 6px;",
+                         shinychat::chat_ui("chat", height = "100%")
                        )
                      )
-                   )
+                   } else {
+                     wellPanel(
+                       style = "padding: 10px;",
+                       p(style = "font-size: 11px; color: #888;",
+                         "AI chat unavailable (ellmer/shinychat not installed)")
+                     )
+                   }
                  )  # End right column
                )  # End fluidRow
       ),
@@ -629,12 +648,12 @@ source("R/llm.R")
         id = "kidney_mri",
         icon = "\U0001F9F2",
         title = "Kidney MRI Volumes",
-        description = "UK Biobank kidney MRI - structural imaging phenotypes (coming soon)",
+        description = "UK Biobank kidney MRI - structural imaging phenotypes (BSA-adjusted)",
         traits = list(
-          list(id = "TKV", label = "Total Kidney Volume", desc = "BSA-adjusted", disabled = TRUE),
-          list(id = "cortex", label = "Cortex Volume", desc = "BSA-adjusted", disabled = TRUE),
-          list(id = "medulla", label = "Medulla Volume", desc = "BSA-adjusted", disabled = TRUE),
-          list(id = "hilus", label = "Hilus Volume", desc = "BSA-adjusted", disabled = TRUE)
+          list(id = "MRI_tkv", label = "Total Kidney Volume", desc = "BSA-adjusted"),
+          list(id = "MRI_cortex", label = "Cortex Volume", desc = "BSA-adjusted"),
+          list(id = "MRI_medulla", label = "Medulla Volume", desc = "BSA-adjusted"),
+          list(id = "MRI_hilus", label = "Hilus Volume", desc = "BSA-adjusted")
         )
       ),
       list(
@@ -672,7 +691,11 @@ source("R/llm.R")
             div(class = "trait-list",
               lapply(cat$traits, function(trait) {
                 is_disabled <- isTRUE(trait$disabled) || !trait$id %in% names(DEFAULT_AVAILABLE_STUDIES)
+                # Check regional data across all possible layouts
+                cats <- attr(DEFAULT_AVAILABLE_STUDIES, "categories")
+                cat_name <- if (!is.null(cats)) cats[[trait$id]] else NULL
                 has_regional <- !is_disabled && (
+                  (!is.null(cat_name) && dir.exists(file.path(DATA_PATH, cat_name, "regional", trait$id))) ||
                   dir.exists(file.path(DATA_PATH, "regional", trait$id)) ||
                   dir.exists(file.path(DATA_PATH, "regional_plots", trait$id))
                 )
@@ -739,16 +762,16 @@ source("R/llm.R")
       updateTabsetPanel(session, "main_tabs", selected = "Atlas")
     })
 
-    # Select all studies
+    # Select all studies (dynamic)
     observeEvent(input$select_all, {
-      lapply(names(study_colors), function(study) {
+      lapply(available_study_names(), function(study) {
         updateCheckboxInput(session, paste0("study_", study), value = TRUE)
       })
     })
 
-    # Select no studies
+    # Select no studies (dynamic)
     observeEvent(input$select_none, {
-      lapply(names(study_colors), function(study) {
+      lapply(available_study_names(), function(study) {
         updateCheckboxInput(session, paste0("study_", study), value = FALSE)
       })
     })
@@ -1487,48 +1510,99 @@ source("R/llm.R")
       list(nodes = nodes, edges = edges)
     })
 
-    # === LLM Insights ===
+    # === AI Chat (stateful conversation, user-initiated) ===
 
     if (has_llm) {
-      observeEvent(input$llm_summarize, {
+      # Chat state: chat object (NULL until user starts)
+      chat_rv <- reactiveVal(NULL)
+      # Region the active chat was built for
+      chat_region_rv <- reactiveVal(NULL)
+
+      # Show/hide the Start button based on current region vs active chat region
+      output$chat_start_ui <- renderUI({
+        req(current_region())
+        already_started <- identical(chat_region_rv(), current_region())
+        if (already_started) return(NULL)
+        tagList(
+          p(style = "font-size: 11px; color: #888; margin: 0 0 4px 0;",
+            "Start a conversation about this region."),
+          actionButton("chat_start", "Start chat",
+                       icon = icon("play"),
+                       class = "btn-xs btn-primary btn-block")
+        )
+      })
+
+      # Reset chat when user navigates to a new region
+      observeEvent(current_region(), {
+        if (!identical(chat_region_rv(), current_region())) {
+          shinychat::chat_clear("chat")
+          chat_rv(NULL)
+        }
+      }, ignoreNULL = TRUE)
+
+      # Start chat on button click
+      observeEvent(input$chat_start, {
         api_key <- Sys.getenv("ANTHROPIC_API_KEY")
         if (!nzchar(api_key)) {
-          shinychat::markdown_stream("llm_output",
-            "*AI Summary unavailable: ANTHROPIC_API_KEY not configured.*",
-            session = session)
+          shinychat::chat_append("chat",
+            "*AI chat unavailable: ANTHROPIC_API_KEY not configured.*")
           return()
         }
 
-        req(filtered_data(), current_region())
+        req(current_region())
         dt <- filtered_data()
+        region_str <- current_region()
 
-        if (nrow(dt) == 0) {
-          shinychat::markdown_stream("llm_output",
-            "No colocalization data available for this region.",
-            session = session)
+        if (is.null(dt) || nrow(dt) == 0) {
+          shinychat::chat_append("chat",
+            "No colocalization data available for this region.")
           return()
         }
 
-        context <- build_coloc_context(dt, gene_annotation)
-        if (is.null(context)) {
-          shinychat::markdown_stream("llm_output",
-            "Could not build context for this region.",
-            session = session)
-          return()
-        }
-
-        user_prompt <- paste0(
-          "Interpret the colocalization results for this genomic region:\n\n",
-          context)
-
-        chat <- ellmer::chat_anthropic(
-          model = "claude-sonnet-4-5-20250929",
-          system_prompt = COLOC_SYSTEM_PROMPT,
-          credentials = function() api_key,
-          echo = "none"
+        context <- tryCatch(
+          build_coloc_context(dt, gene_annotation),
+          error = function(e) NULL
         )
-        stream <- chat$stream_async(user_prompt)
-        shinychat::markdown_stream("llm_output", stream, session = session)
+        if (is.null(context)) {
+          shinychat::chat_append("chat",
+            "Could not build context for this region.")
+          return()
+        }
+
+        nearest_gene <- if ("nearest_gene_1" %in% names(dt)) dt$nearest_gene_1[1] else NA
+
+        new_chat <- tryCatch(
+          ellmer::chat_anthropic(
+            model = "claude-sonnet-4-5-20250929",
+            system_prompt = build_chat_system_prompt(context),
+            echo = "none"
+          ),
+          error = function(e) {
+            shinychat::chat_append("chat",
+              paste0("*Failed to initialize chat: ", e$message, "*"))
+            NULL
+          }
+        )
+        if (is.null(new_chat)) return()
+
+        chat_rv(new_chat)
+        chat_region_rv(region_str)
+
+        greeting_prompt <- build_greeting_prompt(region_str, nearest_gene)
+        stream <- new_chat$stream_async(greeting_prompt)
+        shinychat::chat_append("chat", stream)
+      })
+
+      # Handle user messages during active chat
+      observeEvent(input$chat_user_input, {
+        chat <- chat_rv()
+        if (is.null(chat)) {
+          shinychat::chat_append("chat",
+            "*Click 'Start chat' first.*")
+          return()
+        }
+        stream <- chat$stream_async(input$chat_user_input)
+        shinychat::chat_append("chat", stream)
       })
     }
 
@@ -1903,83 +1977,49 @@ source("R/llm.R")
     })
     
     # Create combined study selector with colors, checkboxes, and info buttons
+    # Dynamically discover studies from current coloc data
+    available_study_names <- reactive({
+      req(coloc_data())
+      sort(unique(coloc_data()$source_study))
+    })
+
     output$study_selector <- renderUI({
-      # Get counts for current region
+      req(available_study_names())
       counts <- study_counts_for_region()
+      studies <- available_study_names()
 
-      # Create grouped study items by category
-      category_sections <- lapply(names(study_categories), function(category) {
-        studies_in_category <- study_categories[[category]]
-        # Filter to only include studies that exist in study_colors
-        studies_in_category <- studies_in_category[studies_in_category %in% names(study_colors)]
+      study_items <- lapply(studies, function(study) {
+        display_name <- get_study_display_name(study)
+        color <- if (study %in% names(study_colors)) study_colors[[study]] else "#7f7f7f"
 
-        # Filter out pho_ca unless Calcium or Phosphate is selected
-        if (!is.null(current_study()) && !current_study() %in% c("Calcium", "Phosphate")) {
-          studies_in_category <- studies_in_category[studies_in_category != "pho_ca"]
-        }
-
-        if (length(studies_in_category) == 0) return(NULL)
-
-        # Calculate category total
-        category_total <- sum(sapply(studies_in_category, function(s) {
-          if (!is.null(counts) && s %in% names(counts)) counts[s] else 0
-        }))
-
-        study_items <- lapply(studies_in_category, function(study) {
-          display_name <- get_study_display_name(study)
-
-          # Get count for this study
-          study_count <- if (!is.null(counts) && study %in% names(counts)) counts[study] else 0
-
-          # Style: gray out if count is 0
-          count_style <- if (study_count == 0) {
-            "font-size: 10px; color: #999; margin-left: 3px;"
-          } else {
-            "font-size: 10px; color: #27ae60; font-weight: bold; margin-left: 3px;"
-          }
-
-          div(style = "margin: 0; padding: 0; display: flex; align-items: center;",
-              # Checkbox
-              tags$div(style = "margin: 0; padding: 0;",
-                checkboxInput(paste0("study_", study),
-                             label = NULL,
-                             value = TRUE,
-                             width = "20px")),
-              # Color square
-              tags$span(style = paste0("display: inline-block; width: 14px; height: 14px; ",
-                                      "background-color: ", study_colors[study],
-                                      "; margin-left: -5px; margin-right: 8px; border: 1px solid #ddd;")),
-              # Study name (smaller font for compactness)
-              tags$span(style = "font-size: 12px;", display_name),
-              # Count badge
-              tags$span(style = count_style, paste0("(", study_count, ")")),
-              # Info button
-              actionLink(paste0("info_", study),
-                        label = icon("info-circle"),
-                        style = "font-size: 12px; color: #3498db; margin-left: 6px;")
-          )
-        })
-
-        # Return category section with header including total
-        category_header_style <- if (category_total == 0) {
-          "font-weight: bold; font-size: 11px; color: #999; margin-top: 8px; margin-bottom: 3px;"
+        # Count for current region
+        study_count <- if (!is.null(counts) && study %in% names(counts)) counts[study] else 0
+        count_style <- if (study_count == 0) {
+          "font-size: 10px; color: #999; margin-left: 3px;"
         } else {
-          "font-weight: bold; font-size: 11px; color: #555; margin-top: 8px; margin-bottom: 3px;"
+          "font-size: 10px; color: #27ae60; font-weight: bold; margin-left: 3px;"
         }
 
-        tagList(
-          tags$div(style = category_header_style,
-                   paste0(category, " (", category_total, ")")),
-          study_items
+        div(style = "margin: 0; padding: 0; display: flex; align-items: center;",
+            tags$div(style = "margin: 0; padding: 0;",
+              checkboxInput(paste0("study_", study),
+                           label = NULL, value = TRUE, width = "20px")),
+            tags$span(style = paste0("display: inline-block; width: 12px; height: 12px; ",
+                                    "background-color: ", color,
+                                    "; margin-left: -5px; margin-right: 6px; border: 1px solid #ddd;")),
+            tags$span(style = "font-size: 11px;", display_name),
+            tags$span(style = count_style, paste0("(", study_count, ")"))
         )
       })
 
-      do.call(tagList, category_sections)
+      do.call(tagList, study_items)
     })
 
     # Create reactive for selected studies (combines individual checkboxes)
+    # Uses dynamic study list from current coloc data
     selected_studies <- reactive({
-      studies <- names(study_colors)
+      studies <- available_study_names()
+      if (length(studies) == 0) return(character(0))
       selected <- sapply(studies, function(study) {
         val <- input[[paste0("study_", study)]]
         if (is.null(val)) TRUE else val  # Default to TRUE
@@ -2020,6 +2060,58 @@ source("R/llm.R")
       })
     })
     
+    # === Convergence view ===
+
+    # Reactive: current region coords (chr, start, end)
+    conv_region_coords <- reactive({
+      req(current_region())
+      parts <- strsplit(current_region(), ":")[[1]]
+      if (length(parts) < 2) return(NULL)
+      chr <- sub("^chr", "", parts[1])
+      pos <- strsplit(parts[2], "-")[[1]]
+      list(chr = chr,
+           start = as.numeric(pos[1]),
+           end   = as.numeric(pos[2]))
+    })
+
+    # Convergence table (gene-attributed + locus-level)
+    conv_table <- reactive({
+      req(filtered_data())
+      build_convergence_table(filtered_data(),
+                              trait_name_fn = get_trait_display_name)
+    })
+
+    # Panel 1: base trait regional plot (reuses existing plotting logic)
+    output$conv_base_plot <- renderPlotly({
+      req(regional_base_sumstats())
+      plot_regional_association_interactive(
+        regional_base_sumstats(),
+        title = paste0(current_study(), " - ", current_region()),
+        highlight_snp = NULL,
+        color = "#2c3e50"
+      )
+    })
+
+    # Panel 2: gene track - reuse existing plot_gene_track from gene_track.R
+    output$conv_gene_track <- renderPlotly({
+      coords <- conv_region_coords()
+      req(coords)
+      plot_gene_track(coords$chr, coords$start, coords$end,
+                      source = "conv_gene_track")
+    })
+
+    # Panel 3: gene-attributed heatmap
+    output$conv_gene_heatmap <- renderPlotly({
+      req(conv_table())
+      plot_convergence_heatmap(conv_table())
+    })
+
+    # Panel 4: locus-level bar
+    output$conv_locus_bar <- renderPlotly({
+      req(conv_table())
+      plot_locus_level_bar(conv_table())
+    })
+
     # Render network
     output$network <- renderVisNetwork({
       net_data <- network_data()
@@ -2113,17 +2205,29 @@ source("R/llm.R")
     # === Regional Plot Logic (Region View) ===
 
     # Path to regional plot data
-    # Supports two layouts:
-    #   1. Bundled: {DATA_PATH}/regional/{study}/         (new: one RDS per region)
-    #   2. Legacy:  {DATA_PATH}/regional_plots/{study}/   (old: dirs with many small files)
+    # Supports three layouts:
+    #   1. Category: {DATA_PATH}/<category>/regional/<study>/   (multi-category atlas)
+    #   2. Bundled:  {DATA_PATH}/regional/<study>/              (single-category)
+    #   3. Legacy:   {DATA_PATH}/regional_plots/<study>/        (old layout)
     regional_data_path <- reactive({
       req(current_study())
-      # Try bundled layout first
-      bundled_path <- file.path(DATA_PATH, "regional", current_study())
+      study <- current_study()
+
+      # Look up category from discover_studies() attribute
+      cats <- attr(available_studies, "categories")
+      if (!is.null(cats) && !is.null(cats[[study]])) {
+        cat_path <- file.path(DATA_PATH, cats[[study]], "regional", study)
+        if (dir.exists(cat_path)) return(cat_path)
+      }
+
+      # Fall back to single-category bundled layout
+      bundled_path <- file.path(DATA_PATH, "regional", study)
       if (dir.exists(bundled_path)) return(bundled_path)
+
       # Fall back to legacy layout
-      legacy_path <- file.path(DATA_PATH, "regional_plots", current_study())
+      legacy_path <- file.path(DATA_PATH, "regional_plots", study)
       if (dir.exists(legacy_path)) return(legacy_path)
+
       NULL
     })
 
