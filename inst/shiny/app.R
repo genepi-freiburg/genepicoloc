@@ -1080,7 +1080,7 @@ has_llm <- tryCatch({
 
     output$mini_manhattan_ui <- renderUI({
       req(regions_data(), coloc_data())
-      plotlyOutput("mini_manhattan", height = "150px")
+      plotlyOutput("mini_manhattan", height = "180px")
     })
 
     output$mini_manhattan <- renderPlotly({
@@ -1168,8 +1168,8 @@ has_llm <- tryCatch({
           y = top_labeled$max_nlog10P[i],
           text = top_labeled$gene_short[i],
           showarrow = FALSE,
-          font = list(size = 8, color = "#555"),
-          yshift = 10
+          font = list(size = 13, color = "#333"),
+          yshift = 12
         )
       })
 
@@ -1179,11 +1179,11 @@ has_llm <- tryCatch({
           title = "", showgrid = FALSE,
           tickvals = chr_ticks$mid_x,
           ticktext = chr_ticks$CHR_num,
-          tickfont = list(size = 9),
+          tickfont = list(size = 13),
           range = c(min(region_stats$x_pos) * 0.98, max(region_stats$x_pos) * 1.02)
         ),
-        yaxis = list(title = list(text = "-log10(P)", font = list(size = 10)),
-                     tickfont = list(size = 9)),
+        yaxis = list(title = list(text = "-log10(P)", font = list(size = 14)),
+                     tickfont = list(size = 12)),
         margin = list(t = 5, b = 25, l = 40, r = 5),
         showlegend = FALSE,
         hovermode = "closest"
