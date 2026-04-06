@@ -159,3 +159,77 @@
   font-size: 0.8em;
   color: #95a5a6;
 }
+
+/* Convergence category overview cards */
+.conv-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 8px 0;
+}
+
+.conv-cat-card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: white;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.conv-cat-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  transform: translateY(-1px);
+}
+
+.conv-cat-card.active {
+  border-color: #3498db;
+  border-width: 2px;
+  box-shadow: 0 2px 10px rgba(52,152,219,0.25);
+}
+
+.conv-cat-card.empty {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.conv-cat-card.empty:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.conv-cat-icon {
+  font-size: 1.6em;
+  flex-shrink: 0;
+}
+
+.conv-cat-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.conv-cat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2c3e50;
+  line-height: 1.2;
+}
+
+.conv-cat-count {
+  font-size: 18px;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.conv-cat-count.zero {
+  color: #aaa;
+}
+
+.conv-cat-stripe {
+  width: 4px;
+  border-radius: 2px;
+  align-self: stretch;
+}

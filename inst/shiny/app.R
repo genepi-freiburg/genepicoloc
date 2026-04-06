@@ -255,30 +255,32 @@ has_llm <- tryCatch({
                      id = "region_view_tabs",
                      type = "tabs",
 
-                     # Tab 0: Convergence (gene-centric view)
+                     # Tab 0: Convergence (region-centric multi-omics view)
                      tabPanel(
                        "Convergence",
-                       div(style = "font-size: 11px; color: #777; margin: 6px 0;",
-                         "Evidence grouped by candidate gene (cis molecular colocs) ",
-                         "and by locus (trans pQTL, PheWAS, imaging, metabolites). ",
-                         "The atlas presents evidence; gene prioritization is left to you."),
                        # Panel 1: trait of interest regional plot
                        h6("Trait of interest", style = "margin: 8px 0 2px 0; color: #555;"),
                        plotlyOutput("conv_base_plot", height = "200px"),
+                       # Panel 1b: Selected trait RAP (appears below base when user clicks a trait)
+                       uiOutput("conv_trait_plot_header"),
+                       conditionalPanel(
+                         condition = "output.conv_trait_has_data",
+                         plotlyOutput("conv_trait_plot", height = "200px")
+                       ),
                        # Panel 2: gene track
                        h6("Genes in region", style = "margin: 8px 0 2px 0; color: #555;"),
                        plotlyOutput("conv_gene_track", height = "100px"),
-                       # Panel 3: gene-attributed heatmap
-                       h6(icon("dna"), " Gene-attributed (cis) colocalizations",
-                          style = "margin: 12px 0 2px 0; color: #555;"),
-                       plotlyOutput("conv_gene_heatmap", height = "240px"),
-                       # Panel 4: locus-level bar
-                       h6(icon("map-marker-alt"), " Locus-level colocalizations",
-                          style = "margin: 12px 0 2px 0; color: #555;"),
-                       div(style = "font-size: 10px; color: #999; margin-bottom: 4px;",
-                         "Traits that colocalize with this locus but cannot be attributed ",
-                         "to a single cis gene (trans pQTL, PheWAS, imaging, metabolomics)."),
-                       plotlyOutput("conv_locus_bar", height = "200px")
+                       # Panel 3 + 4: categories (left) and drill-down network (right)
+                       h6("Colocalized traits", style = "margin: 12px 0 2px 0; color: #555;"),
+                       div(style = "font-size: 10px; color: #999; margin-bottom: 6px;",
+                         "Click a category, then click a trait to see its regional plot above."),
+                       fluidRow(
+                         column(5, uiOutput("conv_category_cards")),
+                         column(7,
+                                uiOutput("conv_drilldown_header"),
+                                visNetworkOutput("conv_drilldown_network", height = "480px")
+                         )
+                       )
                      ),
 
                      # Tab 1: Network visualization
@@ -1283,34 +1285,30 @@ has_llm <- tryCatch({
       regions
     })
     
-    # Filter data for selected region
-    filtered_data <- reactive({
+    # Filter data for selected region - full (no max_traits limit)
+    # Used by convergence view which needs to see all cis molecular colocs
+    filtered_region_data <- reactive({
       req(coloc_data(), current_region())
-      
-      # Parse region
+
       region_parts <- strsplit(current_region(), ":")[[1]]
       chr <- region_parts[1]
       pos_parts <- strsplit(region_parts[2], "-")[[1]]
       start_pos <- as.numeric(pos_parts[1])
       end_pos <- as.numeric(pos_parts[2])
-      
-      # Filter data
+
       dt <- coloc_data()[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
-      
-      # Apply PP.H4 filter
       dt <- dt[PP.H4.abf >= input$min_pph4]
-      
-      # Apply nlog10 filter
       dt <- dt[sumstats_2_max_nlog10P >= input$min_nlog10P]
-
-      # Apply study filter
       dt <- dt[source_study %in% selected_studies()]
+      dt
+    })
 
-      # Limit traits for network performance (keep top by PP.H4)
+    # Filter data limited to max_traits (for network rendering performance)
+    filtered_data <- reactive({
+      dt <- filtered_region_data()
       if (nrow(dt) > input$max_traits) {
         dt <- dt[order(-PP.H4.abf)][1:input$max_traits]
       }
-
       dt
     })
     
@@ -2074,13 +2072,6 @@ has_llm <- tryCatch({
            end   = as.numeric(pos[2]))
     })
 
-    # Convergence table (gene-attributed + locus-level)
-    conv_table <- reactive({
-      req(filtered_data())
-      build_convergence_table(filtered_data(),
-                              trait_name_fn = get_trait_display_name)
-    })
-
     # Panel 1: base trait regional plot (reuses existing plotting logic)
     output$conv_base_plot <- renderPlotly({
       req(regional_base_sumstats())
@@ -2100,16 +2091,302 @@ has_llm <- tryCatch({
                       source = "conv_gene_track")
     })
 
-    # Panel 3: gene-attributed heatmap
-    output$conv_gene_heatmap <- renderPlotly({
-      req(conv_table())
-      plot_convergence_heatmap(conv_table())
+    # === Panel 3: category overview cards ===
+
+    # Which category is currently selected for drill-down (NULL = none)
+    conv_selected_cat <- reactiveVal(NULL)
+
+    # Reset selection when region changes
+    observeEvent(current_region(), {
+      conv_selected_cat(NULL)
     })
 
-    # Panel 4: locus-level bar
-    output$conv_locus_bar <- renderPlotly({
-      req(conv_table())
-      plot_locus_level_bar(conv_table())
+    # Category counts for current region
+    conv_cat_counts <- reactive({
+      dt <- filtered_region_data()
+      count_by_category(dt)
+    })
+
+    output$conv_category_cards <- renderUI({
+      counts <- conv_cat_counts()
+      selected <- conv_selected_cat()
+
+      cards <- lapply(names(TRAIT_CATEGORIES), function(cat_id) {
+        meta <- TRAIT_CATEGORIES[[cat_id]]
+        n <- tryCatch(counts[[cat_id]], error = function(e) 0L)
+        if (is.null(n) || length(n) == 0 || is.na(n)) n <- 0L
+        is_empty <- n == 0
+        is_active <- !is.null(selected) && selected == cat_id
+
+        # Build inline style based on state
+        border_style <- if (is_active) {
+          paste0("border: 2px solid ", meta$color, ";")
+        } else {
+          "border: 1px solid #ddd;"
+        }
+        opacity_style <- if (is_empty) "opacity: 0.45;" else ""
+        cursor_style <- if (is_empty) "cursor: default;" else "cursor: pointer;"
+        bg_style <- if (is_active) {
+          paste0("background: ", meta$color, "15;")  # 15 = 8% alpha
+        } else {
+          "background: white;"
+        }
+
+        actionButton(
+          inputId = paste0("conv_cat_btn_", cat_id),
+          label = HTML(paste0(
+            "<div style='display: flex; align-items: center; gap: 10px; text-align: left;'>",
+            "<div style='width: 4px; height: 32px; background: ", meta$color,
+              "; border-radius: 2px;'></div>",
+            "<div style='font-size: 1.4em;'>", meta$icon, "</div>",
+            "<div style='flex: 1; min-width: 0;'>",
+              "<div style='font-size: 12px; font-weight: 600; color: #2c3e50; line-height: 1.2;'>",
+                meta$label, "</div>",
+              "<div style='font-size: 16px; font-weight: 700; color: ",
+                if (is_empty) "#aaa" else "#2c3e50", ";'>", n, "</div>",
+            "</div>",
+            "</div>"
+          )),
+          style = paste0(
+            "width: 100%; padding: 10px; margin-bottom: 6px; ",
+            "border-radius: 8px; ",
+            border_style, opacity_style, cursor_style, bg_style,
+            "text-align: left; box-shadow: 0 1px 3px rgba(0,0,0,0.04);"
+          ),
+          disabled = is_empty
+        )
+      })
+
+      do.call(tagList, cards)
+    })
+
+    # Handle category button clicks (one observer per category)
+    lapply(names(TRAIT_CATEGORIES), function(cat_id) {
+      btn_id <- paste0("conv_cat_btn_", cat_id)
+      observeEvent(input[[btn_id]], {
+        counts <- conv_cat_counts()
+        n <- tryCatch(counts[[cat_id]], error = function(e) 0L)
+        if (is.null(n) || length(n) == 0 || is.na(n) || n == 0) return()
+        # Toggle: click active category to close
+        if (identical(conv_selected_cat(), cat_id)) {
+          conv_selected_cat(NULL)
+        } else {
+          conv_selected_cat(cat_id)
+        }
+      }, ignoreInit = TRUE)
+    })
+
+    # Drill-down header (shows selected category and clear button)
+    output$conv_drilldown_header <- renderUI({
+      sel <- conv_selected_cat()
+      if (is.null(sel)) {
+        return(div(style = "font-size: 11px; color: #999; margin: 12px 0 4px 0; font-style: italic;",
+                   "Select a category above to see traits."))
+      }
+      meta <- TRAIT_CATEGORIES[[sel]]
+      counts <- conv_cat_counts()
+      n_total <- tryCatch(counts[[sel]], error = function(e) 0L)
+      if (is.null(n_total) || length(n_total) == 0 || is.na(n_total)) n_total <- 0L
+      n_shown <- min(n_total, 50L)
+      div(style = "display: flex; align-items: center; justify-content: space-between; margin: 12px 0 4px 0;",
+        h6(style = "margin: 0;",
+           meta$icon, " ", meta$label,
+           tags$span(style = "font-size: 11px; color: #888; margin-left: 8px;",
+                     sprintf("(showing %d of %d)", n_shown, n_total))),
+        actionButton("conv_clear_cat", "Back",
+                     icon = icon("times"),
+                     class = "btn-xs btn-default")
+      )
+    })
+
+    observeEvent(input$conv_clear_cat, {
+      conv_selected_cat(NULL)
+    })
+
+    # Data for drill-down: filter by selected category, limit to 50 by signal strength
+    conv_drilldown_data <- reactive({
+      sel <- conv_selected_cat()
+      if (is.null(sel)) return(NULL)
+      dt <- filtered_region_data()
+      studies_in_cat <- TRAIT_CATEGORIES[[sel]]$studies
+      dt <- dt[source_study %in% studies_in_cat]
+      if (nrow(dt) == 0) return(NULL)
+      # Sort by sumstats_2 signal strength, take top 50
+      if ("sumstats_2_max_nlog10P" %in% names(dt)) {
+        setorder(dt, -sumstats_2_max_nlog10P)
+      }
+      if (nrow(dt) > 50) dt <- dt[1:50]
+      dt
+    })
+
+    # Drill-down network: trait nodes colored by study, sized by signal strength
+    output$conv_drilldown_network <- renderVisNetwork({
+      dt <- conv_drilldown_data()
+      if (is.null(dt) || nrow(dt) == 0) {
+        return(visNetwork(
+          data.frame(id = 1, label = "(no traits - select a category)"),
+          data.frame()
+        ) %>% visNodes(shape = "text", font = list(size = 14)))
+      }
+
+      sel_cat <- conv_selected_cat()
+      cat_meta <- TRAIT_CATEGORIES[[sel_cat]]
+
+      # Build nodes: one per trait, colored by study, sized by -log10P
+      # Node ID is a simple "t_N" index; bundle_key is stored separately so we
+      # can map the click back.
+      nodes_list <- dt[, {
+        study <- source_study[1]
+        trait_name <- tryCatch(get_trait_display_name(.SD),
+                               error = function(e) basename(sumstats_2_file[1]))
+        if (is.null(trait_name) || is.na(trait_name) || trait_name == "") {
+          trait_name <- basename(sumstats_2_file[1])
+        }
+        node_color <- if (exists("study_colors") && study %in% names(study_colors)) {
+          study_colors[[study]]
+        } else cat_meta$color
+
+        nlp <- if ("sumstats_2_max_nlog10P" %in% names(.SD)) sumstats_2_max_nlog10P[1] else 8
+        size <- 12 + pmin(20, (nlp - 7.3) * 2)
+
+        list(
+          id = paste0("conv_t_", .I),
+          bundle_key = paste0(study, "__", basename(sumstats_2_file[1])),
+          label = substr(trait_name, 1, 30),
+          title = paste0(
+            "<b>", trait_name, "</b><br>",
+            "Study: ", study, "<br>",
+            "Trait -log10(P): ", round(nlp, 1), "<br>",
+            "PP.H4: ", round(PP.H4.abf[1], 3), "<br>",
+            "<em>Click to show regional plot</em>"
+          ),
+          color = node_color,
+          size = size,
+          group = study
+        )
+      }, by = .I]
+
+      nodes <- data.frame(
+        id = nodes_list$id,
+        label = nodes_list$label,
+        title = nodes_list$title,
+        color = nodes_list$color,
+        size = nodes_list$size,
+        group = nodes_list$group,
+        shape = "dot",
+        stringsAsFactors = FALSE
+      )
+
+      # Store the id -> bundle_key mapping for click handler to resolve
+      conv_node_keys(setNames(nodes_list$bundle_key, nodes_list$id))
+
+      visNetwork(nodes, data.frame(from = character(), to = character())) %>%
+        visNodes(font = list(color = "#000000", size = 12, face = "arial")) %>%
+        visPhysics(enabled = TRUE,
+                   solver = "forceAtlas2Based",
+                   forceAtlas2Based = list(gravitationalConstant = -50,
+                                           springLength = 80)) %>%
+        visInteraction(dragNodes = TRUE, zoomView = TRUE,
+                       tooltipDelay = 100) %>%
+        visEvents(select = "function(nodes) {
+          if (nodes.nodes.length > 0) {
+            Shiny.setInputValue('conv_trait_click', nodes.nodes[0], {priority: 'event'});
+          }
+        }")
+    })
+
+    # Track which trait is selected for regional plot display
+    conv_selected_trait <- reactiveVal(NULL)
+    # Map node id -> bundle key (populated by drilldown renderer)
+    conv_node_keys <- reactiveVal(character(0))
+
+    observeEvent(input$conv_trait_click, {
+      node_id <- input$conv_trait_click
+      keys <- conv_node_keys()
+      bundle_key <- keys[[node_id]]
+      if (!is.null(bundle_key)) {
+        conv_selected_trait(bundle_key)
+      }
+    }, ignoreInit = TRUE, ignoreNULL = TRUE)
+
+    # Reset selected trait when region or category changes
+    observeEvent(current_region(), {
+      conv_selected_trait(NULL)
+    }, ignoreNULL = TRUE, ignoreInit = TRUE)
+    observeEvent(conv_selected_cat(), {
+      conv_selected_trait(NULL)
+    }, ignoreNULL = FALSE, ignoreInit = TRUE)
+
+    # Load selected trait sumstats
+    conv_trait_sumstats <- reactive({
+      req(regional_data_path(), regional_layout(), current_region(), conv_selected_trait())
+      load_trait_sumstats(regional_data_path(), current_region(),
+                          conv_selected_trait(), regional_layout())
+    })
+
+    # Display trait name for header
+    conv_selected_trait_label <- reactive({
+      sel <- conv_selected_trait()
+      if (is.null(sel)) return(NULL)
+      # Parse "study__file"
+      parts <- strsplit(sel, "__", fixed = TRUE)[[1]]
+      if (length(parts) < 2) return(sel)
+      study <- parts[1]
+      file_part <- paste(parts[-1], collapse = "__")
+      # Try to find display name from filtered_region_data
+      dt <- filtered_region_data()
+      if (!is.null(dt) && nrow(dt) > 0) {
+        row <- dt[source_study == study & basename(sumstats_2_file) == file_part]
+        if (nrow(row) > 0) {
+          nm <- tryCatch(get_trait_display_name(row[1]),
+                         error = function(e) NULL)
+          if (!is.null(nm) && !is.na(nm) && nm != "") {
+            return(paste0(nm, " (", study, ")"))
+          }
+        }
+      }
+      sel
+    })
+
+    # Signal for conditionalPanel: is a trait selected?
+    output$conv_trait_has_data <- reactive({
+      !is.null(conv_selected_trait())
+    })
+    outputOptions(output, "conv_trait_has_data", suspendWhenHidden = FALSE)
+
+    # Regional plot for selected trait
+    output$conv_trait_plot <- renderPlotly({
+      req(conv_selected_trait())
+      dt <- conv_trait_sumstats()
+      if (is.null(dt) || nrow(dt) == 0) {
+        return(plotly_empty() %>% layout(
+          title = list(text = "No regional plot data available for this trait",
+                        font = list(size = 11))))
+      }
+      label <- conv_selected_trait_label()
+      coords <- conv_region_coords()
+      xr <- if (!is.null(coords)) c(coords$start, coords$end) else NULL
+      plot_regional_association_interactive(
+        dt,
+        title = label,
+        color = "#E67E22",
+        x_range = xr
+      )
+    })
+
+    output$conv_trait_plot_header <- renderUI({
+      req(conv_selected_trait())
+      label <- conv_selected_trait_label()
+      div(style = "display: flex; align-items: center; justify-content: space-between; margin: 12px 0 2px 0;",
+        h6(style = "margin: 0; color: #555;",
+           icon("chart-line"), " Selected trait: ", label),
+        actionButton("conv_clear_trait", "Clear",
+                     icon = icon("times"), class = "btn-xs btn-default")
+      )
+    })
+
+    observeEvent(input$conv_clear_trait, {
+      conv_selected_trait(NULL)
     })
 
     # Render network
