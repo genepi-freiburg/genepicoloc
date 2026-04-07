@@ -2,6 +2,7 @@
 ._.DS_Store
 .mcp.json
 .env
+inst/shiny/genepicoloc-shiny.tar.gz
 .Rproj.user
 .Rhistory
 tmp/

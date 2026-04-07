@@ -31,13 +31,15 @@ IMAGE_NAME="${IMAGE_NAME:-genepicoloc-shiny}"
 # Atlas data path: GENEPICOLOC_DATA_PATH env var > repo-relative default.
 # Set GENEPICOLOC_DATA_PATH in .env for local dev or in the systemd unit /
 # docker-compose file for remote deploys.
-DATA_PATH="${GENEPICOLOC_DATA_PATH:-${SCRIPT_DIR}/../../../data/atlas}"
+DATA_PATH_RAW="${GENEPICOLOC_DATA_PATH:-${SCRIPT_DIR}/../../../data/atlas}"
 
-# Resolve to absolute path
-DATA_PATH="$(cd "$DATA_PATH" 2>/dev/null && pwd)" || {
-  echo -e "\033[0;31mError: atlas data path not found: ${DATA_PATH}\033[0m"
-  echo "Set GENEPICOLOC_DATA_PATH in ${SCRIPT_DIR}/.env (see .env.example)"
-  exit 1
+# Resolve atlas path (only required for --dev / --local)
+require_data_path() {
+  DATA_PATH="$(cd "$DATA_PATH_RAW" 2>/dev/null && pwd)" || {
+    echo -e "\033[0;31mError: atlas data path not found: ${DATA_PATH_RAW}\033[0m"
+    echo "Set GENEPICOLOC_DATA_PATH in ${SCRIPT_DIR}/.env (see .env.example)"
+    exit 1
+  }
 }
 
 # Colors
@@ -57,6 +59,7 @@ show_help() {
   echo "  --help, -h      Show this help message"
   echo "  --dev           Dev mode: bind-mount R code for fast iteration"
   echo "  --local         Full local build (self-contained image)"
+  echo "  --remote        Build source bundle for VPS (synced via Nextcloud)"
   echo "  --status        Show status of running container"
   echo "  --stop          Stop the running container"
   echo "  --logs [N]      Show container logs (optional: last N lines)"
@@ -64,6 +67,7 @@ show_help() {
   echo "Workflow:"
   echo "  1. ./deploy.sh --dev       # Iterate on R code (restart, no rebuild)"
   echo "  2. ./deploy.sh --local     # Test full build before deploying"
+  echo "  3. ./deploy.sh --remote    # Bundle source -> Nextcloud -> VPS"
   echo ""
 }
 
@@ -85,6 +89,7 @@ show_logs() {
 }
 
 deploy_dev() {
+  require_data_path
   echo -e "${BLUE}=== Dev mode: ${IMAGE_NAME} ===${NC}"
   echo "  Port:      127.0.0.1:${SHINY_PORT}"
   echo "  Container: ${CONTAINER_NAME}"
@@ -121,6 +126,7 @@ deploy_dev() {
 }
 
 deploy_local() {
+  require_data_path
   echo -e "${BLUE}=== Full build: ${IMAGE_NAME} ===${NC}"
   echo "  Port:      127.0.0.1:${SHINY_PORT}"
   echo "  Container: ${CONTAINER_NAME}"
@@ -151,6 +157,43 @@ deploy_local() {
   echo "  ./deploy.sh --stop     Stop the container"
 }
 
+# Remote deployment: build a source-only tarball that the VPS will rebuild.
+# Mirrors apps/nako/deploy.sh + deploy-remote.sh pattern.
+create_bundle() {
+  BUNDLE_NAME="genepicoloc-shiny.tar.gz"
+  BUNDLE_PATH="${SCRIPT_DIR}/${BUNDLE_NAME}"
+
+  echo -e "${BLUE}=== Creating source bundle ===${NC}"
+  cd "$SCRIPT_DIR"
+  tar -czf "$BUNDLE_PATH" \
+    --exclude='*.tar.gz' \
+    --exclude='.git' \
+    --exclude='.Rhistory' \
+    --exclude='.env' \
+    Dockerfile \
+    app.R \
+    R \
+    www \
+    .env.example
+
+  BUNDLE_SIZE=$(du -h "$BUNDLE_PATH" | cut -f1)
+
+  # Drop into the Nextcloud-synced epi-vps tree so the VPS sees it.
+  VPS_APPS_DIR="${HOME}/Work/bioinfo/nextcloud/Downloads/epi-vps/apps/genepicoloc"
+  if [[ -d "$VPS_APPS_DIR" ]]; then
+    mv "$BUNDLE_PATH" "$VPS_APPS_DIR/"
+    echo -e "${GREEN}Bundle copied to: ${VPS_APPS_DIR}/${BUNDLE_NAME} (${BUNDLE_SIZE})${NC}"
+  else
+    echo -e "${GREEN}Bundle created: ${BUNDLE_PATH} (${BUNDLE_SIZE})${NC}"
+    echo -e "${YELLOW}VPS sync folder not found: ${VPS_APPS_DIR}${NC}"
+  fi
+
+  echo ""
+  echo "Next steps:"
+  echo "  1. On laptop: bash ~/epi-vps/apps/genepicoloc/deploy.sh         (scp bundle to epi)"
+  echo "  2. On epi:    proxy_on && bash ~/epi-vps/apps/genepicoloc/deploy-remote.sh"
+}
+
 case "${1:-}" in
   --help|-h|"")
     show_help
@@ -161,6 +204,9 @@ case "${1:-}" in
     ;;
   --local)
     deploy_local
+    ;;
+  --remote|--bundle)
+    create_bundle
     ;;
   --status)
     show_status
