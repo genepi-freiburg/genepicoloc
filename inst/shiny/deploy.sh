@@ -15,15 +15,28 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Load per-machine config from .env (gitignored). See .env.example.
+if [ -f "${SCRIPT_DIR}/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${SCRIPT_DIR}/.env"
+  set +a
+fi
+
 # Settings
-SHINY_PORT=3838
-CONTAINER_NAME=genepicoloc-shiny
-IMAGE_NAME=genepicoloc-shiny
-DATA_PATH="${SCRIPT_DIR}/../../../data/atlas"
+SHINY_PORT="${SHINY_PORT:-3838}"
+CONTAINER_NAME="${CONTAINER_NAME:-genepicoloc-shiny}"
+IMAGE_NAME="${IMAGE_NAME:-genepicoloc-shiny}"
+
+# Atlas data path: GENEPICOLOC_DATA_PATH env var > repo-relative default.
+# Set GENEPICOLOC_DATA_PATH in .env for local dev or in the systemd unit /
+# docker-compose file for remote deploys.
+DATA_PATH="${GENEPICOLOC_DATA_PATH:-${SCRIPT_DIR}/../../../data/atlas}"
 
 # Resolve to absolute path
 DATA_PATH="$(cd "$DATA_PATH" 2>/dev/null && pwd)" || {
-  echo -e "\033[0;31mError: Data path not found: ${DATA_PATH}\033[0m"
+  echo -e "\033[0;31mError: atlas data path not found: ${DATA_PATH}\033[0m"
+  echo "Set GENEPICOLOC_DATA_PATH in ${SCRIPT_DIR}/.env (see .env.example)"
   exit 1
 }
 
@@ -88,6 +101,7 @@ deploy_dev() {
   fi
 
   podman run -d -p ${SHINY_PORT}:3838 \
+    -e ANTHROPIC_API_KEY \
     -v "${DATA_PATH}:/app/data:ro" \
     -v "${SCRIPT_DIR}/app.R:/app/app.R:ro" \
     -v "${SCRIPT_DIR}/R:/app/R:ro" \
@@ -118,6 +132,7 @@ deploy_local() {
   podman build -t ${IMAGE_NAME} "$SCRIPT_DIR"
 
   podman run -d -p ${SHINY_PORT}:3838 \
+    -e ANTHROPIC_API_KEY \
     -v "${DATA_PATH}:/app/data:ro" \
     --name ${CONTAINER_NAME} ${IMAGE_NAME}
 
