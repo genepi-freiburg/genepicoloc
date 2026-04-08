@@ -658,12 +658,59 @@ library(plotly)
     # must be reassembled as "<source_study>_<ancestry>__<basename>" even
     # though coloc_data() has unified source_study (e.g. "MVP_R4").
     make_bundle_key <- function(source_study, sumstats_2_file, ancestry = NULL) {
-      if (!is.null(ancestry) && !is.na(ancestry) && nzchar(ancestry) &&
-          !is.null(current_study()) && is_virtual_study(current_study())) {
-        paste0(source_study, "_", ancestry, "__", basename(sumstats_2_file))
-      } else {
-        paste0(source_study, "__", basename(sumstats_2_file))
+      # Vector-safe: works for scalar or data.table-column inputs.
+      if (is.null(ancestry)) {
+        return(paste0(source_study, "__", basename(sumstats_2_file)))
       }
+      is_virt <- !is.null(current_study()) && is_virtual_study(current_study())
+      base_key <- paste0(source_study, "__", basename(sumstats_2_file))
+      anc_key  <- paste0(source_study, "_", ancestry, "__", basename(sumstats_2_file))
+      use_anc  <- is_virt & !is.na(ancestry) & nzchar(ancestry)
+      ifelse(use_anc, anc_key, base_key)
+    }
+
+    # Consensus trait key for a virtual multi-ancestry study: collapses all
+    # per-ancestry variants of the same trait into one stable key.
+    # Turns "MVP_R4_EUR__MVP_R4.1000G_AGR.A1C_Max_INT.EUR.GIA.dbGaP.txt.gz"
+    # into "MVP_R4__MVP_R4.1000G_AGR.A1C_Max_INT.GIA.dbGaP.txt.gz".
+    ANC_CODES <- c("AFR","AMR","EAS","EUR","META")
+    make_consensus_trait_key <- function(bundle_key) {
+      anc_alt <- paste(ANC_CODES, collapse = "|")
+      # Strip "_<ANC>" that immediately precedes "__" in the study prefix.
+      k <- sub(paste0("_(", anc_alt, ")__"), "__", bundle_key)
+      # Also drop ".<ANC>." segment from the filename portion so keys match
+      # across ancestries whose filenames differ only by that token.
+      k <- sub(paste0("\\.(", anc_alt, ")\\."), ".", k)
+      k
+    }
+
+    # Given a consensus trait key and a per-ancestry region bundle, try to
+    # locate the matching ancestry-specific bundle key inside that bundle.
+    resolve_consensus_in_bundle <- function(consensus_key, bundle_keys, anc) {
+      # Rebuild expected ancestry-specific candidate keys:
+      #  1. Insert "_<anc>" after the study prefix
+      #  2. Insert ".<anc>" before ".GIA" (common MVP naming)
+      #  3. Or more generally: if consensus key split at "__" -> prefix,fn,
+      #     candidates are <prefix>_<anc>__<fn with .<anc>. spliced in>.
+      parts <- strsplit(consensus_key, "__", fixed = TRUE)[[1]]
+      if (length(parts) != 2) return(NULL)
+      prefix <- parts[1]; fn <- parts[2]
+
+      cand <- c(
+        paste0(prefix, "_", anc, "__", sub("\\.GIA", paste0(".", anc, ".GIA"), fn)),
+        paste0(prefix, "_", anc, "__", sub("^(MVP_R4\\.[^.]+\\.[^.]+)\\.", paste0("\\1.", anc, "."), fn))
+      )
+      hit <- intersect(cand, bundle_keys)
+      if (length(hit) > 0) return(hit[1])
+
+      # Fallback: fuzzy match - any bundle key that starts with
+      # "<prefix>_<anc>__" and reduces (via make_consensus_trait_key) to
+      # the same consensus_key.
+      pref <- paste0(prefix, "_", anc, "__")
+      cands <- bundle_keys[startsWith(bundle_keys, pref)]
+      if (length(cands) == 0) return(NULL)
+      matches <- cands[vapply(cands, function(k) identical(make_consensus_trait_key(k), consensus_key), logical(1))]
+      if (length(matches) > 0) matches[1] else NULL
     }
 
     output$landing_categories <- renderUI({
@@ -1547,7 +1594,21 @@ library(plotly)
       start_pos <- as.numeric(pos_parts[1])
       end_pos <- as.numeric(pos_parts[2])
 
-      dt <- coloc_data()[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
+      # Virtual multi-ancestry: widen the match to the consensus window so
+      # colocs from all ancestries that hit the same locus are included.
+      if (!is.null(current_study()) && is_virtual_study(current_study())) {
+        bundles <- load_multi_region_bundles(current_region())
+        cons <- if (!is.null(bundles) && length(bundles) > 0) bundles[[1]]$.consensus else NULL
+        if (!is.null(cons)) {
+          dt <- coloc_data()[as.character(CHR_var) == as.character(cons$chr) &
+                              BP_START_var <= cons$stop &
+                              BP_STOP_var  >= cons$start]
+        } else {
+          dt <- coloc_data()[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
+        }
+      } else {
+        dt <- coloc_data()[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
+      }
       dt <- dt[PP.H4.abf >= input$min_pph4]
       dt <- dt[sumstats_2_max_nlog10P >= input$min_nlog10P]
       dt <- dt[source_study %in% selected_studies()]
@@ -2375,7 +2436,16 @@ library(plotly)
                    sprintf("(showing %d of %d)", n_shown, n_total)))
     })
 
-    # Data for drill-down: filter by selected category, limit to 50 by signal strength
+    # Data for drill-down: filter by selected category, limit to 50 by signal strength.
+    # For virtual multi-ancestry studies we additionally collapse rows per
+    # consensus trait (one row per trait across ancestries) and attach:
+    #   - `ancestries`   : comma-separated list of ancestries that hit
+    #   - `n_ancestries` : count
+    #   - `consensus_key`: canonical trait key for overlay plot lookup
+    # The max sumstats_2_max_nlog10P is kept for sorting. Columns expected by
+    # downstream code (source_study, sumstats_2_file, ancestry) are taken
+    # from the ancestry with the strongest signal so display helpers keep
+    # working without branching.
     conv_drilldown_data <- reactive({
       sel <- conv_selected_cat()
       if (is.null(sel)) return(NULL)
@@ -2383,6 +2453,35 @@ library(plotly)
       studies_in_cat <- TRAIT_CATEGORIES[[sel]]$studies
       dt <- dt[source_study %in% studies_in_cat]
       if (nrow(dt) == 0) return(NULL)
+
+      if (!is.null(current_study()) && is_virtual_study(current_study()) &&
+          "ancestry" %in% names(dt)) {
+        dt[, .ck := make_consensus_trait_key(
+          make_bundle_key(source_study, sumstats_2_file, ancestry))]
+        # Rank rows by signal so the "first row per consensus" is the
+        # strongest ancestry signal.
+        if ("sumstats_2_max_nlog10P" %in% names(dt)) {
+          setorder(dt, -sumstats_2_max_nlog10P)
+        }
+        dt <- dt[, {
+          # Capture group-level ancestry BEFORE any nested data.table op;
+          # once we enter `first[, ... ]` the inner .SD refers to `first`
+          # (one row) rather than the outer group.
+          group_ancs <- sort(unique(ancestry))
+          group_ck   <- .ck[1]
+          first <- .SD[1]  # strongest row (group is pre-sorted by signal)
+          first[, ancestries    := paste(group_ancs, collapse = ",")]
+          first[, n_ancestries  := length(group_ancs)]
+          first[, consensus_key := group_ck]
+          first
+        }, by = .ck]
+        dt[, .ck := NULL]
+        if ("sumstats_2_max_nlog10P" %in% names(dt)) {
+          setorder(dt, -sumstats_2_max_nlog10P)
+        }
+        return(dt)
+      }
+
       # Sort by sumstats_2 signal strength (full list; tiles cap to 50)
       if ("sumstats_2_max_nlog10P" %in% names(dt)) {
         setorder(dt, -sumstats_2_max_nlog10P)
@@ -2408,7 +2507,11 @@ library(plotly)
       sel_cat <- conv_selected_cat()
       cat_meta <- TRAIT_CATEGORIES[[sel_cat]]
 
-      # Build metadata for each tile and the id->bundle_key map
+      # Build metadata for each tile and the id->bundle_key map. For
+      # virtual studies the drilldown already carries a `consensus_key`
+      # and `ancestries` column; prefer those so clicking a tile selects
+      # the consensus trait (overlay) rather than one ancestry.
+      is_virt_dd <- is_virtual_study(current_study()) && "consensus_key" %in% names(dt)
       tiles_list <- dt[, {
         study <- source_study[1]
         anc <- if ("ancestry" %in% names(.SD)) ancestry[1] else NA_character_
@@ -2421,13 +2524,16 @@ library(plotly)
           study_colors[[study]]
         } else cat_meta$color
         nlp <- if ("sumstats_2_max_nlog10P" %in% names(.SD)) sumstats_2_max_nlog10P[1] else NA
+        bk <- if (is_virt_dd) consensus_key[1] else make_bundle_key(study, sumstats_2_file[1], anc)
+        anc_badge <- if (is_virt_dd && "ancestries" %in% names(.SD)) ancestries[1] else NA_character_
         list(
           tile_id = paste0("conv_t_", .I),
-          bundle_key = make_bundle_key(study, sumstats_2_file[1], anc),
+          bundle_key = bk,
           trait_name = trait_name,
           study = study,
           study_color = study_color,
-          nlp = nlp
+          nlp = nlp,
+          anc_badge = anc_badge
         )
       }, by = .I]
 
@@ -2461,18 +2567,34 @@ library(plotly)
           # Trait name (truncated with ellipsis via CSS)
           div(style = "font-size: 11px; font-weight: 600; color: #2c3e50; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
               tl$trait_name),
-          # Study badge + p-value on one line
+          # Study badge + p-value on one line.
+          # For virtual studies, replace the study badge with ancestry
+          # badges so the tile immediately shows how broadly the trait
+          # colocalized.
           div(style = "display: flex; justify-content: space-between; align-items: center; gap: 4px;",
-              tags$span(
-                style = paste0(
-                  "display: inline-block; padding: 1px 5px; ",
-                  "border-radius: 8px; font-size: 9px; font-weight: 600; ",
-                  "color: white; background: ", tl$study_color, "; ",
-                  "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ",
-                  "max-width: 70%;"
-                ),
-                tl$study
-              ),
+              if (!is.null(tl$anc_badge) && !is.na(tl$anc_badge) && nzchar(tl$anc_badge)) {
+                tags$span(
+                  style = paste0(
+                    "display: inline-block; padding: 1px 5px; ",
+                    "border-radius: 8px; font-size: 9px; font-weight: 600; ",
+                    "color: white; background: ", tl$study_color, "; ",
+                    "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ",
+                    "max-width: 70%;"
+                  ),
+                  tl$anc_badge
+                )
+              } else {
+                tags$span(
+                  style = paste0(
+                    "display: inline-block; padding: 1px 5px; ",
+                    "border-radius: 8px; font-size: 9px; font-weight: 600; ",
+                    "color: white; background: ", tl$study_color, "; ",
+                    "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ",
+                    "max-width: 70%;"
+                  ),
+                  tl$study
+                )
+              },
               tags$span(
                 style = "font-size: 10px; color: #555; font-weight: 600;",
                 paste0("-log10P=", p_text)
@@ -2525,23 +2647,78 @@ library(plotly)
         conv_selected_trait(NULL)
         return()
       }
-      # Top row (already sorted by -sumstats_2_max_nlog10P in conv_drilldown_data)
-      anc <- if ("ancestry" %in% names(dt)) dt$ancestry[1] else NA_character_
-      bundle_key <- make_bundle_key(dt$source_study[1], dt$sumstats_2_file[1], anc)
+      # Top row (already sorted by -sumstats_2_max_nlog10P in conv_drilldown_data).
+      # Prefer the consensus key if the drilldown is virtual-collapsed.
+      bundle_key <- if ("consensus_key" %in% names(dt) && !is.na(dt$consensus_key[1])) {
+        dt$consensus_key[1]
+      } else {
+        anc <- if ("ancestry" %in% names(dt)) dt$ancestry[1] else NA_character_
+        make_bundle_key(dt$source_study[1], dt$sumstats_2_file[1], anc)
+      }
       conv_selected_trait(bundle_key)
     }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
-    # Load selected trait sumstats
+    # Load selected trait sumstats. For virtual multi-ancestry studies
+    # conv_selected_trait() is a consensus key - resolve it against each
+    # ancestry's loaded bundle and return a named list (one per ancestry)
+    # so plot_regional_association_interactive() overlays the traces.
+    # Attach an attribute `coloc_ancestries` listing which ancestries
+    # actually colocalized this trait (rest shown as raw-sumstats context).
     conv_trait_sumstats <- reactive({
       req(regional_data_path(), regional_layout(), current_region(), conv_selected_trait())
+      sel <- conv_selected_trait()
+
+      if (!is.null(current_study()) && is_virtual_study(current_study())) {
+        bundles <- load_multi_region_bundles(current_region())
+        if (is.null(bundles) || length(bundles) == 0) return(NULL)
+        out <- lapply(names(bundles), function(anc) {
+          bk <- names(bundles[[anc]]$traits)
+          ak <- resolve_consensus_in_bundle(sel, bk, anc)
+          if (is.null(ak)) return(NULL)
+          bundles[[anc]]$traits[[ak]]
+        })
+        names(out) <- names(bundles)
+        out <- out[!vapply(out, is.null, logical(1))]
+        if (length(out) == 0) return(NULL)
+
+        # Tag which ancestries actually colocalized (from the drilldown
+        # data for the current consensus_key). Used by the overlay to
+        # fade non-colocalized traces.
+        dd <- conv_drilldown_data()
+        coloc_ancs <- character(0)
+        if (!is.null(dd) && "consensus_key" %in% names(dd)) {
+          row <- dd[consensus_key == sel]
+          if (nrow(row) > 0) {
+            coloc_ancs <- strsplit(row$ancestries[1], ",", fixed = TRUE)[[1]]
+          }
+        }
+        attr(out, "coloc_ancestries") <- coloc_ancs
+        return(out)
+      }
+
       load_trait_sumstats(regional_data_path(), current_region(),
-                          conv_selected_trait(), regional_layout())
+                          sel, regional_layout())
     })
 
     # Display trait name for header
     conv_selected_trait_label <- reactive({
       sel <- conv_selected_trait()
       if (is.null(sel)) return(NULL)
+      # Virtual studies: look up the consensus row in the drilldown data
+      # and render "<name> [ANC1,ANC2,...]".
+      if (is_virtual_study(current_study())) {
+        dd <- conv_drilldown_data()
+        if (!is.null(dd) && "consensus_key" %in% names(dd)) {
+          row <- dd[consensus_key == sel]
+          if (nrow(row) > 0) {
+            nm <- tryCatch(get_trait_display_name(row[1]),
+                           error = function(e) NULL)
+            if (!is.null(nm) && !is.na(nm) && nm != "") {
+              return(paste0(nm, " [", row$ancestries[1], "]"))
+            }
+          }
+        }
+      }
       # Parse "study__file"
       parts <- strsplit(sel, "__", fixed = TRUE)[[1]]
       if (length(parts) < 2) return(sel)
@@ -2572,14 +2749,25 @@ library(plotly)
     output$conv_trait_plot <- renderPlotly({
       req(conv_selected_trait())
       dt <- conv_trait_sumstats()
-      if (is.null(dt) || nrow(dt) == 0) {
+      # dt can be a single data.table or a named list of them (multi-ancestry
+      # overlay). Treat both uniformly for the empty check.
+      is_empty <- is.null(dt) || (is.data.frame(dt) && nrow(dt) == 0) ||
+                  (is.list(dt) && !is.data.frame(dt) && length(dt) == 0)
+      if (is_empty) {
         return(plotly_empty() %>% layout(
           title = list(text = "No regional plot data available for this trait",
                         font = list(size = 11))))
       }
       label <- conv_selected_trait_label()
       coords <- conv_region_coords()
-      xr <- if (!is.null(coords)) c(coords$start, coords$end) else NULL
+      # For virtual studies x_range should span the consensus window.
+      xr <- if (!is.null(current_study()) && is_virtual_study(current_study())) {
+        bundles <- load_multi_region_bundles(current_region())
+        cons <- if (!is.null(bundles) && length(bundles) > 0) bundles[[1]]$.consensus else NULL
+        if (!is.null(cons)) c(cons$start, cons$stop) else NULL
+      } else if (!is.null(coords)) {
+        c(coords$start, coords$end)
+      } else NULL
       plot_regional_association_interactive(
         dt,
         title = label,
@@ -2597,7 +2785,9 @@ library(plotly)
       }
 
       # Build "label -> bundle_key" choices for all traits in the current
-      # category (same order as the tiles: by -log10P desc)
+      # category (same order as the tiles: by -log10P desc). Virtual
+      # multi-ancestry studies use consensus keys with ancestry badges.
+      is_virt_dd <- is_virtual_study(current_study()) && "consensus_key" %in% names(dt)
       choices_list <- lapply(seq_len(nrow(dt)), function(i) {
         row <- dt[i]
         study <- row$source_study
@@ -2608,10 +2798,17 @@ library(plotly)
           trait_name <- basename(row$sumstats_2_file)
         }
         nlp <- if ("sumstats_2_max_nlog10P" %in% names(row)) row$sumstats_2_max_nlog10P else NA
-        disp_study <- if (!is.na(anc) && nzchar(anc)) paste0(study, " ", anc) else study
-        label <- paste0(trait_name, " (", disp_study, ", -log10P=",
-                        if (is.na(nlp)) "-" else sprintf("%.1f", nlp), ")")
-        key <- make_bundle_key(study, row$sumstats_2_file, anc)
+        if (is_virt_dd) {
+          ancs <- row$ancestries
+          label <- paste0(trait_name, " [", ancs, "], -log10P=",
+                          if (is.na(nlp)) "-" else sprintf("%.1f", nlp))
+          key <- row$consensus_key
+        } else {
+          disp_study <- if (!is.na(anc) && nzchar(anc)) paste0(study, " ", anc) else study
+          label <- paste0(trait_name, " (", disp_study, ", -log10P=",
+                          if (is.na(nlp)) "-" else sprintf("%.1f", nlp), ")")
+          key <- make_bundle_key(study, row$sumstats_2_file, anc)
+        }
         list(label = label, key = key)
       })
       labels <- vapply(choices_list, `[[`, character(1), "label")
@@ -2791,49 +2988,97 @@ library(plotly)
 
     # Get available traits for current region
     regional_traits_available <- reactive({
-      req(filtered_data(), regional_data_path(), regional_layout(), current_region())
-      dt <- filtered_data()
-      if (nrow(dt) == 0) return(NULL)
+      req(regional_data_path(), regional_layout(), current_region())
 
       if (regional_layout() == "bundled") {
-        # Bundled layout: match annotation rows to bundle keys
+        is_virt <- !is.null(current_study()) && is_virtual_study(current_study()) &&
+                   "ancestry" %in% names(coloc_data())
+
+        # --- Virtual multi-ancestry: consensus-keyed trait dropdown ---
+        if (is_virt) {
+          bundles <- load_multi_region_bundles(current_region())
+          if (is.null(bundles) || length(bundles) == 0) return(NULL)
+          cons <- bundles[[1]]$.consensus
+          if (is.null(cons)) return(NULL)
+
+          # Pull colocs for ANY per-ancestry region that overlaps the
+          # consensus window (not filtered_data(), which is locked to the
+          # representative per-ancestry region and would hide other
+          # ancestries' colocs).
+          all_dt <- coloc_data()
+          dt <- all_dt[as.character(CHR_var) == as.character(cons$chr) &
+                       BP_START_var <= cons$stop &
+                       BP_STOP_var  >= cons$start]
+          if (nrow(dt) == 0) return(NULL)
+          dt <- dt[PP.H4.abf >= input$min_pph4]
+          dt <- dt[sumstats_2_max_nlog10P >= input$min_nlog10P]
+          dt <- dt[source_study %in% selected_studies()]
+          if (nrow(dt) == 0) return(NULL)
+
+          # Union of bundle keys across ancestries (each mapped to its
+          # consensus key) tells us which consensus traits are available.
+          all_keys <- unlist(lapply(bundles, function(b) names(b$traits)),
+                             use.names = FALSE)
+          if (length(all_keys) == 0) return(NULL)
+          consensus_by_key <- make_consensus_trait_key(all_keys)
+
+          # Build a consensus row per (source_study, sumstats_2_file)
+          # collapsing across ancestries and recording which ancestries
+          # colocalized.
+          trait_info <- unique(dt[, .(
+            source_study, ancestry,
+            trait_display = tryCatch(get_trait_display_name(.SD), error = function(e) "Unknown"),
+            ancestry_key  = make_bundle_key(source_study, sumstats_2_file, ancestry),
+            consensus_key = make_consensus_trait_key(
+              make_bundle_key(source_study, sumstats_2_file, ancestry))
+          ), by = seq_len(nrow(dt))])
+
+          # Only keep rows whose per-ancestry key exists in at least one
+          # loaded bundle.
+          trait_info <- trait_info[ancestry_key %in% all_keys]
+          if (nrow(trait_info) == 0) return(NULL)
+
+          consensus <- trait_info[, .(
+            trait_display = trait_display[1],
+            ancestries = paste(sort(unique(ancestry)), collapse = ","),
+            n_anc = length(unique(ancestry))
+          ), by = consensus_key]
+          # Sort: more ancestries first, then alphabetical by display name.
+          setorder(consensus, -n_anc, trait_display)
+
+          choices <- setNames(
+            consensus$consensus_key,
+            paste0(consensus$trait_display, " [", consensus$ancestries, "]")
+          )
+          return(choices)
+        }
+
+        # --- Single-study bundled layout (original path) ---
+        req(filtered_data())
+        dt <- filtered_data()
+        if (nrow(dt) == 0) return(NULL)
+
         region_data <- load_region_bundle(regional_data_path(), current_region())
         if (is.null(region_data) || length(region_data$traits) == 0) return(NULL)
 
         bundle_keys <- names(region_data$traits)
 
-        # Build key from annotation via make_bundle_key() so virtual
-        # multi-ancestry studies produce the per-ancestry bundle prefix
-        # (e.g. "MVP_R4_EUR__...") that matches the regional RDS.
-        is_virt <- is_virtual_study(current_study()) && "ancestry" %in% names(dt)
-        if (is_virt) {
-          trait_info <- unique(dt[, .(
-            source_study, ancestry,
-            trait_display = tryCatch(get_trait_display_name(.SD), error = function(e) "Unknown"),
-            bundle_key = make_bundle_key(source_study, sumstats_2_file, ancestry)
-          ), by = seq_len(nrow(dt))])
-        } else {
-          trait_info <- unique(dt[, .(
-            source_study,
-            trait_display = tryCatch(get_trait_display_name(.SD), error = function(e) "Unknown"),
-            bundle_key = make_bundle_key(source_study, sumstats_2_file)
-          ), by = seq_len(nrow(dt))])
-        }
+        trait_info <- unique(dt[, .(
+          source_study,
+          trait_display = tryCatch(get_trait_display_name(.SD), error = function(e) "Unknown"),
+          bundle_key = make_bundle_key(source_study, sumstats_2_file)
+        ), by = seq_len(nrow(dt))])
 
-        # Keep only traits that exist in the bundle (the region bundle is
-        # for one ancestry at a time; traits from other ancestries will be
-        # absent in this step 1).
         trait_info <- trait_info[bundle_key %in% bundle_keys]
         if (nrow(trait_info) == 0) return(NULL)
 
-        if (is_virt) {
-          trait_info[, trait_label := paste0(trait_display, " (", ancestry, ")")]
-        } else {
-          trait_info[, trait_label := paste0(trait_display, " (", source_study, ")")]
-        }
+        trait_info[, trait_label := paste0(trait_display, " (", source_study, ")")]
         setNames(trait_info$bundle_key, trait_info$trait_label)
       } else {
         # Legacy layout: use get_trait_name for filename matching
+        req(filtered_data())
+        dt <- filtered_data()
+        if (nrow(dt) == 0) return(NULL)
         trait_info <- unique(dt[, .(
           source_study,
           trait_name = tryCatch(get_trait_name(.SD), error = function(e) "Unknown"),
@@ -3042,9 +3287,104 @@ library(plotly)
       reconstruct_name(readRDS(sumstats_file))
     }
 
-    # Load base study sumstats for current region
+    # Parse a regional bundle filename (chr16_19330554_21586583.RDS) back
+    # into numeric coordinates. Returns list(chr, start, stop) or NULL.
+    parse_regional_filename <- function(fname) {
+      m <- regmatches(fname,
+        regexec("^chr([0-9XY]+)_([0-9]+)_([0-9]+)\\.RDS$", fname))[[1]]
+      if (length(m) != 4) return(NULL)
+      list(chr = m[2], start = as.numeric(m[3]), stop = as.numeric(m[4]))
+    }
+
+    # For a virtual multi-ancestry study, find all per-ancestry region RDS
+    # files that overlap the consensus cluster containing region_str. The
+    # consensus coordinates are derived by scanning all ancestries' region
+    # files once and merging intervals, seeded from region_str. Returns a
+    # named list: ancestry -> region_data (list(base, traits)), cached to
+    # avoid re-reading on every render.
+    loaded_multi_cache <- reactiveVal(list(id = NULL, data = NULL))
+
+    load_multi_region_bundles <- function(region_str) {
+      study <- current_study()
+      if (is.null(study) || !is_virtual_study(study)) return(NULL)
+      vinfo <- DEFAULT_VIRTUAL_STUDIES[[study]]
+
+      # Seed chromosome + coordinates from region_str (representative key).
+      rp <- strsplit(region_str, ":")[[1]]
+      if (length(rp) != 2) return(NULL)
+      chr <- sub("^chr", "", rp[1])
+      pp <- as.numeric(strsplit(rp[2], "-")[[1]])
+      seed_start <- pp[1]; seed_stop <- pp[2]
+
+      # Check cache
+      cache_key <- paste(study, chr, seed_start, seed_stop)
+      cache <- loaded_multi_cache()
+      if (identical(cache$id, cache_key)) return(cache$data)
+
+      # Collect all candidate files across ancestries on this chromosome.
+      candidates <- list()  # rows: ancestry, file, start, stop
+      for (anc in names(vinfo$regional_dirs)) {
+        d <- vinfo$regional_dirs[[anc]]
+        if (is.na(d) || !dir.exists(d)) next
+        fs <- list.files(d, pattern = "\\.RDS$", full.names = FALSE)
+        for (f in fs) {
+          coord <- parse_regional_filename(f)
+          if (is.null(coord)) next
+          if (sub("^chr", "", coord$chr) != chr) next
+          candidates[[length(candidates) + 1]] <- list(
+            ancestry = anc, file = file.path(d, f),
+            start = coord$start, stop = coord$stop)
+        }
+      }
+      if (length(candidates) == 0) return(NULL)
+      cand_dt <- data.table::rbindlist(candidates)
+
+      # Grow the consensus window iteratively: start from the seed and
+      # include any candidate overlapping the running window; repeat until
+      # stable.
+      cur_start <- seed_start; cur_stop <- seed_stop
+      repeat {
+        hit <- cand_dt[start <= cur_stop & stop >= cur_start]
+        if (nrow(hit) == 0) break
+        new_start <- min(hit$start); new_stop <- max(hit$stop)
+        if (new_start == cur_start && new_stop == cur_stop) break
+        cur_start <- new_start; cur_stop <- new_stop
+      }
+      hit <- cand_dt[start <= cur_stop & stop >= cur_start]
+      if (nrow(hit) == 0) return(NULL)
+
+      # Within each ancestry keep the widest overlapping file (usually
+      # there's only one; if multiple we prefer the largest window).
+      hit[, width := stop - start]
+      setorder(hit, ancestry, -width)
+      hit <- hit[, .SD[1], by = ancestry]
+
+      # Read and reconstruct each bundle.
+      result <- list()
+      for (i in seq_len(nrow(hit))) {
+        rd <- tryCatch(readRDS(hit$file[i]), error = function(e) NULL)
+        if (is.null(rd)) next
+        if (!is.null(rd$base)) rd$base <- reconstruct_name(rd$base)
+        rd$traits <- lapply(rd$traits, reconstruct_name)
+        rd$.consensus <- list(chr = chr, start = cur_start, stop = cur_stop)
+        result[[hit$ancestry[i]]] <- rd
+      }
+
+      loaded_multi_cache(list(id = cache_key, data = result))
+      result
+    }
+
+    # Load base study sumstats for current region. For virtual studies,
+    # returns a named list(ancestry = dt) for overlay rendering; otherwise
+    # returns a single data.table.
     regional_base_sumstats <- reactive({
       req(regional_data_path(), regional_layout(), current_region())
+      study <- current_study()
+      if (!is.null(study) && is_virtual_study(study)) {
+        bundles <- load_multi_region_bundles(current_region())
+        if (is.null(bundles) || length(bundles) == 0) return(NULL)
+        return(lapply(bundles, `[[`, "base"))
+      }
       load_base_sumstats(regional_data_path(), current_region(), regional_layout())
     })
 
@@ -3071,12 +3411,31 @@ library(plotly)
       dt
     }
 
-    # Load trait sumstats for selected colocalized trait
+    # Load trait sumstats for selected colocalized trait. For virtual
+    # multi-ancestry studies the selector is a consensus key; resolve it
+    # against each per-ancestry region bundle and return a named list.
     regional_trait_sumstats <- reactive({
       req(regional_data_path(), regional_layout(), input$regional_trait_selector, current_region())
-      if (input$regional_trait_selector == "") return(NULL)
+      sel <- input$regional_trait_selector
+      if (is.null(sel) || sel == "") return(NULL)
+
+      if (!is.null(current_study()) && is_virtual_study(current_study())) {
+        bundles <- load_multi_region_bundles(current_region())
+        if (is.null(bundles) || length(bundles) == 0) return(NULL)
+        out <- lapply(names(bundles), function(anc) {
+          bk <- names(bundles[[anc]]$traits)
+          ak <- resolve_consensus_in_bundle(sel, bk, anc)
+          if (is.null(ak)) return(NULL)
+          bundles[[anc]]$traits[[ak]]
+        })
+        names(out) <- names(bundles)
+        out <- out[!vapply(out, is.null, logical(1))]
+        if (length(out) == 0) return(NULL)
+        return(out)
+      }
+
       load_trait_sumstats(regional_data_path(), current_region(),
-                          input$regional_trait_selector, regional_layout())
+                          sel, regional_layout())
     })
 
     # Get lead SNP for current region
@@ -3133,8 +3492,17 @@ library(plotly)
 
     # Calculate shared X-axis range for Region View plots
     regional_x_range <- reactive({
-      # Use region bounds as x_range (not data extent)
+      # Virtual multi-ancestry: use the consensus window from the loaded
+      # multi bundles (widest overlap across ancestries).
       req(current_region())
+      if (!is.null(current_study()) && is_virtual_study(current_study())) {
+        bundles <- load_multi_region_bundles(current_region())
+        cons <- if (!is.null(bundles) && length(bundles) > 0)
+          bundles[[1]]$.consensus else NULL
+        if (!is.null(cons)) return(c(cons$start, cons$stop))
+      }
+
+      # Use region bounds as x_range (not data extent)
       region_parts <- strsplit(current_region(), ":")[[1]]
       if (length(region_parts) >= 2) {
         pos_parts <- as.numeric(strsplit(region_parts[2], "-")[[1]])
@@ -3145,13 +3513,14 @@ library(plotly)
       base_sumstats <- regional_base_sumstats()
       trait_sumstats <- regional_trait_sumstats()
 
-      all_pos <- c()
-      if (!is.null(base_sumstats) && nrow(base_sumstats) > 0) {
-        all_pos <- c(all_pos, base_sumstats$POS)
+      # Handle overlay list payloads.
+      gather_pos <- function(x) {
+        if (is.null(x)) return(numeric(0))
+        if (is.data.frame(x)) return(x$POS)
+        if (is.list(x)) return(unlist(lapply(x, function(y) if (is.data.frame(y)) y$POS else numeric(0))))
+        numeric(0)
       }
-      if (!is.null(trait_sumstats) && nrow(trait_sumstats) > 0) {
-        all_pos <- c(all_pos, trait_sumstats$POS)
-      }
+      all_pos <- c(gather_pos(base_sumstats), gather_pos(trait_sumstats))
 
       if (length(all_pos) > 0) {
         # Add small padding (1% on each side)
