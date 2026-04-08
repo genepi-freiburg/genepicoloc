@@ -221,7 +221,7 @@ library(DT)
                  # single-row selection for 100+ traits without the
                  # layout bloat of a tile grid.
                  column(
-                   width = 4,
+                   width = 3,
                    div(style = "padding: 4px 6px;",
                      uiOutput("conv_drilldown_header"),
                      DT::dataTableOutput("conv_trait_list", height = "100%")
@@ -230,7 +230,7 @@ library(DT)
 
                  # Main panel: region-centric multi-omics view.
                  column(
-                   width = 6,
+                   width = 7,
                    # Panel 1: trait of interest regional plot
                    h6("Trait of interest", style = "margin: 8px 0 2px 0; color: #555;"),
                    plotlyOutput("conv_base_plot", height = "200px"),
@@ -1587,11 +1587,12 @@ library(DT)
                          selected = if (length(sel_row) && !is.na(sel_row)) sel_row else NULL,
                          target = "row"),
         rownames = FALSE,
+        filter = list(position = "top", clear = FALSE, plain = TRUE),
         class = "compact stripe hover",
         options = list(
-          dom = 'ft',            # search box (f) + table (t)
+          dom = 'ft',            # global search (f) + table (t)
           pageLength = -1,       # show all rows
-          scrollY = "560px",
+          scrollY = "540px",
           scrollCollapse = TRUE,
           paging = FALSE,
           order = list(list(2, 'desc')),  # default sort by nlog10P
