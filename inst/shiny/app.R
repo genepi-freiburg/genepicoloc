@@ -219,11 +219,9 @@ library(DT)
                  # Replaces the old "Selected trait:" dropdown + bottom
                  # tile grid. DT gives us built-in search, sort and
                  # single-row selection for 100+ traits without the
-                 # layout bloat of a tile grid. Narrow on purpose -
-                 # cells use CSS ellipsis + native tooltip so the full
-                 # trait name is visible on hover.
+                 # layout bloat of a tile grid.
                  column(
-                   width = 2,
+                   width = 4,
                    div(style = "padding: 4px 6px;",
                      uiOutput("conv_drilldown_header"),
                      DT::dataTableOutput("conv_trait_list", height = "100%")
@@ -232,7 +230,7 @@ library(DT)
 
                  # Main panel: region-centric multi-omics view.
                  column(
-                   width = 8,
+                   width = 6,
                    # Panel 1: trait of interest regional plot
                    h6("Trait of interest", style = "margin: 8px 0 2px 0; color: #555;"),
                    plotlyOutput("conv_base_plot", height = "200px"),
@@ -1583,30 +1581,13 @@ library(DT)
       sel_row <- if (!is.null(sel_key)) which(tbl$keys == sel_key) else integer(0)
       sel_row <- sel_row[1]
 
-      # Truncate long strings with CSS ellipsis and set the full value
-      # as the native `title` attribute so hovering any cell reveals
-      # the complete name without stretching the column. Trait and
-      # Ancestries both use this renderer.
-      #
-      # We pass the column width inline so a narrow panel still shows
-      # the full text on hover. DataTables calls `data` with the raw
-      # cell value and `type == 'display'` when it needs HTML.
-      ellipsis_render <- DT::JS(
-        "function(data, type, row, meta) {",
-        "  if (type !== 'display' || data == null) return data;",
-        "  var s = String(data);",
-        "  var esc = s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');",
-        "  return '<span title=\"' + esc + '\" style=\"display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;\">' + esc + '</span>';",
-        "}"
-      )
-
       DT::datatable(
         tbl$df,
         selection = list(mode = "single",
                          selected = if (length(sel_row) && !is.na(sel_row)) sel_row else NULL,
                          target = "row"),
         rownames = FALSE,
-        class = "compact stripe hover nowrap",
+        class = "compact stripe hover",
         options = list(
           dom = 'ft',            # search box (f) + table (t)
           pageLength = -1,       # show all rows
@@ -1617,8 +1598,9 @@ library(DT)
           autoWidth = FALSE,
           columnDefs = list(
             list(className = "dt-right", targets = 2),
-            list(targets = 0, render = ellipsis_render),
-            list(targets = 1, render = ellipsis_render)
+            list(width = "60%", targets = 0),
+            list(width = "25%", targets = 1),
+            list(width = "15%", targets = 2)
           ),
           language = list(search = "Filter:")
         )
