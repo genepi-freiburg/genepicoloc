@@ -106,7 +106,6 @@ deploy_dev() {
   fi
 
   podman run -d -p ${SHINY_PORT}:3838 \
-    -e ANTHROPIC_API_KEY \
     -v "${DATA_PATH}:/app/data:ro" \
     -v "${SCRIPT_DIR}/app.R:/app/app.R:ro" \
     -v "${SCRIPT_DIR}/R:/app/R:ro" \
@@ -139,7 +138,6 @@ deploy_local() {
   podman build -t ${IMAGE_NAME} "$SCRIPT_DIR"
 
   podman run -d -p ${SHINY_PORT}:3838 \
-    -e ANTHROPIC_API_KEY \
     -v "${DATA_PATH}:/app/data:ro" \
     --name ${CONTAINER_NAME} ${IMAGE_NAME}
 

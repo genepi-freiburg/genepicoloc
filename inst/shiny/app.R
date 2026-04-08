@@ -14,13 +14,6 @@ library(visNetwork)
 library(data.table)
 library(plotly)
 
-# LLM packages (optional - graceful fallback if not installed)
-has_llm <- tryCatch({
-  library(ellmer)
-  library(shinychat)
-  TRUE
-}, error = function(e) FALSE)
-
   # UI ----
   ui <- fluidPage(
     tags$head(
@@ -236,7 +229,7 @@ has_llm <- tryCatch({
 
                  # Main panel (network + regional plot tabs)
                  column(
-                   width = 7,
+                   width = 10,
                    tabsetPanel(
                      id = "region_view_tabs",
                      type = "tabs",
@@ -286,31 +279,7 @@ has_llm <- tryCatch({
                      # the Convergence tab (click a trait tile, click a gene
                      # on the gene track for details).
                    )  # End tabsetPanel
-                 ),  # End main column
-
-                 # Right panel (AI chat)
-                 column(
-                   width = 3,
-                   if (has_llm) {
-                     wellPanel(
-                       style = "padding: 10px; height: calc(100vh - 260px); display: flex; flex-direction: column;",
-                       h5(icon("comments"), " Ask the Atlas",
-                          style = "margin: 0 0 8px 0;"),
-                       # Start button shown until user clicks it
-                       uiOutput("chat_start_ui"),
-                       # Chat UI (populated only after user starts)
-                       div(style = "flex: 1; overflow-y: auto; min-height: 200px; padding: 4px; font-size: 12px; border: 1px solid #eee; border-radius: 4px; background: #fafafa; margin-top: 6px;",
-                         shinychat::chat_ui("chat", height = "100%")
-                       )
-                     )
-                   } else {
-                     wellPanel(
-                       style = "padding: 10px;",
-                       p(style = "font-size: 11px; color: #888;",
-                         "AI chat unavailable (ellmer/shinychat not installed)")
-                     )
-                   }
-                 )  # End right column
+                 )  # End main column
                )  # End fluidRow
       ),
       tabPanel("Trait View",
@@ -1577,102 +1546,6 @@ has_llm <- tryCatch({
 
       list(nodes = nodes, edges = edges)
     })
-
-    # === AI Chat (stateful conversation, user-initiated) ===
-
-    if (has_llm) {
-      # Chat state: chat object (NULL until user starts)
-      chat_rv <- reactiveVal(NULL)
-      # Region the active chat was built for
-      chat_region_rv <- reactiveVal(NULL)
-
-      # Show/hide the Start button based on current region vs active chat region
-      output$chat_start_ui <- renderUI({
-        req(current_region())
-        already_started <- identical(chat_region_rv(), current_region())
-        if (already_started) return(NULL)
-        tagList(
-          p(style = "font-size: 11px; color: #888; margin: 0 0 4px 0;",
-            "Start a conversation about this region."),
-          actionButton("chat_start", "Start chat",
-                       icon = icon("play"),
-                       class = "btn-xs btn-primary btn-block")
-        )
-      })
-
-      # Reset chat when user navigates to a new region
-      observeEvent(current_region(), {
-        if (!identical(chat_region_rv(), current_region())) {
-          shinychat::chat_clear("chat")
-          chat_rv(NULL)
-        }
-      }, ignoreNULL = TRUE)
-
-      # Start chat on button click
-      observeEvent(input$chat_start, {
-        api_key <- Sys.getenv("ANTHROPIC_API_KEY")
-        if (!nzchar(api_key)) {
-          shinychat::chat_append("chat",
-            "*AI chat unavailable: ANTHROPIC_API_KEY not configured.*")
-          return()
-        }
-
-        req(current_region())
-        dt <- filtered_data()
-        region_str <- current_region()
-
-        if (is.null(dt) || nrow(dt) == 0) {
-          shinychat::chat_append("chat",
-            "No colocalization data available for this region.")
-          return()
-        }
-
-        context <- tryCatch(
-          build_coloc_context(dt, gene_annotation),
-          error = function(e) NULL
-        )
-        if (is.null(context)) {
-          shinychat::chat_append("chat",
-            "Could not build context for this region.")
-          return()
-        }
-
-        nearest_gene <- if ("nearest_gene_1" %in% names(dt)) dt$nearest_gene_1[1] else NA
-
-        new_chat <- tryCatch(
-          ellmer::chat_anthropic(
-            model = "claude-sonnet-4-5-20250929",
-            system_prompt = build_chat_system_prompt(context),
-            echo = "none"
-          ),
-          error = function(e) {
-            shinychat::chat_append("chat",
-              paste0("*Failed to initialize chat: ", e$message, "*"))
-            NULL
-          }
-        )
-        if (is.null(new_chat)) return()
-
-        chat_rv(new_chat)
-        chat_region_rv(region_str)
-
-        greeting_prompt <- build_greeting_prompt(region_str, nearest_gene)
-        stream <- new_chat$stream_async(greeting_prompt)
-        shinychat::chat_append("chat", stream)
-      })
-
-      # Handle user messages during active chat
-      observeEvent(input$chat_user_input, {
-        chat <- chat_rv()
-        if (is.null(chat)) {
-          shinychat::chat_append("chat",
-            "*Click 'Start chat' first.*")
-          return()
-        }
-        stream <- chat$stream_async(input$chat_user_input)
-        shinychat::chat_append("chat", stream)
-      })
-    }
 
     # === Unified Trait View Reactives ===
 
