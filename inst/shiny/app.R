@@ -1211,8 +1211,13 @@ library(DT)
         )
       })
 
-      div(style = "display: flex; gap: 4px; margin: 4px 0 6px 0;",
-          cards)
+      # 3x2 grid so each button gets ~double the width of a single row
+      # of 6 - fits the full short label ("Metabolites", "PheWAS")
+      # without truncating.
+      div(style = paste0(
+        "display: grid; grid-template-columns: repeat(3, 1fr); ",
+        "gap: 4px; margin: 4px 0 6px 0;"),
+        cards)
     })
 
     # Handle category button clicks (one observer per category)
