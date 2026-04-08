@@ -10,7 +10,6 @@
 # into different environments creates scoping bugs, see rstudio/shiny#2547).
 
 library(shiny)
-library(visNetwork)
 library(data.table)
 library(plotly)
 
@@ -120,9 +119,7 @@ library(plotly)
                          sliderInput("min_pph4", "Min PP.H4:",
                                      min = 0.8, max = 1, value = 0.8, step = 0.01),
                          sliderInput("min_nlog10P", "Min -log10(P):",
-                                     min = 7.308, max = 100, value = 7.308, step = 0.5),
-                         sliderInput("max_traits", "Max traits (network):",
-                                     min = 10, max = 500, value = 50, step = 10)
+                                     min = 7.308, max = 100, value = 7.308, step = 0.5)
                        )
                      ),
 
@@ -152,7 +149,6 @@ library(plotly)
                        tags$summary(style = "cursor: pointer; font-size: 11px; color: #555;",
                                     "More"),
                        div(style = "margin-top: 6px;",
-                         checkboxInput("physics", "Enable physics simulation", value = FALSE),
                          downloadButton("download_data", "Download filtered",
                                         class = "btn-xs btn-block")
                        )
@@ -209,58 +205,31 @@ library(plotly)
                    )  # End wellPanel
                  ),  # End left column
 
-                 # Main panel (network + regional plot tabs)
+                 # Main panel: region-centric multi-omics view
+                 # (Convergence). The old Network + Regional Plot subtabs
+                 # were merged in here - click a trait tile to see its
+                 # RAP overlaid on the base, and click a gene on the gene
+                 # track for annotation details.
                  column(
                    width = 10,
-                   tabsetPanel(
-                     id = "region_view_tabs",
-                     type = "tabs",
-
-                     # Tab 0: Convergence (region-centric multi-omics view)
-                     tabPanel(
-                       "Convergence",
-                       # Panel 1: trait of interest regional plot
-                       h6("Trait of interest", style = "margin: 8px 0 2px 0; color: #555;"),
-                       plotlyOutput("conv_base_plot", height = "200px"),
-                       # Panel 1b: Selected trait RAP (appears below base when user clicks a trait)
-                       uiOutput("conv_trait_plot_header"),
-                       conditionalPanel(
-                         condition = "output.conv_trait_has_data",
-                         plotlyOutput("conv_trait_plot", height = "200px")
-                       ),
-                       # Panel 2: gene track + gene info panel (click a gene)
-                       h6("Genes in region", style = "margin: 8px 0 2px 0; color: #555;"),
-                       div(style = "font-size: 10px; color: #999; margin-bottom: 2px;",
-                         "Click a gene for details."),
-                       plotlyOutput("conv_gene_track", height = "100px"),
-                       uiOutput("gene_info_panel"),
-                       # Panel 3: trait tiles for selected category
-                       uiOutput("conv_drilldown_header"),
-                       uiOutput("conv_trait_tiles")
-                     ),
-
-                     # Tab 1: Network visualization
-                     tabPanel(
-                       "Network",
-                       # Export buttons - compact, right-aligned
-                       div(style = "text-align: right; margin: 4px 0;",
-                         actionButton("export_png", "PNG",
-                                     icon = icon("image"),
-                                     class = "btn-xs btn-default",
-                                     style = "margin-right: 3px;"),
-                         downloadButton("export_html", "HTML",
-                                       class = "btn-xs btn-default")
-                       ),
-                       # Network visualization
-                       visNetworkOutput("network", height = "650px"),
-                       h5("Selected Node Details", style = "margin: 4px 0;"),
-                       verbatimTextOutput("node_info")
-                     ),  # End Network tab
-
-                     # Regional Plot tab removed - functionality moved into
-                     # the Convergence tab (click a trait tile, click a gene
-                     # on the gene track for details).
-                   )  # End tabsetPanel
+                   # Panel 1: trait of interest regional plot
+                   h6("Trait of interest", style = "margin: 8px 0 2px 0; color: #555;"),
+                   plotlyOutput("conv_base_plot", height = "200px"),
+                   # Panel 1b: Selected trait RAP (appears below base when user clicks a trait)
+                   uiOutput("conv_trait_plot_header"),
+                   conditionalPanel(
+                     condition = "output.conv_trait_has_data",
+                     plotlyOutput("conv_trait_plot", height = "200px")
+                   ),
+                   # Panel 2: gene track + gene info panel (click a gene)
+                   h6("Genes in region", style = "margin: 8px 0 2px 0; color: #555;"),
+                   div(style = "font-size: 10px; color: #999; margin-bottom: 2px;",
+                     "Click a gene for details."),
+                   plotlyOutput("conv_gene_track", height = "100px"),
+                   uiOutput("gene_info_panel"),
+                   # Panel 3: trait tiles for selected category
+                   uiOutput("conv_drilldown_header"),
+                   uiOutput("conv_trait_tiles")
                  )  # End main column
                )  # End fluidRow
       ),
@@ -592,220 +561,6 @@ library(plotly)
         }
       })
     })
-
-    # === Node Selection for Export ===
-
-    # Store available nodes (all nodes from network_data)
-    available_nodes <- reactiveVal(NULL)
-
-    # Update node selector choices when network data changes
-    observe({
-      req(network_data())
-      net_data <- network_data()
-
-      if (nrow(net_data$nodes) > 0) {
-        # Create node choices: id -> label (group)
-        node_choices <- setNames(
-          net_data$nodes$id,
-          paste0(net_data$nodes$label, " (", net_data$nodes$group, ")")
-        )
-        # Store for quick selection buttons
-        available_nodes(net_data$nodes)
-
-        # Update selectize with all nodes selected by default
-        updateSelectizeInput(session, "visible_nodes",
-                            choices = node_choices,
-                            selected = net_data$nodes$id)
-
-        # Auto-enable physics simulation for large networks (>150 nodes)
-        if (nrow(net_data$nodes) > 150 && !input$physics) {
-          updateCheckboxInput(session, "physics", value = TRUE)
-        }
-      }
-    })
-
-    # Node selection: All
-    observeEvent(input$nodes_all, {
-      req(available_nodes())
-      updateSelectizeInput(session, "visible_nodes",
-                          selected = available_nodes()$id)
-    })
-
-    # Node selection: None
-    observeEvent(input$nodes_none, {
-      updateSelectizeInput(session, "visible_nodes", selected = character(0))
-    })
-
-    # Node selection: Top 10 by PP.H4
-    observeEvent(input$nodes_top10, {
-      req(filtered_data(), available_nodes())
-      dt <- filtered_data()
-
-      # Get top 10 by PP.H4 (excluding the central region node)
-      top_10 <- head(dt[order(-PP.H4.abf)], 10)
-
-      # Build matching node IDs
-      top_node_ids <- paste0(top_10$source_study, "_", seq_len(nrow(top_10)))
-
-      # Always include the region node
-      selected_ids <- c("region", top_node_ids)
-
-      updateSelectizeInput(session, "visible_nodes", selected = selected_ids)
-    })
-
-    # === Customize for Export (Colors & Labels) ===
-
-    # Reactive values for custom colors and labels
-    custom_colors <- reactiveVal(study_colors)  # Start with default colors
-    custom_labels <- reactiveVal(list())  # node_id -> custom_label
-
-    # Render color pickers for each study in the current data
-    output$study_color_pickers <- renderUI({
-      req(filtered_data())
-      dt <- filtered_data()
-
-      # Get unique studies in current data
-      studies_in_data <- unique(dt$source_study)
-      studies_in_data <- studies_in_data[studies_in_data %in% names(study_colors)]
-
-      if (length(studies_in_data) == 0) {
-        return(p("No studies to customize", style = "color: #999; font-size: 11px;"))
-      }
-
-      # Create color picker for each study - use study_colors directly for initial values
-      tagList(
-        lapply(studies_in_data, function(study) {
-          display_name <- get_study_display_name(study)
-          # Use study_colors for initial value (unname to get plain hex string)
-          initial_color <- unname(study_colors[study])
-          div(style = "display: flex; align-items: center; margin-bottom: 3px;",
-            textInput(
-              paste0("color_", study),
-              label = NULL,
-              value = initial_color
-            ),
-            span(display_name, style = "font-size: 11px; margin-left: 5px;")
-          )
-        })
-      )
-    })
-
-    # Observe color picker changes and update custom_colors
-    observe({
-      req(filtered_data())
-      dt <- filtered_data()
-      studies_in_data <- unique(dt$source_study)
-      studies_in_data <- studies_in_data[studies_in_data %in% names(study_colors)]
-
-      current_colors <- custom_colors()
-
-      for (study in studies_in_data) {
-        color_input <- input[[paste0("color_", study)]]
-        if (!is.null(color_input)) {
-          current_colors[[study]] <- color_input
-        }
-      }
-
-      custom_colors(current_colors)
-    })
-
-    # When a node is clicked, populate the label input with current label
-    observe({
-      req(input$selected_node)
-      net_data <- network_data()
-
-      node <- net_data$nodes[net_data$nodes$id == input$selected_node, ]
-      if (nrow(node) > 0) {
-        # Check if there's a custom label, otherwise use the original
-        labels <- custom_labels()
-        current_label <- if (input$selected_node %in% names(labels)) {
-          labels[[input$selected_node]]
-        } else {
-          node$label
-        }
-        updateTextInput(session, "custom_node_label", value = current_label)
-      }
-    })
-
-    # Apply custom label when button is clicked
-    observeEvent(input$apply_label, {
-      req(input$selected_node, input$custom_node_label)
-
-      labels <- custom_labels()
-      labels[[input$selected_node]] <- input$custom_node_label
-      custom_labels(labels)
-
-      # Show confirmation
-      showNotification(
-        paste0("Label updated for: ", input$selected_node),
-        type = "message",
-        duration = 2
-      )
-    })
-
-    # PNG Export via JavaScript
-    observeEvent(input$export_png, {
-      # Get current region name for filename
-      region <- current_region()
-      gene <- if (!is.null(filtered_data()) && nrow(filtered_data()) > 0) {
-        fd <- filtered_data()
-        if (!is.na(fd$Prioritized_Gene[1])) fd$Prioritized_Gene[1] else "network"
-      } else {
-        "network"
-      }
-      filename <- paste0(gene, "_", gsub(":", "-", region), ".png")
-
-      # Trigger JavaScript export
-      session$sendCustomMessage("exportNetwork", list(filename = filename))
-    })
-
-    # HTML Export (interactive) - Region View
-    output$export_html <- downloadHandler(
-      filename = function() {
-        region <- current_region()
-        gene <- if (!is.null(filtered_data()) && nrow(filtered_data()) > 0) {
-          fd <- filtered_data()
-          if (!is.na(fd$Prioritized_Gene[1])) fd$Prioritized_Gene[1] else "network"
-        } else {
-          "network"
-        }
-        paste0(gene, "_", gsub(":", "-", region), ".html")
-      },
-      content = function(file) {
-        net_data <- network_data()
-
-        # Filter nodes based on selection
-        visible <- input$visible_nodes
-        if (!is.null(visible) && length(visible) > 0) {
-          nodes_filtered <- net_data$nodes[net_data$nodes$id %in% visible, ]
-          edges_filtered <- net_data$edges[
-            net_data$edges$from %in% visible & net_data$edges$to %in% visible,
-          ]
-        } else {
-          nodes_filtered <- net_data$nodes
-          edges_filtered <- net_data$edges
-        }
-
-        # Create visNetwork and save
-        network <- visNetwork(nodes_filtered, edges_filtered) %>%
-          visNodes(
-            font = list(color = "#000000", size = 14, face = "arial")
-          ) %>%
-          visOptions(
-            highlightNearest = list(enabled = TRUE, degree = 1, hover = TRUE)
-          ) %>%
-          visPhysics(enabled = FALSE) %>%
-          visLayout(randomSeed = 123) %>%
-          visInteraction(
-            dragNodes = TRUE,
-            dragView = TRUE,
-            zoomView = TRUE
-          )
-
-        visSave(network, file)
-      }
-    )
-
     # Update region selectors
     # Map from bare region_key -> gene-prefixed selectize value
     region_to_value_map <- reactiveVal(character(0))
@@ -1357,211 +1112,14 @@ library(plotly)
       dt
     })
 
-    # Filter data limited to max_traits (for network rendering performance)
+    # Historically this capped rows at `input$max_traits` so the Network
+    # tab could render large regions without choking. With the Network
+    # view gone, the uncapped `filtered_region_data()` is exactly what
+    # every downstream consumer wants, so this is just an alias kept for
+    # backwards compatibility with the existing callsites.
     filtered_data <- reactive({
-      dt <- filtered_region_data()
-      if (nrow(dt) > input$max_traits) {
-        dt <- dt[order(-PP.H4.abf)][1:input$max_traits]
-      }
-      dt
+      filtered_region_data()
     })
-    
-    # Create network data
-    network_data <- reactive({
-      req(filtered_data())
-      dt <- filtered_data()
-      
-      if (nrow(dt) == 0) {
-        return(list(nodes = data.frame(), edges = data.frame()))
-      }
-      
-      # Create central node (the region)
-      # Select columns, including clump index if available
-      cols_to_select <- c("Prioritized_Gene", "nearest_gene_1", "CHR_var", "BP_START_var", "BP_STOP_var")
-      if ("clump_index_Name" %in% names(dt)) cols_to_select <- c(cols_to_select, "clump_index_Name")
-      if ("clump_index_P" %in% names(dt)) cols_to_select <- c(cols_to_select, "clump_index_P")
-
-      region_info <- unique(dt[, ..cols_to_select])
-
-      # Use Prioritized_Gene if available, otherwise use nearest_gene_1
-      gene_label <- if (!is.na(region_info$Prioritized_Gene[1]) && region_info$Prioritized_Gene[1] != "") {
-        region_info$Prioritized_Gene[1]
-      } else {
-        region_info$nearest_gene_1[1]
-      }
-
-      # Build tooltip with both genes and clump index info
-      tooltip_text <- paste0("Region: chr", region_info$CHR_var[1], ":",
-                            region_info$BP_START_var[1], "-", region_info$BP_STOP_var[1], "<br>",
-                            "Prioritized Gene: ", ifelse(!is.na(region_info$Prioritized_Gene[1]),
-                                                         region_info$Prioritized_Gene[1], "N/A"), "<br>",
-                            "Nearest Gene: ", region_info$nearest_gene_1[1])
-
-      # Add clump index information if available
-      if ("clump_index_Name" %in% names(region_info)) {
-        tooltip_text <- paste0(tooltip_text, "<br>Clump Index Name: ",
-                              ifelse(!is.na(region_info$clump_index_Name[1]),
-                                    region_info$clump_index_Name[1], "N/A"))
-      }
-      if ("clump_index_P" %in% names(region_info)) {
-        # Format p-value in scientific notation with 2 decimal places
-        formatted_p <- ifelse(!is.na(region_info$clump_index_P[1]),
-                             sprintf("%.2e", region_info$clump_index_P[1]),
-                             "N/A")
-        tooltip_text <- paste0(tooltip_text, "<br>Clump Index P: ", formatted_p)
-      }
-
-      central_node <- data.frame(
-        id = "region",
-        label = gene_label,
-        title = tooltip_text,
-        group = "region",
-        shape = "star",
-        size = 30,
-        color = "#FFD700",
-        stringsAsFactors = FALSE
-      )
-      
-      # Create trait nodes - make sure column structure matches
-      trait_nodes_list <- dt[, {
-        # Extract trait name based on source study
-        trait_name <- switch(source_study[1],
-                             "CKDGen_r4" = if ("CKDGen_r4_Name" %in% names(.SD)) CKDGen_r4_Name else NA,
-                             "CKDGen_r5" = CKDGen_r5_ckdgen_r5_name,
-                             "FinnGen_r9" = FinnGen_r9_phenotype,
-                             "GCKD_mGWAS_plasma" = GCKD_mGWAS_plasma_BIOCHEMICAL,
-                             "GCKD_mGWAS_urine" = GCKD_mGWAS_urine_BIOCHEMICAL,
-                             "Icelanders_pGWAS" = Icelanders_pGWAS_Protein..short.name.,
-                             "MVP_R4" = MVP_R4_Analyzed.variable,
-                             "MVP_R4_EUR" = if ("MVP_R4_EUR_Analyzed.variable" %in% names(.SD)) MVP_R4_EUR_Analyzed.variable else NA,
-                             "UKB_PPP_EUR" = UKB_PPP_EUR_olink_target_fullname,
-                             "UKB_TOPMed" = UKB_TOPMed_phenostring,
-                             "UKB_kidney_vol" = gsub("model1_qnorm_(.*)_chr.*", "\\1", basename(sumstats_2_file)),
-                             "Kidney_eQTL" = Kidney_eQTL_gene_name,
-                             "pho_ca" = pho_ca_pho_ca_name,
-                             "eQTLGen" = eQTLGen_gene_name,
-                             "GTEXv8_eQTL" = GTEXv8_eQTL_gene_name,
-                             NA
-        )
-
-        # Create node ID
-        node_id <- paste0(source_study, "_", .I)
-
-        list(
-          id = node_id,
-          label = ifelse(is.na(trait_name), source_study,
-                         substr(trait_name, 1, 30)),  # Truncate long names
-          title = paste0(
-            "Study: ", source_study, "<br>",
-            "Trait: ", ifelse(is.na(trait_name), "N/A", trait_name), "<br>",
-            "PP.H4: ", round(PP.H4.abf, 3), "<br>",
-            "Significance: ", round(sumstats_2_max_nlog10P, 2), " (-log10 P)"
-          ),
-          group = source_study,
-          shape = "dot",
-          size = 10 + 20 * PP.H4.abf  # Size by PP.H4
-        )
-      }, by = .I]
-
-      # Convert to data.frame
-      trait_nodes <- data.frame(
-        id = trait_nodes_list$id,
-        label = trait_nodes_list$label,
-        title = trait_nodes_list$title,
-        group = trait_nodes_list$group,
-        shape = trait_nodes_list$shape,
-        size = trait_nodes_list$size,
-        stringsAsFactors = FALSE
-      )
-
-      # Add colors: use color picker input if available, otherwise default
-      # Note: #000000 is textInput's default, treat it as "not set"
-      trait_nodes$color <- unname(sapply(trait_nodes$group, function(study) {
-        color_input <- input[[paste0("color_", study)]]
-        if (!is.null(color_input) && color_input != "#000000") {
-          color_input
-        } else {
-          study_colors[study]
-        }
-      }))
-
-      nodes <- rbind(central_node, trait_nodes)
-
-      # Apply custom labels if any
-      labels <- custom_labels()
-      if (length(labels) > 0) {
-        for (node_id in names(labels)) {
-          if (node_id %in% nodes$id) {
-            nodes$label[nodes$id == node_id] <- labels[[node_id]]
-          }
-        }
-      }
-
-      # Create edges with directionality colors and tooltips
-      # Get current study name for tooltip
-      study_name <- if (!is.null(current_study())) current_study() else "Region"
-
-      edge_list <- dt[, {
-        # Determine edge color and label based on directionality (colorblind-friendly)
-        dir_label <- "N/A"
-        edge_color <- "#848484"  # Default gray
-
-        if ("directionality" %in% names(dt)) {
-          dir_val <- as.character(directionality)
-          if (!is.na(directionality) && dir_val != "") {
-            # Check if positive
-            if (grepl("positive|concordant", dir_val, ignore.case = TRUE) ||
-                (suppressWarnings(!is.na(as.numeric(dir_val))) && as.numeric(dir_val) > 0)) {
-              edge_color <- "#e67e22"  # Orange for positive/concordant
-              dir_label <- "Positive"
-            }
-            # Check if negative
-            else if (grepl("negative|discordant", dir_val, ignore.case = TRUE) ||
-                     (suppressWarnings(!is.na(as.numeric(dir_val))) && as.numeric(dir_val) < 0)) {
-              edge_color <- "#3498db"  # Blue for negative/discordant
-              dir_label <- "Negative"
-            }
-          }
-        }
-
-        # Build edge tooltip
-        edge_title <- paste0(
-          "PP.H4: ", round(PP.H4.abf, 3), "<br>",
-          "Directionality: ", dir_label, "<br>"
-        )
-
-        # Add index SNP info if available
-        if ("sumstats_1_ind_Name" %in% names(dt)) {
-          edge_title <- paste0(edge_title, "Index SNP: ",
-                              ifelse(is.na(sumstats_1_ind_Name), "N/A", sumstats_1_ind_Name), "<br>")
-        }
-        if ("sumstats_1_ind_nlog10P" %in% names(dt)) {
-          edge_title <- paste0(edge_title, "P-value in ", study_name, ": ",
-                              round(sumstats_1_ind_nlog10P, 2), " (-log10)", "<br>")
-        }
-        if ("sumstats_2_ind_nlog10P" %in% names(dt)) {
-          edge_title <- paste0(edge_title, "P-value in sumstats_2: ",
-                              round(sumstats_2_ind_nlog10P, 2), " (-log10)")
-        }
-
-        list(
-          edge_color = edge_color,
-          edge_title = edge_title
-        )
-      }, by = .I]
-
-      edges <- data.frame(
-        from = rep("region", nrow(trait_nodes)),
-        to = trait_nodes$id,
-        width = 4,  # Thicker edges
-        color = edge_list$edge_color,
-        title = edge_list$edge_title,
-        stringsAsFactors = FALSE
-      )
-
-      list(nodes = nodes, edges = edges)
-    })
-
     # === Outputs ===
     
     # Display current study info
@@ -2227,86 +1785,6 @@ library(plotly)
       }
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
-    # Render network
-    output$network <- renderVisNetwork({
-      net_data <- network_data()
-
-      if (nrow(net_data$nodes) == 0) {
-        visNetwork(data.frame(id = 1, label = "No data"), data.frame()) %>%
-          visNodes(shape = "text", font = list(size = 20))
-      } else {
-        # Filter nodes based on selection (if any selected)
-        visible <- input$visible_nodes
-        if (!is.null(visible) && length(visible) > 0) {
-          # Filter nodes to only show selected ones
-          nodes_filtered <- net_data$nodes[net_data$nodes$id %in% visible, ]
-          # Filter edges to only include those connecting visible nodes
-          edges_filtered <- net_data$edges[
-            net_data$edges$from %in% visible & net_data$edges$to %in% visible,
-          ]
-        } else {
-          # No selection means show all (during initial load)
-          nodes_filtered <- net_data$nodes
-          edges_filtered <- net_data$edges
-        }
-
-        # Show notification for large networks (dismissed when stabilized)
-        n_nodes <- nrow(nodes_filtered)
-        if (n_nodes > 100) {
-          showNotification(
-            paste0("Rendering network (", n_nodes, " nodes)... please wait"),
-            id = "region_network_loading",
-            duration = NULL,
-            type = "message"
-          )
-        }
-
-        visNetwork(nodes_filtered, edges_filtered) %>%
-          visNodes(
-            font = list(color = "#000000", size = 14, face = "arial")
-          ) %>%
-          visOptions(
-            highlightNearest = list(enabled = TRUE, degree = 1, hover = TRUE)
-          ) %>%
-          visPhysics(enabled = input$physics,
-                     stabilization = list(enabled = TRUE, iterations = 200)) %>%
-          visLayout(randomSeed = 123) %>%
-          visInteraction(
-            dragNodes = TRUE,
-            dragView = TRUE,
-            zoomView = TRUE
-          ) %>%
-          visEvents(
-            select = "function(nodes) {
-              Shiny.setInputValue('selected_node', nodes.nodes[0]);
-            }",
-            stabilizationIterationsDone = "function() {
-              Shiny.setInputValue('region_network_stabilized', Math.random());
-            }"
-          )
-      }
-    })
-
-    # Dismiss loading notification when region network stabilizes
-    observeEvent(input$region_network_stabilized, {
-      removeNotification(id = "region_network_loading")
-    })
-    
-    # Show node info when selected
-    output$node_info <- renderPrint({
-      req(input$selected_node)
-      net_data <- network_data()
-      
-      node <- net_data$nodes[net_data$nodes$id == input$selected_node, ]
-      if (nrow(node) > 0) {
-        cat("Node ID:", node$id, "\n")
-        cat("Label:", node$label, "\n")
-        cat("Group:", node$group, "\n")
-        # Parse and display HTML title content
-        title_text <- gsub("<br>", "\n", node$title)
-        cat("\nDetails:\n", title_text)
-      }
-    })
     # Download handler
     output$download_data <- downloadHandler(
       filename = function() {
