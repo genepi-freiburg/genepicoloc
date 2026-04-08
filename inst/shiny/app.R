@@ -1286,19 +1286,26 @@ library(plotly)
       if (is_multi) {
         # Consensus region coordinates don't match the per-ancestry
         # BP_START_var in `regions`, so pick the per-ancestry row whose
-        # mid_pos is closest to each consensus region's mid_pos on the
-        # same chromosome.
-        reg_meta <- unique(regions[, .(CHR_var, BP_START_var, BP_STOP_var,
-                                       nearest_gene_1, Prioritized_Gene)])
+        # midpoint is closest to each consensus region's midpoint on the
+        # same chromosome. Also carry nearest_genes_10 through so the
+        # tooltip can show the full gene neighborhood.
+        cols <- c("CHR_var", "BP_START_var", "BP_STOP_var",
+                  "nearest_gene_1", "Prioritized_Gene")
+        if ("nearest_genes_10" %in% names(regions)) cols <- c(cols, "nearest_genes_10")
+        reg_meta <- unique(regions[, ..cols])
         reg_meta[, r_mid := (BP_START_var + BP_STOP_var) / 2]
+        has_n10 <- "nearest_genes_10" %in% names(reg_meta)
         gene_for_cluster <- region_stats[, {
           cands <- reg_meta[CHR_var == .BY$CHR_var]
           if (nrow(cands) == 0) {
-            list(nearest_gene_1 = NA_character_, Prioritized_Gene = NA_character_)
+            list(nearest_gene_1 = NA_character_,
+                 Prioritized_Gene = NA_character_,
+                 nearest_genes_10 = NA_character_)
           } else {
             j <- which.min(abs(cands$r_mid - mid_pos))
             list(nearest_gene_1 = cands$nearest_gene_1[j],
-                 Prioritized_Gene = cands$Prioritized_Gene[j])
+                 Prioritized_Gene = cands$Prioritized_Gene[j],
+                 nearest_genes_10 = if (has_n10) cands$nearest_genes_10[j] else NA_character_)
           }
         }, by = .(CHR_var, BP_START_var, BP_STOP_var)]
         region_stats <- merge(region_stats, gene_for_cluster,
@@ -1333,8 +1340,10 @@ library(plotly)
 
       # Hover text
       if (is_multi) {
+        has_n10 <- "nearest_genes_10" %in% names(region_stats)
         region_stats[, hover := paste0(
           "<b>", gene, "</b><br>",
+          if (has_n10) paste0("Nearby: ", ifelse(is.na(nearest_genes_10), "", nearest_genes_10), "<br>") else "",
           "chr", CHR_var, ":", format(BP_START_var, big.mark = ","),
           "-", format(BP_STOP_var, big.mark = ","), "<br>",
           "-log10(P): ", round(max_nlog10P, 1), "<br>",
@@ -1559,7 +1568,8 @@ library(plotly)
       # Prioritized_Gene, clump_index_Name, etc.)
       meta_cols <- c("CHR_var", "BP_START_var", "BP_STOP_var")
       optional_cols <- c("region_center_pos", "nearest_gene_1",
-                         "Prioritized_Gene", "clump_index_Name")
+                         "nearest_genes_10", "Prioritized_Gene",
+                         "clump_index_Name")
       sel_cols <- c(meta_cols, intersect(optional_cols, names(dt)))
 
       regions <- unique(dt[, ..sel_cols])
