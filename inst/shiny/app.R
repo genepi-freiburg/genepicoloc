@@ -415,6 +415,10 @@ library(DT)
     # Reactive value to store the current loaded study
     current_study <- reactiveVal(NULL)
 
+    # Currently-clicked gene on the gene track (shared between the
+    # convergence gene track click handler and the gene info panel).
+    selected_gene <- reactiveVal(NULL)
+
     # === Event Handlers ===
     
     # Handle study selection from home page
