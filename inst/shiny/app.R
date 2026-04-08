@@ -608,18 +608,51 @@ has_llm <- tryCatch({
         id = "metabolomics",
         icon = "\U0001F9EA",
         title = "Urine Metabolomics",
-        description = "GCKD VAE-derived metabolite modules (coming soon)",
-        traits = list(
-          list(id = "ME19", label = "ME19 Module", desc = "VAE metabolite module", disabled = TRUE),
-          list(id = "ME30", label = "ME30 Module", desc = "VAE metabolite module", disabled = TRUE)
-        )
+        description = paste(
+          "GCKD urine metabolome GWAS (Schlosser et al., Nat Genet 2023) -",
+          "1,409 urine metabolites measured by Metabolon, colocalized against",
+          "Tier 1 datasets."
+        ),
+        # Traits are populated dynamically below from auto-discovered uMet
+        # files so we don't have to enumerate 1,409 metabolites by hand.
+        traits = list(),
+        autopopulate = "GCKD_uMet"
       )
     )
+
+    # Build trait list for one landing card. If the card declares
+    # `autopopulate = "<atlas_category>"`, expand its (empty) traits list to
+    # all studies discovered under that atlas folder, labeled via the bundled
+    # annotation DB. Used for urine metabolomics where hand-listing 1,409
+    # metabolites is impractical.
+    expand_card_traits <- function(cat) {
+      if (length(cat$traits) > 0 || is.null(cat$autopopulate)) {
+        return(cat$traits)
+      }
+      cats_attr <- attr(DEFAULT_AVAILABLE_STUDIES, "categories")
+      if (is.null(cats_attr)) return(list())
+      ids <- names(cats_attr)[unlist(cats_attr) == cat$autopopulate]
+
+      # Drop trait_ids whose coloc RDS has zero rows. Metabolites with no
+      # high-confidence colocs would render as empty Region Views, so we
+      # hide them from the landing card entirely. This is a performance-
+      # cheap filter (readRDS on ~322 KB slim files) done once at UI build.
+      ids <- Filter(function(id) {
+        path <- DEFAULT_AVAILABLE_STUDIES[[id]]
+        if (is.null(path) || !file.exists(path)) return(FALSE)
+        tryCatch(nrow(readRDS(path)) > 0, error = function(e) FALSE)
+      }, ids)
+
+      label_fn <- if (cat$autopopulate == "GCKD_uMet") umet_label else identity
+      lapply(ids, function(id) {
+        list(id = id, label = label_fn(id), desc = id)
+      })
+    }
 
     output$landing_categories <- renderUI({
       div(class = "category-grid",
         lapply(atlas_categories, function(cat) {
-          # Count available and total traits
+          cat$traits <- expand_card_traits(cat)
           available <- sapply(cat$traits, function(t) {
             !isTRUE(t$disabled) && t$id %in% names(DEFAULT_AVAILABLE_STUDIES)
           })
@@ -980,6 +1013,19 @@ has_llm <- tryCatch({
       message("[gene_search] regions: ", nrow(regions),
               " gene_annotation null?: ", is.null(gene_annotation),
               " nrow: ", if (is.null(gene_annotation)) 0 else nrow(gene_annotation))
+
+      # No regions for the current study (e.g. a uMet metabolite with zero
+      # colocs passing filters): clear the selectizes and bail. Without this
+      # guard the fallback below builds a degenerate length-1 choice with an
+      # NA name and updateSelectizeInput crashes inside data.frame().
+      if (nrow(regions) == 0) {
+        region_to_value_map(character(0))
+        updateSelectizeInput(session, "selected_region",
+                             choices = character(0), server = TRUE)
+        updateSelectizeInput(session, "selected_region_coord",
+                             choices = character(0), server = TRUE)
+        return()
+      }
 
       # Build gene -> region mapping by overlapping gene annotation with
       # region coordinates. Any gene overlapping a region becomes searchable
@@ -1987,7 +2033,8 @@ has_llm <- tryCatch({
       if (!is.null(current_study())) {
         div(
           style = "background-color: #e8f4f8; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
-          p(HTML(paste0("<strong>Currently Loaded:</strong> ", current_study())),
+          p(HTML(paste0("<strong>Currently Loaded:</strong> ",
+                        trait_label(current_study()))),
             style = "margin: 0;")
         )
       } else {

@@ -111,6 +111,7 @@ deploy_dev() {
     -v "${SCRIPT_DIR}/app.R:/app/app.R:ro" \
     -v "${SCRIPT_DIR}/R:/app/R:ro" \
     -v "${SCRIPT_DIR}/www:/app/www:ro" \
+    -v "${SCRIPT_DIR}/extdata:/app/extdata:ro" \
     --name ${CONTAINER_NAME} ${IMAGE_NAME}
 
   sleep 2
@@ -174,6 +175,7 @@ create_bundle() {
     app.R \
     R \
     www \
+    extdata \
     .env.example
 
   BUNDLE_SIZE=$(du -h "$BUNDLE_PATH" | cut -f1)

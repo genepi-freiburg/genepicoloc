@@ -37,6 +37,7 @@ WORKDIR /app
 # Copy app files
 COPY R/ /app/R/
 COPY www/ /app/www/
+COPY extdata/ /app/extdata/
 COPY app.R /app/
 
 # Data is mounted at runtime via -v flag
