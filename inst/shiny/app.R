@@ -66,36 +66,37 @@ library(DT)
                  )
                ),
 
-               # Top row: Search + Chromosome + Change (left) + mini Manhattan (right)
-               fluidRow(
-                 column(
-                   width = 2,
-                   div(style = "padding: 8px;",
-                     selectizeInput("selected_region",
-                       "Search by gene:",
-                       choices = NULL,
-                       selected = NULL,
-                       options = list(
-                         placeholder = "Type gene name...",
-                         closeAfterSelect = TRUE
-                       ),
-                       width = "100%"),
-                     # Chromosome zoom: restrict the mini Manhattan to one
-                     # chromosome. Choices are populated dynamically from
-                     # coloc_data() so MVP chr16-only test bundles only
-                     # show chr16.
-                     selectInput("manhattan_chr",
-                       "Chromosome:",
-                       choices = c("All" = "all"),
-                       selected = "all",
-                       width = "100%"),
-                     actionButton("back_to_home", "Change study",
-                                  class = "btn-xs btn-default btn-block",
-                                  icon = icon("arrow-left"),
-                                  style = "margin-top: 4px;")
-                   )
-                 ),
-                 column(10, uiOutput("mini_manhattan_ui"))
+               # Top row: Search + Chromosome (left) + mini Manhattan (right).
+               # Bottom border separates the study/region selection area from
+               # the lower region-drilldown area so new users have a clear
+               # "top = pick a region, bottom = explore it" mental model.
+               div(style = "border-bottom: 1px solid #dce1e7; padding-bottom: 8px; margin-bottom: 8px;",
+                 fluidRow(
+                   column(
+                     width = 2,
+                     div(style = "padding: 8px;",
+                       selectizeInput("selected_region",
+                         "Search by gene:",
+                         choices = NULL,
+                         selected = NULL,
+                         options = list(
+                           placeholder = "Type gene name...",
+                           closeAfterSelect = TRUE
+                         ),
+                         width = "100%"),
+                       # Chromosome zoom: restrict the mini Manhattan to one
+                       # chromosome. Choices are populated dynamically from
+                       # coloc_data() so MVP chr16-only test bundles only
+                       # show chr16.
+                       selectInput("manhattan_chr",
+                         "Chromosome:",
+                         choices = c("All" = "all"),
+                         selected = "all",
+                         width = "100%")
+                     )
+                   ),
+                   column(10, uiOutput("mini_manhattan_ui"))
+                 )
                ),
 
                fluidRow(
@@ -128,24 +129,27 @@ library(DT)
                  ),
 
                  # Right side: region-centric multi-omics view.
+                 # Left border acts as a vertical separator between the
+                 # left (category + trait list) and right (RAP + genes)
+                 # halves of the lower area.
                  column(
                    width = 7,
-                   # Panel 1: trait of interest regional plot
-                   h6("Trait of interest", style = "margin: 8px 0 2px 0; color: #555;"),
-                   plotlyOutput("conv_base_plot", height = "200px"),
-                   # Panel 1b: Selected trait RAP (appears below base when
-                   # the user picks a trait in the middle-panel list)
-                   uiOutput("conv_selected_trait_title"),
-                   conditionalPanel(
-                     condition = "output.conv_trait_has_data",
-                     plotlyOutput("conv_trait_plot", height = "200px")
-                   ),
-                   # Panel 2: gene track + gene info panel (click a gene)
-                   h6("Genes in region", style = "margin: 8px 0 2px 0; color: #555;"),
-                   div(style = "font-size: 10px; color: #999; margin-bottom: 2px;",
-                     "Click a gene for details."),
-                   plotlyOutput("conv_gene_track", height = "100px"),
-                   uiOutput("gene_info_panel")
+                   style = "border-left: 1px solid #dce1e7;",
+                   div(style = "padding-left: 10px;",
+                     # Trait of interest RAP (title is the Manhattan;
+                     # no per-panel header to save vertical space)
+                     plotlyOutput("conv_base_plot", height = "200px"),
+                     # Selected trait RAP - shown only when a trait is
+                     # picked in the middle-panel list. Title suppressed
+                     # so the plot itself is the indicator.
+                     conditionalPanel(
+                       condition = "output.conv_trait_has_data",
+                       plotlyOutput("conv_trait_plot", height = "200px")
+                     ),
+                     # Gene track + gene info panel (click a gene)
+                     plotlyOutput("conv_gene_track", height = "100px"),
+                     uiOutput("gene_info_panel")
+                   )
                  )  # End main column
                )  # End fluidRow
       ),
@@ -423,18 +427,25 @@ library(DT)
     # Handle study selection from home page
     observeEvent(input$selected_study, {
       req(input$selected_study)
-      
+
       # Resolve file path (supports flat and nested layouts)
       file_path <- resolve_annot_path(input$selected_study)
-      
+
       # Check if file exists
       if (file.exists(file_path)) {
         # Store current study (now storing the name, not the folder)
         current_study(input$selected_study)
 
+        # Reset the chromosome zoom filter so the new study's Manhattan
+        # shows "All" by default. (The observer that populates the
+        # choices fires on coloc_data() change and will restore "All"
+        # when the new list is built, but we also clear it eagerly so
+        # a stale selection doesn't flash before that happens.)
+        updateSelectInput(session, "manhattan_chr", selected = "all")
+
         # Switch to Region View tab
         updateTabsetPanel(session, "main_tabs", selected = "Region View")
-        
+
         # Show loading notification
         showNotification(
           paste("Loading study:", input$selected_study),
@@ -448,11 +459,6 @@ library(DT)
           duration = 5
         )
       }
-    })
-
-    # Handle back to home button
-    observeEvent(input$back_to_home, {
-      updateTabsetPanel(session, "main_tabs", selected = "Atlas")
     })
 
     # Update region selectors
@@ -599,7 +605,7 @@ library(DT)
 
     output$mini_manhattan_ui <- renderUI({
       req(regions_data(), coloc_data())
-      plotlyOutput("mini_manhattan", height = "180px")
+      plotlyOutput("mini_manhattan", height = "200px")
     })
 
     output$mini_manhattan <- renderPlotly({
@@ -840,8 +846,8 @@ library(DT)
 
       p %>% layout(
         title = list(text = plot_title,
-                     font = list(size = 13, color = "#2c3e50"),
-                     x = 0, xanchor = "left", y = 0.98),
+                     font = list(size = 18, color = "#2c3e50"),
+                     x = 0.5, xanchor = "center", y = 0.98),
         annotations = gene_annotations,
         xaxis = list(
           title = "", showgrid = FALSE,
@@ -852,7 +858,7 @@ library(DT)
         ),
         yaxis = list(title = list(text = "-log10(P)", font = list(size = 14)),
                      tickfont = list(size = 12)),
-        margin = list(t = 22, b = 25, l = 40, r = 5),
+        margin = list(t = 32, b = 25, l = 40, r = 5),
         showlegend = FALSE,
         hovermode = "closest"
       ) %>% config(displayModeBar = FALSE) %>%
@@ -1577,20 +1583,6 @@ library(DT)
         color = "#E67E22",
         x_range = xr
       )
-    })
-
-    # Static title above the lower RAP. Shows the selected trait name
-    # and (for virtual studies) the ancestry badge. Pure output - the
-    # selection happens in the middle-panel DT list.
-    output$conv_selected_trait_title <- renderUI({
-      sel <- conv_selected_trait()
-      if (is.null(sel)) {
-        return(h6(style = "margin: 12px 0 2px 0; color: #999; font-style: italic;",
-                  icon("chart-line"), " Select a trait in the list panel to compare"))
-      }
-      label <- conv_selected_trait_label()
-      h6(style = "margin: 12px 0 2px 0; color: #2c3e50;",
-         icon("chart-line"), " ", label)
     })
 
     # Download handler
