@@ -107,6 +107,85 @@ discover_studies <- function(data_path) {
 
 DEFAULT_AVAILABLE_STUDIES <- discover_studies(DATA_PATH)
 
+# Okabe-Ito colorblind-safe palette for ancestry overlays.
+# Used in Manhattan dots (coverage gradient fallback) and RAP traces.
+ANCESTRY_COLORS <- c(
+  AFR  = "#D55E00",  # vermillion
+  AMR  = "#009E73",  # bluish green
+  EAS  = "#F0E442",  # yellow
+  EUR  = "#0072B2",  # blue
+  META = "#CC79A7"   # reddish purple
+)
+
+# Gradient for the Manhattan "n ancestries" coloring (1 -> 4).
+ANCESTRY_COVERAGE_COLORS <- c(
+  "1" = "#fdd49e",
+  "2" = "#fdbb84",
+  "3" = "#e34a33",
+  "4" = "#b30000"
+)
+
+# Virtual (multi-ancestry) studies
+# -------------------------------------------------------------------------
+# Some atlas categories (currently MVP_kidney) split one trait across several
+# ancestry-specific studies, e.g. MVPkid_BUN_BSP_Mean_INT_{AFR,AMR,EUR,META}.
+# discover_virtual_studies() collapses them into a single virtual trait id
+# (MVPkid_BUN_BSP_Mean_INT) with an $ancestries list so the Shiny app can
+# load all ancestries together, merge colocs, and overlay RAPs.
+#
+# Returns a named list: virtual_id -> list(
+#   category     = "MVP_kidney",
+#   ancestries   = c("AFR","AMR","EUR","META"),
+#   coloc_files  = named list (ancestry -> absolute RDS path),
+#   regional_dirs = named list (ancestry -> regional dir path or NA),
+#   real_ids     = c("MVPkid_..._AFR", "MVPkid_..._AMR", ...)  # the underlying
+#                  trait ids in DEFAULT_AVAILABLE_STUDIES that got merged
+# )
+discover_virtual_studies <- function(studies) {
+  cats <- attr(studies, "categories")
+  if (is.null(cats)) return(list())
+
+  ids <- names(studies)
+  # Pattern: <stem>_<ANC>  with ANC in ALL uppercase ancestry codes.
+  anc_pat <- "_(AFR|AMR|EAS|EUR|META)$"
+  stems <- sub(anc_pat, "", ids)
+  has_anc <- stems != ids  # matched pattern
+
+  if (!any(has_anc)) return(list())
+
+  virt <- list()
+  for (stem in unique(stems[has_anc])) {
+    idx <- which(stems == stem & has_anc)
+    if (length(idx) < 2) next  # need at least 2 ancestries to be "virtual"
+
+    matched_ids <- ids[idx]
+    ancs <- sub(paste0("^", stem, "_"), "", matched_ids)
+
+    # All sibling ids must share the same atlas category.
+    cat_names <- unlist(lapply(matched_ids, function(i) cats[[i]]))
+    if (length(unique(cat_names)) != 1) next
+    category <- cat_names[1]
+
+    coloc_files <- setNames(as.list(unlist(studies[matched_ids])), ancs)
+    regional_dirs <- setNames(lapply(matched_ids, function(i) {
+      p <- file.path(DATA_PATH, category, "regional", i)
+      if (dir.exists(p)) p else NA_character_
+    }), ancs)
+
+    virt[[stem]] <- list(
+      category = category,
+      ancestries = ancs,
+      coloc_files = coloc_files,
+      regional_dirs = regional_dirs,
+      real_ids = matched_ids
+    )
+  }
+
+  virt
+}
+
+DEFAULT_VIRTUAL_STUDIES <- discover_virtual_studies(DEFAULT_AVAILABLE_STUDIES)
+
 # Default study base path (for CKDGen nested layout compatibility)
 DEFAULT_STUDY_BASE_PATH <- DATA_PATH
 
