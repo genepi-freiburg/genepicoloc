@@ -159,233 +159,10 @@ library(DT)
 
     # === Landing Page ===
 
-    # Category definitions for the landing page.
-    # `section` groups cards into rows on the landing page:
-    #   "featured"   - CKDGen r4 (full atlas) and MVP kidney (multi-ancestry)
-    #   "additional" - MRI volumes and urine metabolomics (supporting data)
-    atlas_categories <- list(
-      list(
-        id = "kidney_disease",
-        section = "featured",
-        icon = "\U0001F9EC",
-        title = "CKDGen Round 4",
-        description = "Kidney function and disease phenotypes (eGFR, BUN, UACR, urate, gout, microalbuminuria) from the CKDGen Round 4 meta-analysis, colocalized against 11 molecular and clinical datasets.",
-        traits = list(
-          list(id = "eGFR", label = "eGFR (creatinine)", desc = "Estimated glomerular filtration rate"),
-          list(id = "BUN", label = "Blood Urea Nitrogen", desc = "Kidney filtration marker"),
-          list(id = "UACR", label = "UACR", desc = "Urinary albumin-to-creatinine ratio"),
-          list(id = "urate", label = "Serum Urate", desc = "Urate levels"),
-          list(id = "gout", label = "Gout", desc = "Inflammatory arthritis"),
-          list(id = "MA", label = "Microalbuminuria", desc = "Early kidney damage marker")
-        )
-      ),
-      list(
-        id = "mvp_kidney",
-        section = "featured",
-        icon = "\U0001F30D",
-        title = "MVP Kidney (multi-ancestry)",
-        description = paste(
-          "Million Veteran Program kidney traits colocalized across five",
-          "ancestries (AFR, AMR, EAS, EUR, META) against ancestry-matched",
-          "MVP_R4 PheWAS. Each trait loads all available ancestries at once",
-          "and overlays them in the Manhattan and regional plots."
-        ),
-        # Traits populated from virtual multi-ancestry studies.
-        traits = list(),
-        autopopulate_virtual = TRUE
-      ),
-      list(
-        id = "kidney_mri",
-        section = "additional",
-        icon = "\U0001F9F2",
-        title = "Kidney MRI Volumes",
-        description = "UK Biobank kidney MRI - structural imaging phenotypes (BSA-adjusted).",
-        traits = list(
-          list(id = "MRI_tkv", label = "Total Kidney Volume", desc = "BSA-adjusted"),
-          list(id = "MRI_cortex", label = "Cortex Volume", desc = "BSA-adjusted"),
-          list(id = "MRI_medulla", label = "Medulla Volume", desc = "BSA-adjusted"),
-          list(id = "MRI_hilus", label = "Hilus Volume", desc = "BSA-adjusted")
-        )
-      ),
-      list(
-        id = "metabolomics",
-        section = "additional",
-        icon = "\U0001F9EA",
-        title = "Urine Metabolomics",
-        description = paste(
-          "GCKD urine metabolome GWAS (Schlosser et al., Nat Genet 2023) -",
-          "1,409 urine metabolites measured by Metabolon, colocalized against",
-          "Tier 1 datasets."
-        ),
-        # Traits are populated dynamically below from auto-discovered uMet
-        # files so we don't have to enumerate 1,409 metabolites by hand.
-        traits = list(),
-        autopopulate = "GCKD_uMet"
-      )
-    )
-
-    # Build trait list for one landing card. If the card declares
-    # `autopopulate = "<atlas_category>"`, expand its (empty) traits list to
-    # all studies discovered under that atlas folder, labeled via the bundled
-    # annotation DB. Used for urine metabolomics where hand-listing 1,409
-    # metabolites is impractical.
-    expand_card_traits <- function(cat) {
-      if (length(cat$traits) > 0) return(cat$traits)
-
-      # Virtual multi-ancestry card: one entry per virtual study id.
-      if (isTRUE(cat$autopopulate_virtual)) {
-        if (length(DEFAULT_VIRTUAL_STUDIES) == 0) return(list())
-        return(lapply(names(DEFAULT_VIRTUAL_STUDIES), function(vid) {
-          v <- DEFAULT_VIRTUAL_STUDIES[[vid]]
-          # Strip MVPkid_ prefix for display; keep the virtual id as $id.
-          lbl <- sub("^MVPkid_", "", vid)
-          list(id = vid, label = lbl,
-               desc = paste0(length(v$ancestries), " ancestries: ",
-                             paste(v$ancestries, collapse = ", ")))
-        }))
-      }
-
-      if (is.null(cat$autopopulate)) return(cat$traits)
-
-      cats_attr <- attr(DEFAULT_AVAILABLE_STUDIES, "categories")
-      if (is.null(cats_attr)) return(list())
-      ids <- names(cats_attr)[unlist(cats_attr) == cat$autopopulate]
-
-      # Drop trait_ids whose coloc RDS has zero rows. Metabolites with no
-      # high-confidence colocs would render as empty Region Views, so we
-      # hide them from the landing card entirely. This is a performance-
-      # cheap filter (readRDS on ~322 KB slim files) done once at UI build.
-      ids <- Filter(function(id) {
-        path <- DEFAULT_AVAILABLE_STUDIES[[id]]
-        if (is.null(path) || !file.exists(path)) return(FALSE)
-        tryCatch(nrow(readRDS(path)) > 0, error = function(e) FALSE)
-      }, ids)
-
-      label_fn <- if (cat$autopopulate == "GCKD_uMet") umet_label else identity
-      lapply(ids, function(id) {
-        list(id = id, label = label_fn(id), desc = id)
-      })
-    }
-
-    # Is this trait id resolvable? Accepts real study ids (present in
-    # DEFAULT_AVAILABLE_STUDIES) OR virtual multi-ancestry ids.
-    is_known_study <- function(id) {
-      id %in% names(DEFAULT_AVAILABLE_STUDIES) ||
-        id %in% names(DEFAULT_VIRTUAL_STUDIES)
-    }
-
-    # Build the region-bundle lookup key for a trait row. For a virtual
-    # multi-ancestry study the region bundle is per-ancestry, so the key
-    # must be reassembled as "<source_study>_<ancestry>__<basename>" even
-    # though coloc_data() has unified source_study (e.g. "MVP_R4").
-    make_bundle_key <- function(source_study, sumstats_2_file, ancestry = NULL) {
-      # Vector-safe: works for scalar or data.table-column inputs.
-      if (is.null(ancestry)) {
-        return(paste0(source_study, "__", basename(sumstats_2_file)))
-      }
-      is_virt <- !is.null(current_study()) && is_virtual_study(current_study())
-      base_key <- paste0(source_study, "__", basename(sumstats_2_file))
-      anc_key  <- paste0(source_study, "_", ancestry, "__", basename(sumstats_2_file))
-      use_anc  <- is_virt & !is.na(ancestry) & nzchar(ancestry)
-      ifelse(use_anc, anc_key, base_key)
-    }
-
-    # Consensus trait key for a virtual multi-ancestry study: collapses all
-    # per-ancestry variants of the same trait into one stable key.
-    # Turns "MVP_R4_EUR__MVP_R4.1000G_AGR.A1C_Max_INT.EUR.GIA.dbGaP.txt.gz"
-    # into "MVP_R4__MVP_R4.1000G_AGR.A1C_Max_INT.GIA.dbGaP.txt.gz".
-    ANC_CODES <- c("AFR","AMR","EAS","EUR","META")
-    make_consensus_trait_key <- function(bundle_key) {
-      anc_alt <- paste(ANC_CODES, collapse = "|")
-      # Strip "_<ANC>" that immediately precedes "__" in the study prefix.
-      k <- sub(paste0("_(", anc_alt, ")__"), "__", bundle_key)
-      # Also drop ".<ANC>." segment from the filename portion so keys match
-      # across ancestries whose filenames differ only by that token.
-      k <- sub(paste0("\\.(", anc_alt, ")\\."), ".", k)
-      k
-    }
-
-    # Given a consensus trait key and a per-ancestry region bundle, try to
-    # locate the matching ancestry-specific bundle key inside that bundle.
-    resolve_consensus_in_bundle <- function(consensus_key, bundle_keys, anc) {
-      # Rebuild expected ancestry-specific candidate keys:
-      #  1. Insert "_<anc>" after the study prefix
-      #  2. Insert ".<anc>" before ".GIA" (common MVP naming)
-      #  3. Or more generally: if consensus key split at "__" -> prefix,fn,
-      #     candidates are <prefix>_<anc>__<fn with .<anc>. spliced in>.
-      parts <- strsplit(consensus_key, "__", fixed = TRUE)[[1]]
-      if (length(parts) != 2) return(NULL)
-      prefix <- parts[1]; fn <- parts[2]
-
-      cand <- c(
-        paste0(prefix, "_", anc, "__", sub("\\.GIA", paste0(".", anc, ".GIA"), fn)),
-        paste0(prefix, "_", anc, "__", sub("^(MVP_R4\\.[^.]+\\.[^.]+)\\.", paste0("\\1.", anc, "."), fn))
-      )
-      hit <- intersect(cand, bundle_keys)
-      if (length(hit) > 0) return(hit[1])
-
-      # Fallback: fuzzy match - any bundle key that starts with
-      # "<prefix>_<anc>__" and reduces (via make_consensus_trait_key) to
-      # the same consensus_key.
-      pref <- paste0(prefix, "_", anc, "__")
-      cands <- bundle_keys[startsWith(bundle_keys, pref)]
-      if (length(cands) == 0) return(NULL)
-      matches <- cands[vapply(cands, function(k) identical(make_consensus_trait_key(k), consensus_key), logical(1))]
-      if (length(matches) > 0) matches[1] else NULL
-    }
-
-    # Build a single category card (used by the two landing sections).
-    build_card <- function(cat) {
-      cat$traits <- expand_card_traits(cat)
-      available <- sapply(cat$traits, function(t) {
-        !isTRUE(t$disabled) && is_known_study(t$id)
-      })
-      n_available <- sum(available)
-      stats_text <- if (n_available > 0) {
-        paste0(n_available, " traits available")
-      } else {
-        "Coming soon"
-      }
-
-      div(class = "category-card",
-        div(class = "card-icon", cat$icon),
-        h3(cat$title),
-        p(class = "card-description", cat$description),
-        p(class = "card-stats", stats_text),
-        div(class = "trait-list",
-          lapply(cat$traits, function(trait) {
-            is_virtual <- trait$id %in% names(DEFAULT_VIRTUAL_STUDIES)
-            is_disabled <- isTRUE(trait$disabled) || !is_known_study(trait$id)
-            cats <- attr(DEFAULT_AVAILABLE_STUDIES, "categories")
-            cat_name <- if (!is.null(cats)) cats[[trait$id]] else NULL
-            has_regional <- if (is_virtual) {
-              vdirs <- DEFAULT_VIRTUAL_STUDIES[[trait$id]]$regional_dirs
-              any(!is.na(unlist(vdirs)))
-            } else {
-              !is_disabled && (
-                (!is.null(cat_name) && dir.exists(file.path(DATA_PATH, cat_name, "regional", trait$id))) ||
-                dir.exists(file.path(DATA_PATH, "regional", trait$id)) ||
-                dir.exists(file.path(DATA_PATH, "regional_plots", trait$id))
-              )
-            }
-            css_class <- paste("trait-btn",
-              if (is_disabled) "disabled",
-              if (has_regional) "has-regional"
-            )
-            if (is_disabled) {
-              tags$span(class = css_class, title = trait$desc, trait$label)
-            } else {
-              tags$span(
-                class = css_class,
-                title = trait$desc,
-                onclick = paste0("Shiny.setInputValue('selected_study', '", trait$id, "', {priority: 'event'});"),
-                trait$label
-              )
-            }
-          })
-        )
-      )
-    }
+    # (landing page category data and UI builders live in R/landing.R -
+    # atlas_categories, build_card, expand_card_traits, is_known_study.
+    # Bundle key helpers live in R/bundle_keys.R - make_bundle_key,
+    # make_consensus_trait_key, resolve_consensus_in_bundle, ANC_CODES.)
 
     output$landing_categories <- renderUI({
       featured   <- Filter(function(c) isTRUE(c$section == "featured"),   atlas_categories)
@@ -1027,21 +804,29 @@ library(DT)
       regions
     })
     
+    # Resolve the virtual study metadata for the current_study reactive
+    # in one place so every caller that needs to branch on "is this a
+    # virtual multi-ancestry study?" pulls from the same source.
+    current_virtual_info <- reactive({
+      study <- current_study()
+      if (is.null(study) || !is_virtual_study(study)) return(NULL)
+      DEFAULT_VIRTUAL_STUDIES[[study]]
+    })
+
     # Filter data for selected region - full (no max_traits limit)
     # Used by convergence view which needs to see all cis molecular colocs
     filtered_region_data <- reactive({
       req(coloc_data(), current_region())
 
-      region_parts <- strsplit(current_region(), ":")[[1]]
-      chr <- region_parts[1]
-      pos_parts <- strsplit(region_parts[2], "-")[[1]]
-      start_pos <- as.numeric(pos_parts[1])
-      end_pos <- as.numeric(pos_parts[2])
+      rk <- parse_region_key(current_region())
+      if (is.null(rk)) return(coloc_data()[0])
+      chr <- rk$chr; start_pos <- rk$start; end_pos <- rk$stop
 
       # Virtual multi-ancestry: widen the match to the consensus window so
       # colocs from all ancestries that hit the same locus are included.
-      if (!is.null(current_study()) && is_virtual_study(current_study())) {
-        bundles <- load_multi_region_bundles(current_region())
+      vinfo <- current_virtual_info()
+      if (!is.null(vinfo)) {
+        bundles <- load_multi_region_bundles(current_region(), vinfo)
         cons <- if (!is.null(bundles) && length(bundles) > 0) bundles[[1]]$.consensus else NULL
         if (!is.null(cons)) {
           dt <- coloc_data()[as.character(CHR_var) == as.character(cons$chr) &
@@ -1092,13 +877,9 @@ library(DT)
     # Reactive: current region coords (chr, start, end)
     conv_region_coords <- reactive({
       req(current_region())
-      parts <- strsplit(current_region(), ":")[[1]]
-      if (length(parts) < 2) return(NULL)
-      chr <- sub("^chr", "", parts[1])
-      pos <- strsplit(parts[2], "-")[[1]]
-      list(chr = chr,
-           start = as.numeric(pos[1]),
-           end   = as.numeric(pos[2]))
+      rk <- parse_region_key(current_region())
+      if (is.null(rk)) return(NULL)
+      list(chr = rk$chr, start = rk$start, end = rk$stop)
     })
 
     # Panel 1: base trait regional plot (reuses existing plotting logic)
@@ -1280,7 +1061,8 @@ library(DT)
       if (!is.null(current_study()) && is_virtual_study(current_study()) &&
           "ancestry" %in% names(dt)) {
         dt[, .ck := make_consensus_trait_key(
-          make_bundle_key(source_study, sumstats_2_file, ancestry))]
+          make_bundle_key(source_study, sumstats_2_file, ancestry,
+                          is_virtual = TRUE))]
         # Rank rows by signal so the "first row per consensus" is the
         # strongest ancestry signal.
         if ("sumstats_2_max_nlog10P" %in% names(dt)) {
@@ -1351,8 +1133,7 @@ library(DT)
         as.character(dt$consensus_key)
       } else {
         vapply(seq_len(nrow(dt)), function(i)
-          make_bundle_key(dt$source_study[i], dt$sumstats_2_file[i],
-                          if ("ancestry" %in% names(dt)) dt$ancestry[i] else NA_character_),
+          make_bundle_key(dt$source_study[i], dt$sumstats_2_file[i]),
           character(1))
       }
 
@@ -1458,8 +1239,7 @@ library(DT)
       bundle_key <- if ("consensus_key" %in% names(dt) && !is.na(dt$consensus_key[1])) {
         dt$consensus_key[1]
       } else {
-        anc <- if ("ancestry" %in% names(dt)) dt$ancestry[1] else NA_character_
-        make_bundle_key(dt$source_study[1], dt$sumstats_2_file[1], anc)
+        make_bundle_key(dt$source_study[1], dt$sumstats_2_file[1])
       }
       conv_selected_trait(bundle_key)
     }, ignoreNULL = FALSE, ignoreInit = TRUE)
@@ -1474,8 +1254,9 @@ library(DT)
       req(regional_data_path(), current_region(), conv_selected_trait())
       sel <- conv_selected_trait()
 
-      if (!is.null(current_study()) && is_virtual_study(current_study())) {
-        bundles <- load_multi_region_bundles(current_region())
+      vinfo <- current_virtual_info()
+      if (!is.null(vinfo)) {
+        bundles <- load_multi_region_bundles(current_region(), vinfo)
         if (is.null(bundles) || length(bundles) == 0) return(NULL)
         out <- lapply(names(bundles), function(anc) {
           bk <- names(bundles[[anc]]$traits)
@@ -1566,8 +1347,9 @@ library(DT)
       label <- conv_selected_trait_label()
       coords <- conv_region_coords()
       # For virtual studies x_range should span the consensus window.
-      xr <- if (!is.null(current_study()) && is_virtual_study(current_study())) {
-        bundles <- load_multi_region_bundles(current_region())
+      vinfo <- current_virtual_info()
+      xr <- if (!is.null(vinfo)) {
+        bundles <- load_multi_region_bundles(current_region(), vinfo)
         cons <- if (!is.null(bundles) && length(bundles) > 0) bundles[[1]]$.consensus else NULL
         if (!is.null(cons)) c(cons$start, cons$stop) else NULL
       } else if (!is.null(coords)) {
@@ -1758,167 +1540,27 @@ library(DT)
       get_trait_name(row)
     }
 
-    # Helper: parse region string "chr:start-end" into folder name "chr_start_end"
-    parse_region_id <- function(region_str) {
-      region_parts <- strsplit(region_str, ":")[[1]]
-      if (length(region_parts) < 2) return(NULL)
-      chr <- region_parts[1]
-      if (!grepl("^chr", chr)) chr <- paste0("chr", chr)
-      pos_parts <- strsplit(region_parts[2], "-")[[1]]
-      paste0(chr, "_", pos_parts[1], "_", pos_parts[2])
-    }
+    # (region parsing helpers live in R/regions.R - parse_region_id,
+    # parse_region_key, parse_regional_filename, reconstruct_name)
 
-    # Helper: reconstruct Name column if missing (slim format)
-    reconstruct_name <- function(dt) {
-      if (!"Name" %in% names(dt) && all(c("CHR", "POS", "A1", "A2") %in% names(dt))) {
-        dt$Name <- paste0("chr", dt$CHR, ":", dt$POS, ":", dt$A1, ":", dt$A2)
-      }
-      dt
-    }
-
-    # Load bundled region data (one RDS per region)
-    # Returns list(base = dt, traits = list("study__trait" = dt, ...)) or NULL
-    # Cached per region to avoid re-reading
-    loaded_region_cache <- reactiveVal(list(id = NULL, data = NULL))
-
-    load_region_bundle <- function(data_path, region_str) {
-      region_id <- parse_region_id(region_str)
-      if (is.null(region_id)) return(NULL)
-
-      # Check cache
-      cache <- loaded_region_cache()
-      cache_key <- paste(data_path, region_id)
-      if (identical(cache$id, cache_key)) return(cache$data)
-
-      rds_file <- file.path(data_path, paste0(region_id, ".RDS"))
-      if (!file.exists(rds_file)) return(NULL)
-
-      region_data <- readRDS(rds_file)
-
-      # Reconstruct Name in base and all traits
-      if (!is.null(region_data$base)) {
-        region_data$base <- reconstruct_name(region_data$base)
-      }
-      region_data$traits <- lapply(region_data$traits, reconstruct_name)
-
-      loaded_region_cache(list(id = cache_key, data = region_data))
-      region_data
-    }
-
-    # Load base sumstats for a single-ancestry bundled region.
-    load_base_sumstats <- function(data_path, region_str) {
-      region_data <- load_region_bundle(data_path, region_str)
-      if (is.null(region_data)) return(NULL)
-      region_data$base
-    }
-
-    # Parse a regional bundle filename (chr16_19330554_21586583.RDS) back
-    # into numeric coordinates. Returns list(chr, start, stop) or NULL.
-    parse_regional_filename <- function(fname) {
-      m <- regmatches(fname,
-        regexec("^chr([0-9XY]+)_([0-9]+)_([0-9]+)\\.RDS$", fname))[[1]]
-      if (length(m) != 4) return(NULL)
-      list(chr = m[2], start = as.numeric(m[3]), stop = as.numeric(m[4]))
-    }
-
-    # For a virtual multi-ancestry study, find all per-ancestry region RDS
-    # files that overlap the consensus cluster containing region_str. The
-    # consensus coordinates are derived by scanning all ancestries' region
-    # files once and merging intervals, seeded from region_str. Returns a
-    # named list: ancestry -> region_data (list(base, traits)), cached to
-    # avoid re-reading on every render.
-    loaded_multi_cache <- reactiveVal(list(id = NULL, data = NULL))
-
-    load_multi_region_bundles <- function(region_str) {
-      study <- current_study()
-      if (is.null(study) || !is_virtual_study(study)) return(NULL)
-      vinfo <- DEFAULT_VIRTUAL_STUDIES[[study]]
-
-      # Seed chromosome + coordinates from region_str (representative key).
-      rp <- strsplit(region_str, ":")[[1]]
-      if (length(rp) != 2) return(NULL)
-      chr <- sub("^chr", "", rp[1])
-      pp <- as.numeric(strsplit(rp[2], "-")[[1]])
-      seed_start <- pp[1]; seed_stop <- pp[2]
-
-      # Check cache
-      cache_key <- paste(study, chr, seed_start, seed_stop)
-      cache <- loaded_multi_cache()
-      if (identical(cache$id, cache_key)) return(cache$data)
-
-      # Collect all candidate files across ancestries on this chromosome.
-      candidates <- list()  # rows: ancestry, file, start, stop
-      for (anc in names(vinfo$regional_dirs)) {
-        d <- vinfo$regional_dirs[[anc]]
-        if (is.na(d) || !dir.exists(d)) next
-        fs <- list.files(d, pattern = "\\.RDS$", full.names = FALSE)
-        for (f in fs) {
-          coord <- parse_regional_filename(f)
-          if (is.null(coord)) next
-          if (sub("^chr", "", coord$chr) != chr) next
-          candidates[[length(candidates) + 1]] <- list(
-            ancestry = anc, file = file.path(d, f),
-            start = coord$start, stop = coord$stop)
-        }
-      }
-      if (length(candidates) == 0) return(NULL)
-      cand_dt <- data.table::rbindlist(candidates)
-
-      # Grow the consensus window iteratively: start from the seed and
-      # include any candidate overlapping the running window; repeat until
-      # stable.
-      cur_start <- seed_start; cur_stop <- seed_stop
-      repeat {
-        hit <- cand_dt[start <= cur_stop & stop >= cur_start]
-        if (nrow(hit) == 0) break
-        new_start <- min(hit$start); new_stop <- max(hit$stop)
-        if (new_start == cur_start && new_stop == cur_stop) break
-        cur_start <- new_start; cur_stop <- new_stop
-      }
-      hit <- cand_dt[start <= cur_stop & stop >= cur_start]
-      if (nrow(hit) == 0) return(NULL)
-
-      # Within each ancestry keep the widest overlapping file (usually
-      # there's only one; if multiple we prefer the largest window).
-      hit[, width := stop - start]
-      setorder(hit, ancestry, -width)
-      hit <- hit[, .SD[1], by = ancestry]
-
-      # Read and reconstruct each bundle.
-      result <- list()
-      for (i in seq_len(nrow(hit))) {
-        rd <- tryCatch(readRDS(hit$file[i]), error = function(e) NULL)
-        if (is.null(rd)) next
-        if (!is.null(rd$base)) rd$base <- reconstruct_name(rd$base)
-        rd$traits <- lapply(rd$traits, reconstruct_name)
-        rd$.consensus <- list(chr = chr, start = cur_start, stop = cur_stop)
-        result[[hit$ancestry[i]]] <- rd
-      }
-
-      loaded_multi_cache(list(id = cache_key, data = result))
-      result
-    }
+    # (bundled region loaders live in R/region_bundles.R -
+    # load_region_bundle, load_base_sumstats, load_trait_sumstats,
+    # load_multi_region_bundles. The helpers have process-wide caches
+    # keyed on file path so reactiveVal wrappers aren't needed.)
 
     # Load base study sumstats for current region. For virtual studies,
     # returns a named list(ancestry = dt) for overlay rendering; otherwise
     # returns a single data.table.
     regional_base_sumstats <- reactive({
       req(regional_data_path(), current_region())
-      study <- current_study()
-      if (!is.null(study) && is_virtual_study(study)) {
-        bundles <- load_multi_region_bundles(current_region())
+      vinfo <- current_virtual_info()
+      if (!is.null(vinfo)) {
+        bundles <- load_multi_region_bundles(current_region(), vinfo)
         if (is.null(bundles) || length(bundles) == 0) return(NULL)
         return(lapply(bundles, `[[`, "base"))
       }
       load_base_sumstats(regional_data_path(), current_region())
     })
-
-    # Look up a single trait's sumstats from a bundled region RDS.
-    load_trait_sumstats <- function(data_path, region_str, trait_selector) {
-      region_data <- load_region_bundle(data_path, region_str)
-      if (is.null(region_data)) return(NULL)
-      region_data$traits[[trait_selector]]
-    }
 
     # Render gene info panel
     output$gene_info_panel <- renderUI({
