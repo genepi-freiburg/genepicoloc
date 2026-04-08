@@ -66,7 +66,7 @@ library(DT)
                  )
                ),
 
-               # Top row: Search (left) + mini Manhattan (right)
+               # Top row: Search + Chromosome + Change (left) + mini Manhattan (right)
                fluidRow(
                  column(
                    width = 2,
@@ -88,7 +88,11 @@ library(DT)
                        "Chromosome:",
                        choices = c("All" = "all"),
                        selected = "all",
-                       width = "100%")
+                       width = "100%"),
+                     actionButton("back_to_home", "Change study",
+                                  class = "btn-xs btn-default btn-block",
+                                  icon = icon("arrow-left"),
+                                  style = "margin-top: 4px;")
                    )
                  ),
                  column(10, uiOutput("mini_manhattan_ui"))
@@ -103,27 +107,22 @@ library(DT)
                  column(
                    width = 5,
                    div(style = "padding: 4px 6px;",
-                     # Current study + "Different study" + download in one row
-                     div(style = "display: flex; align-items: center; gap: 8px; margin-bottom: 6px;",
-                       div(style = "flex: 1; min-width: 0;",
-                         uiOutput("current_study_info")),
-                       actionButton("back_to_home", "Change",
-                                    class = "btn-xs btn-default",
-                                    icon = icon("arrow-left")),
-                       downloadButton("download_data", "CSV",
-                                      class = "btn-xs btn-default")
-                     ),
-
                      # Hidden dummy input to preserve reactivity for legacy coord selector
                      tags$div(style = "display: none;",
                        selectizeInput("selected_region_coord", NULL,
-                                      choices = NULL, selected = NULL)),
+                                      choices = NULL, selected = NULL),
+                       uiOutput("current_study_info")),
 
                      # Horizontal category strip (6 compact buttons)
                      uiOutput("conv_category_cards"),
 
-                     # Header + DT trait list
-                     uiOutput("conv_drilldown_header"),
+                     # Drilldown header + CSV download on the same row
+                     div(style = "display: flex; align-items: center; gap: 8px; margin: 2px 0 4px 0;",
+                       div(style = "flex: 1; min-width: 0;",
+                         uiOutput("conv_drilldown_header")),
+                       downloadButton("download_data", "CSV",
+                                      class = "btn-xs btn-default")
+                     ),
                      DT::dataTableOutput("conv_trait_list", height = "100%")
                    )
                  ),
@@ -824,7 +823,25 @@ library(DT)
         )
       })
 
+      # Build the Manhattan title: "<study> - N regions" so the study
+      # name is visible on the plot itself and we don't need a separate
+      # "Currently loaded" header in the left column.
+      study_label <- if (!is.null(current_study())) {
+        tryCatch(trait_label(current_study()),
+                 error = function(e) current_study())
+      } else {
+        "Atlas"
+      }
+      plot_title <- paste0(
+        study_label, " - ",
+        format(nrow(region_stats), big.mark = ","),
+        if (nrow(region_stats) == 1) " region" else " regions"
+      )
+
       p %>% layout(
+        title = list(text = plot_title,
+                     font = list(size = 13, color = "#2c3e50"),
+                     x = 0, xanchor = "left", y = 0.98),
         annotations = gene_annotations,
         xaxis = list(
           title = "", showgrid = FALSE,
@@ -835,7 +852,7 @@ library(DT)
         ),
         yaxis = list(title = list(text = "-log10(P)", font = list(size = 14)),
                      tickfont = list(size = 12)),
-        margin = list(t = 5, b = 25, l = 40, r = 5),
+        margin = list(t = 22, b = 25, l = 40, r = 5),
         showlegend = FALSE,
         hovermode = "closest"
       ) %>% config(displayModeBar = FALSE) %>%
@@ -1178,23 +1195,23 @@ library(DT)
           title = meta$label,
           disabled = if (is_empty) NA else NULL,
           style = paste0(
-            "flex: 1 1 0; min-width: 0; padding: 6px 4px; ",
+            "flex: 1 1 0; min-width: 0; padding: 3px 6px; ",
             "border-radius: 6px; ",
             border_style, bg_style, opacity_style, cursor_style,
-            "display: flex; flex-direction: column; align-items: center; ",
-            "justify-content: center; gap: 2px; text-align: center; ",
-            "font-family: inherit; line-height: 1.15;"
+            "display: flex; align-items: center; justify-content: center; ",
+            "gap: 4px; text-align: center; font-family: inherit; ",
+            "line-height: 1.15; white-space: nowrap; overflow: hidden;"
           ),
-          div(style = "font-size: 18px;", HTML(meta$icon)),
-          div(style = "font-size: 11px; font-weight: 600; color: #2c3e50; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;",
-              short),
-          div(style = paste0("font-size: 14px; font-weight: 700; color: ",
-                             if (is_empty) "#aaa" else "#2c3e50", ";"),
-              n)
+          tags$span(style = "font-size: 14px;", HTML(meta$icon)),
+          tags$span(style = "font-size: 11px; font-weight: 600; color: #2c3e50; overflow: hidden; text-overflow: ellipsis;",
+                    short),
+          tags$span(style = paste0("font-size: 12px; font-weight: 700; color: ",
+                                   if (is_empty) "#aaa" else "#2c3e50", ";"),
+                    n)
         )
       })
 
-      div(style = "display: flex; gap: 6px; margin: 4px 0 8px 0;",
+      div(style = "display: flex; gap: 4px; margin: 4px 0 6px 0;",
           cards)
     })
 
@@ -1374,7 +1391,7 @@ library(DT)
         filter = list(position = "top", clear = FALSE, plain = TRUE),
         class = "compact stripe hover",
         options = list(
-          dom = 'ft',            # global search (f) + table (t)
+          dom = 't',             # table only (per-column filters above)
           pageLength = -1,       # show all rows
           scrollY = "540px",
           scrollCollapse = TRUE,
@@ -1387,8 +1404,7 @@ library(DT)
             list(width = "22%", targets = 1),
             list(width = "14%", targets = 2),
             list(width = "14%", targets = 3)
-          ),
-          language = list(search = "Filter:")
+          )
         )
       )
     }, server = TRUE)
