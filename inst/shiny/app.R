@@ -95,73 +95,23 @@ library(DT)
                ),
 
                fluidRow(
-                 # Left sidebar panel
+                 # Left side: compact study header, category strip, trait
+                 # list (DT). Width 5 leaves width 7 for the RAPs. The
+                 # old left sidebar and all its collapsible filter blocks
+                 # (PP.H4, nlog10P, study selector) are gone - column
+                 # filters in the DT cover the same use cases.
                  column(
-                   width = 2,
-                   wellPanel(
-                     style = "padding: 10px;",
-                     # Current study indicator
-                     uiOutput("current_study_info"),
-
-                     # Back to study selection
-                     actionButton("back_to_home", "Different study",
-                                  class = "btn-xs btn-info btn-block",
-                                  icon = icon("arrow-left"),
-                                  style = "margin-bottom: 8px;"),
-
-                     hr(style = "margin: 8px 0;"),
-
-                     # Colocalized traits - category cards (moved from main panel)
-                     h6("Colocalized traits", style = "margin: 0 0 4px 0; color: #555;"),
-                     div(style = "font-size: 10px; color: #999; margin-bottom: 4px;",
-                       "Click to explore."),
-                     uiOutput("conv_category_cards"),
-
-                     hr(style = "margin: 8px 0;"),
-
-                     # Filter options
-                     # Filters (collapsible, collapsed by default to save space)
-                     tags$details(
-                       style = "margin-bottom: 6px;",
-                       tags$summary(style = "cursor: pointer; font-size: 11px; color: #555;",
-                                    "Filters"),
-                       div(style = "margin-top: 6px;",
-                         sliderInput("min_pph4", "Min PP.H4:",
-                                     min = 0.8, max = 1, value = 0.8, step = 0.01),
-                         sliderInput("min_nlog10P", "Min -log10(P):",
-                                     min = 7.308, max = 100, value = 7.308, step = 0.5)
-                       )
-                     ),
-
-                     # Include Studies (collapsed by default, dynamic)
-                     tags$details(
-                       style = "margin-bottom: 6px;",
-                       tags$summary(
-                         style = "cursor: pointer; font-size: 11px; color: #555;",
-                         "Include studies"
-                       ),
-                       div(style = "margin-top: 6px;",
-                         fluidRow(
-                           column(6, actionButton("select_all", "All",
-                                                  class = "btn-xs btn-block",
-                                                  style = "margin-bottom: 3px;")),
-                           column(6, actionButton("select_none", "None",
-                                                  class = "btn-xs btn-block",
-                                                  style = "margin-bottom: 3px;"))
-                         ),
-                         uiOutput("study_selector")
-                       )
-                     ),
-
-                     # Display / download
-                     tags$details(
-                       style = "margin-bottom: 6px;",
-                       tags$summary(style = "cursor: pointer; font-size: 11px; color: #555;",
-                                    "More"),
-                       div(style = "margin-top: 6px;",
-                         downloadButton("download_data", "Download filtered",
-                                        class = "btn-xs btn-block")
-                       )
+                   width = 5,
+                   div(style = "padding: 4px 6px;",
+                     # Current study + "Different study" + download in one row
+                     div(style = "display: flex; align-items: center; gap: 8px; margin-bottom: 6px;",
+                       div(style = "flex: 1; min-width: 0;",
+                         uiOutput("current_study_info")),
+                       actionButton("back_to_home", "Change",
+                                    class = "btn-xs btn-default",
+                                    icon = icon("arrow-left")),
+                       downloadButton("download_data", "CSV",
+                                      class = "btn-xs btn-default")
                      ),
 
                      # Hidden dummy input to preserve reactivity for legacy coord selector
@@ -169,66 +119,16 @@ library(DT)
                        selectizeInput("selected_region_coord", NULL,
                                       choices = NULL, selected = NULL)),
 
-                     # Customize for Export panel (conditional based on config)
-                     if (SHOW_EXPORT_CUSTOMIZATION) {
-                       tagList(
-                         hr(),
-                         tags$details(open = "open",
-                           tags$summary(style = "cursor: pointer; font-weight: bold;",
-                                       "Customize for Export"),
-                           div(style = "margin-top: 8px;",
-                             # Node Selection
-                             h6("Node Selection:", style = "margin-bottom: 5px;"),
-                             fluidRow(
-                               column(4, actionButton("nodes_all", "All", class = "btn-xs btn-block")),
-                               column(4, actionButton("nodes_none", "None", class = "btn-xs btn-block")),
-                               column(4, actionButton("nodes_top10", "Top 10", class = "btn-xs btn-block"))
-                             ),
-                             br(),
-                             selectizeInput("visible_nodes",
-                                           label = NULL,
-                                           choices = NULL,
-                                           multiple = TRUE,
-                                           options = list(
-                                             plugins = list('remove_button'),
-                                             placeholder = 'Select nodes to display...'
-                                           )),
+                     # Horizontal category strip (6 compact buttons)
+                     uiOutput("conv_category_cards"),
 
-                             hr(style = "margin: 10px 0;"),
-
-                             # Study colors
-                             h6("Study Colors:", style = "margin-bottom: 5px;"),
-                             uiOutput("study_color_pickers"),
-
-                             hr(style = "margin: 10px 0;"),
-
-                             # Edit selected node label
-                             h6("Edit Node Label:", style = "margin-bottom: 5px;"),
-                             textInput("custom_node_label", label = NULL,
-                                      placeholder = "Click a node to edit its label"),
-                             actionButton("apply_label", "Apply Label",
-                                         class = "btn-xs btn-success btn-block")
-                           )
-                         )
-                       )
-                     }
-                   )  # End wellPanel
-                 ),  # End left column
-
-                 # Middle panel: trait list for the selected category.
-                 # Replaces the old "Selected trait:" dropdown + bottom
-                 # tile grid. DT gives us built-in search, sort and
-                 # single-row selection for 100+ traits without the
-                 # layout bloat of a tile grid.
-                 column(
-                   width = 3,
-                   div(style = "padding: 4px 6px;",
+                     # Header + DT trait list
                      uiOutput("conv_drilldown_header"),
                      DT::dataTableOutput("conv_trait_list", height = "100%")
                    )
                  ),
 
-                 # Main panel: region-centric multi-omics view.
+                 # Right side: region-centric multi-omics view.
                  column(
                    width = 7,
                    # Panel 1: trait of interest regional plot
@@ -556,52 +456,6 @@ library(DT)
       updateTabsetPanel(session, "main_tabs", selected = "Atlas")
     })
 
-    # Select all studies (dynamic)
-    observeEvent(input$select_all, {
-      lapply(available_study_names(), function(study) {
-        updateCheckboxInput(session, paste0("study_", study), value = TRUE)
-      })
-    })
-
-    # Select no studies (dynamic)
-    observeEvent(input$select_none, {
-      lapply(available_study_names(), function(study) {
-        updateCheckboxInput(session, paste0("study_", study), value = FALSE)
-      })
-    })
-
-    # Select studies by group
-    observeEvent(input$select_phenotypes, {
-      lapply(study_categories$Phenotypes, function(study) {
-        if (study %in% names(study_colors)) {
-          updateCheckboxInput(session, paste0("study_", study), value = TRUE)
-        }
-      })
-    })
-
-    observeEvent(input$select_pqtl, {
-      lapply(study_categories$pQTL, function(study) {
-        if (study %in% names(study_colors)) {
-          updateCheckboxInput(session, paste0("study_", study), value = TRUE)
-        }
-      })
-    })
-
-    observeEvent(input$select_eqtl, {
-      lapply(study_categories$eQTL, function(study) {
-        if (study %in% names(study_colors)) {
-          updateCheckboxInput(session, paste0("study_", study), value = TRUE)
-        }
-      })
-    })
-
-    observeEvent(input$select_mqtl, {
-      lapply(study_categories$mQTL, function(study) {
-        if (study %in% names(study_colors)) {
-          updateCheckboxInput(session, paste0("study_", study), value = TRUE)
-        }
-      })
-    })
     # Update region selectors
     # Map from bare region_key -> gene-prefixed selectize value
     region_to_value_map <- reactiveVal(character(0))
@@ -1179,9 +1033,13 @@ library(DT)
       } else {
         dt <- coloc_data()[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
       }
-      dt <- dt[PP.H4.abf >= input$min_pph4]
-      dt <- dt[sumstats_2_max_nlog10P >= input$min_nlog10P]
-      dt <- dt[source_study %in% selected_studies()]
+      # PP.H4 and nlog10P filters used to live here, driven by sidebar
+      # sliders. The sliders are gone - the DT trait list has per-column
+      # range filters on both, and the atlas is already pre-filtered to
+      # PP.H4 >= 0.8 at extraction time, so the sidebar filters were
+      # redundant. source_study filter is gone because the Include
+      # Studies sidebar block is gone (it duplicated the category
+      # cards).
       dt
     })
 
@@ -1198,104 +1056,17 @@ library(DT)
     # Display current study info
     output$current_study_info <- renderUI({
       if (!is.null(current_study())) {
-        div(
-          style = "background-color: #e8f4f8; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
-          p(HTML(paste0("<strong>Currently Loaded:</strong> ",
-                        trait_label(current_study()))),
-            style = "margin: 0;")
-        )
+        div(style = "font-size: 12px; color: #2c3e50; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+            tags$strong(style = "color: #555;", "Study: "),
+            trait_label(current_study()))
       } else {
-        div(
-          style = "background-color: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
-          p("No study auto-loaded. Upload your own data below.", style = "margin: 0; color: #666;")
-        )
+        div(style = "font-size: 12px; color: #999;", "No study loaded.")
       }
     })
     
-    # Create combined study selector with colors, checkboxes, and info buttons
-    # Dynamically discover studies from current coloc data
-    available_study_names <- reactive({
-      req(coloc_data())
-      sort(unique(coloc_data()$source_study))
-    })
+    # (the old per-study checkbox selector was removed - category cards
+    # in the right-hand strip cover the same use case)
 
-    output$study_selector <- renderUI({
-      req(available_study_names())
-      counts <- study_counts_for_region()
-      studies <- available_study_names()
-
-      study_items <- lapply(studies, function(study) {
-        display_name <- get_study_display_name(study)
-        color <- if (study %in% names(study_colors)) study_colors[[study]] else "#7f7f7f"
-
-        # Count for current region
-        study_count <- if (!is.null(counts) && study %in% names(counts)) counts[study] else 0
-        count_style <- if (study_count == 0) {
-          "font-size: 10px; color: #999; margin-left: 3px;"
-        } else {
-          "font-size: 10px; color: #27ae60; font-weight: bold; margin-left: 3px;"
-        }
-
-        div(style = "margin: 0; padding: 0; display: flex; align-items: center;",
-            tags$div(style = "margin: 0; padding: 0;",
-              checkboxInput(paste0("study_", study),
-                           label = NULL, value = TRUE, width = "20px")),
-            tags$span(style = paste0("display: inline-block; width: 12px; height: 12px; ",
-                                    "background-color: ", color,
-                                    "; margin-left: -5px; margin-right: 6px; border: 1px solid #ddd;")),
-            tags$span(style = "font-size: 11px;", display_name),
-            tags$span(style = count_style, paste0("(", study_count, ")"))
-        )
-      })
-
-      do.call(tagList, study_items)
-    })
-
-    # Create reactive for selected studies (combines individual checkboxes)
-    # Uses dynamic study list from current coloc data
-    selected_studies <- reactive({
-      studies <- available_study_names()
-      if (length(studies) == 0) return(character(0))
-      selected <- sapply(studies, function(study) {
-        val <- input[[paste0("study_", study)]]
-        if (is.null(val)) TRUE else val  # Default to TRUE
-      })
-      studies[selected]
-    })
-
-    # Compute coloc counts per study for current region (before study filtering)
-    study_counts_for_region <- reactive({
-      req(coloc_data(), current_region())
-
-      # Parse region
-      region_parts <- strsplit(current_region(), ":")[[1]]
-      chr <- region_parts[1]
-      pos_parts <- strsplit(region_parts[2], "-")[[1]]
-      start_pos <- as.numeric(pos_parts[1])
-      end_pos <- as.numeric(pos_parts[2])
-
-      # Filter data for region only (apply PP.H4 and nlog10P filters, but NOT study filter)
-      dt <- coloc_data()[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
-      dt <- dt[PP.H4.abf >= input$min_pph4]
-      dt <- dt[sumstats_2_max_nlog10P >= input$min_nlog10P]
-
-      # Count by source_study
-      counts <- dt[, .N, by = source_study]
-      setNames(counts$N, counts$source_study)
-    })
-
-    # Create observers for info buttons
-    lapply(names(study_colors), function(study) {
-      observeEvent(input[[paste0("info_", study)]], {
-        showModal(modalDialog(
-          title = get_study_display_name(study),
-          format_study_info(study),
-          easyClose = TRUE,
-          footer = modalButton("Close")
-        ))
-      })
-    })
-    
     # === Convergence view ===
 
     # Reactive: current region coords (chr, start, end)
@@ -1370,6 +1141,10 @@ library(DT)
       count_by_category(dt)
     })
 
+    # Horizontal strip of compact category buttons. Each button shows
+    # icon + short label + count. The full long label is available as
+    # the native title attribute for hover (0 perf cost, no delay for
+    # assistive tech users).
     output$conv_category_cards <- renderUI({
       counts <- conv_cat_counts()
       selected <- conv_selected_cat()
@@ -1381,46 +1156,46 @@ library(DT)
         is_empty <- n == 0
         is_active <- !is.null(selected) && selected == cat_id
 
-        # Build inline style based on state
         border_style <- if (is_active) {
           paste0("border: 2px solid ", meta$color, ";")
         } else {
           "border: 1px solid #ddd;"
         }
-        opacity_style <- if (is_empty) "opacity: 0.45;" else ""
-        cursor_style <- if (is_empty) "cursor: default;" else "cursor: pointer;"
         bg_style <- if (is_active) {
-          paste0("background: ", meta$color, "15;")  # 15 = 8% alpha
+          paste0("background: ", meta$color, "15;")
         } else {
           "background: white;"
         }
+        opacity_style <- if (is_empty) "opacity: 0.45;" else ""
+        cursor_style <- if (is_empty) "cursor: default;" else "cursor: pointer;"
 
-        actionButton(
-          inputId = paste0("conv_cat_btn_", cat_id),
-          label = HTML(paste0(
-            "<div style='display: flex; align-items: center; gap: 10px; text-align: left;'>",
-            "<div style='width: 4px; height: 32px; background: ", meta$color,
-              "; border-radius: 2px;'></div>",
-            "<div style='font-size: 1.4em;'>", meta$icon, "</div>",
-            "<div style='flex: 1; min-width: 0;'>",
-              "<div style='font-size: 12px; font-weight: 600; color: #2c3e50; line-height: 1.2;'>",
-                meta$label, "</div>",
-              "<div style='font-size: 16px; font-weight: 700; color: ",
-                if (is_empty) "#aaa" else "#2c3e50", ";'>", n, "</div>",
-            "</div>",
-            "</div>"
-          )),
+        short <- if (!is.null(meta$short)) meta$short else meta$label
+
+        tags$button(
+          id = paste0("conv_cat_btn_", cat_id),
+          class = "action-button",
+          type = "button",
+          title = meta$label,
+          disabled = if (is_empty) NA else NULL,
           style = paste0(
-            "width: 100%; padding: 10px; margin-bottom: 6px; ",
-            "border-radius: 8px; ",
-            border_style, opacity_style, cursor_style, bg_style,
-            "text-align: left; box-shadow: 0 1px 3px rgba(0,0,0,0.04);"
+            "flex: 1 1 0; min-width: 0; padding: 6px 4px; ",
+            "border-radius: 6px; ",
+            border_style, bg_style, opacity_style, cursor_style,
+            "display: flex; flex-direction: column; align-items: center; ",
+            "justify-content: center; gap: 2px; text-align: center; ",
+            "font-family: inherit; line-height: 1.15;"
           ),
-          disabled = is_empty
+          div(style = "font-size: 18px;", HTML(meta$icon)),
+          div(style = "font-size: 11px; font-weight: 600; color: #2c3e50; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;",
+              short),
+          div(style = paste0("font-size: 14px; font-weight: 700; color: ",
+                             if (is_empty) "#aaa" else "#2c3e50", ";"),
+              n)
         )
       })
 
-      do.call(tagList, cards)
+      div(style = "display: flex; gap: 6px; margin: 4px 0 8px 0;",
+          cards)
     })
 
     # Handle category button clicks (one observer per category)
@@ -1543,6 +1318,10 @@ library(DT)
         round(as.numeric(dt$sumstats_2_max_nlog10P), 1)
       } else rep(NA_real_, nrow(dt))
 
+      pph4_vec <- if ("PP.H4.abf" %in% names(dt)) {
+        round(as.numeric(dt$PP.H4.abf), 3)
+      } else rep(NA_real_, nrow(dt))
+
       keys <- if (is_virt_dd) {
         as.character(dt$consensus_key)
       } else {
@@ -1557,6 +1336,8 @@ library(DT)
           Trait = names_vec,
           Ancestries = badge_vec,
           nlog10P = nlp_vec,
+          PP.H4 = pph4_vec,
+          check.names = FALSE,
           stringsAsFactors = FALSE
         ),
         keys = keys
@@ -1569,9 +1350,12 @@ library(DT)
       tbl <- conv_trait_table()
       if (is.null(tbl$df) || nrow(tbl$df) == 0) {
         return(DT::datatable(
-          data.frame(Trait = character(0), Ancestries = character(0), nlog10P = numeric(0)),
+          data.frame(Trait = character(0), Ancestries = character(0),
+                     nlog10P = numeric(0), PP.H4 = numeric(0),
+                     check.names = FALSE),
           selection = "none",
-          options = list(dom = 't', language = list(emptyTable = "Select a category in the left sidebar to see traits."))
+          options = list(dom = 't',
+                         language = list(emptyTable = "Pick a category above to see traits."))
         ))
       }
 
@@ -1598,10 +1382,11 @@ library(DT)
           order = list(list(2, 'desc')),  # default sort by nlog10P
           autoWidth = FALSE,
           columnDefs = list(
-            list(className = "dt-right", targets = 2),
-            list(width = "60%", targets = 0),
-            list(width = "25%", targets = 1),
-            list(width = "15%", targets = 2)
+            list(className = "dt-right", targets = c(2, 3)),
+            list(width = "50%", targets = 0),
+            list(width = "22%", targets = 1),
+            list(width = "14%", targets = 2),
+            list(width = "14%", targets = 3)
           ),
           language = list(search = "Filter:")
         )
@@ -1879,10 +1664,6 @@ library(DT)
           dt <- all_dt[as.character(CHR_var) == as.character(cons$chr) &
                        BP_START_var <= cons$stop &
                        BP_STOP_var  >= cons$start]
-          if (nrow(dt) == 0) return(NULL)
-          dt <- dt[PP.H4.abf >= input$min_pph4]
-          dt <- dt[sumstats_2_max_nlog10P >= input$min_nlog10P]
-          dt <- dt[source_study %in% selected_studies()]
           if (nrow(dt) == 0) return(NULL)
 
           # Union of bundle keys across ancestries (each mapped to its

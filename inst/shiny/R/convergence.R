@@ -10,12 +10,14 @@
 TRAIT_CATEGORIES <- list(
   kidney_disease = list(
     label = "Kidney diseases & traits",
+    short = "Kidney",
     icon = "\U0001F9EC",
     color = "#F39B7F",
     studies = c("CKDGen_r4", "CKDGen_r5")
   ),
   phewas = list(
     label = "PheWAS (diseases & traits)",
+    short = "PheWAS",
     icon = "\U0001F4CA",
     color = "#2E5C8A",
     studies = c("MVP_R4", "MVP_R4_AFR", "MVP_R4_AMR", "MVP_R4_EAS",
@@ -24,12 +26,14 @@ TRAIT_CATEGORIES <- list(
   ),
   imaging = list(
     label = "Kidney imaging",
+    short = "Imaging",
     icon = "\U0001F9F2",
     color = "#7570B3",
     studies = c("UKB_kidney_vol")
   ),
   proteins = list(
     label = "Proteins (pQTL)",
+    short = "pQTL",
     icon = "\U0001F9EC",
     color = "#66B266",
     studies = c("UKB_PPP_EUR", "UKB_PPP_AFR", "Icelanders_pGWAS",
@@ -37,12 +41,14 @@ TRAIT_CATEGORIES <- list(
   ),
   transcripts = list(
     label = "Transcripts (eQTL)",
+    short = "eQTL",
     icon = "\U0001F9EC",
     color = "#9B59B6",
     studies = c("eQTLGen", "Kidney_eQTL", "GTEXv8_eQTL")
   ),
   metabolites = list(
     label = "Metabolites",
+    short = "Metabolites",
     icon = "\U0001F9EA",
     color = "#E67E22",
     studies = c("GCKD_mGWAS_plasma", "GCKD_mGWAS_urine", "GCKD_uMet")
