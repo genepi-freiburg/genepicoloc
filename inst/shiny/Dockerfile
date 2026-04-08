@@ -29,7 +29,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install R packages from Posit PPM (precompiled binaries, much faster)
-RUN R -e "install.packages(c('data.table', 'plotly'), repos='https://packagemanager.posit.co/cran/__linux__/jammy/latest')"
+RUN R -e "install.packages(c('data.table', 'plotly', 'markdown'), repos='https://packagemanager.posit.co/cran/__linux__/jammy/latest')"
 
 # Create app directory
 WORKDIR /app

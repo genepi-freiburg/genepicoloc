@@ -234,9 +234,9 @@ library(plotly)
                )  # End fluidRow
       ),
       tabPanel("Documentation",
-               tags$iframe(
-                 src = "documentation.html",
-                 style = "width: 100%; height: calc(100vh - 80px); border: none;"
+               div(
+                 style = "max-width: 900px; margin: 20px auto; padding: 0 16px;",
+                 includeMarkdown("www/docs.md")
                )
       )
     )
@@ -246,13 +246,17 @@ library(plotly)
 
     # === Landing Page ===
 
-    # Category definitions for the landing page
+    # Category definitions for the landing page.
+    # `section` groups cards into rows on the landing page:
+    #   "featured"   - CKDGen r4 (full atlas) and MVP kidney (multi-ancestry)
+    #   "additional" - MRI volumes and urine metabolomics (supporting data)
     atlas_categories <- list(
       list(
         id = "kidney_disease",
+        section = "featured",
         icon = "\U0001F9EC",
-        title = "Kidney Disease Traits",
-        description = "CKDGen Round 4 GWAS - kidney function and disease phenotypes colocalized against 11 molecular and clinical datasets",
+        title = "CKDGen Round 4",
+        description = "Kidney function and disease phenotypes (eGFR, BUN, UACR, urate, gout, microalbuminuria) from the CKDGen Round 4 meta-analysis, colocalized against 11 molecular and clinical datasets.",
         traits = list(
           list(id = "eGFR", label = "eGFR (creatinine)", desc = "Estimated glomerular filtration rate"),
           list(id = "BUN", label = "Blood Urea Nitrogen", desc = "Kidney filtration marker"),
@@ -263,33 +267,8 @@ library(plotly)
         )
       ),
       list(
-        id = "kidney_mri",
-        icon = "\U0001F9F2",
-        title = "Kidney MRI Volumes",
-        description = "UK Biobank kidney MRI - structural imaging phenotypes (BSA-adjusted)",
-        traits = list(
-          list(id = "MRI_tkv", label = "Total Kidney Volume", desc = "BSA-adjusted"),
-          list(id = "MRI_cortex", label = "Cortex Volume", desc = "BSA-adjusted"),
-          list(id = "MRI_medulla", label = "Medulla Volume", desc = "BSA-adjusted"),
-          list(id = "MRI_hilus", label = "Hilus Volume", desc = "BSA-adjusted")
-        )
-      ),
-      list(
-        id = "metabolomics",
-        icon = "\U0001F9EA",
-        title = "Urine Metabolomics",
-        description = paste(
-          "GCKD urine metabolome GWAS (Schlosser et al., Nat Genet 2023) -",
-          "1,409 urine metabolites measured by Metabolon, colocalized against",
-          "Tier 1 datasets."
-        ),
-        # Traits are populated dynamically below from auto-discovered uMet
-        # files so we don't have to enumerate 1,409 metabolites by hand.
-        traits = list(),
-        autopopulate = "GCKD_uMet"
-      ),
-      list(
         id = "mvp_kidney",
+        section = "featured",
         icon = "\U0001F30D",
         title = "MVP Kidney (multi-ancestry)",
         description = paste(
@@ -301,6 +280,34 @@ library(plotly)
         # Traits populated from virtual multi-ancestry studies.
         traits = list(),
         autopopulate_virtual = TRUE
+      ),
+      list(
+        id = "kidney_mri",
+        section = "additional",
+        icon = "\U0001F9F2",
+        title = "Kidney MRI Volumes",
+        description = "UK Biobank kidney MRI - structural imaging phenotypes (BSA-adjusted).",
+        traits = list(
+          list(id = "MRI_tkv", label = "Total Kidney Volume", desc = "BSA-adjusted"),
+          list(id = "MRI_cortex", label = "Cortex Volume", desc = "BSA-adjusted"),
+          list(id = "MRI_medulla", label = "Medulla Volume", desc = "BSA-adjusted"),
+          list(id = "MRI_hilus", label = "Hilus Volume", desc = "BSA-adjusted")
+        )
+      ),
+      list(
+        id = "metabolomics",
+        section = "additional",
+        icon = "\U0001F9EA",
+        title = "Urine Metabolomics",
+        description = paste(
+          "GCKD urine metabolome GWAS (Schlosser et al., Nat Genet 2023) -",
+          "1,409 urine metabolites measured by Metabolon, colocalized against",
+          "Tier 1 datasets."
+        ),
+        # Traits are populated dynamically below from auto-discovered uMet
+        # files so we don't have to enumerate 1,409 metabolites by hand.
+        traits = list(),
+        autopopulate = "GCKD_uMet"
       )
     )
 
@@ -414,62 +421,79 @@ library(plotly)
       if (length(matches) > 0) matches[1] else NULL
     }
 
-    output$landing_categories <- renderUI({
-      div(class = "category-grid",
-        lapply(atlas_categories, function(cat) {
-          cat$traits <- expand_card_traits(cat)
-          available <- sapply(cat$traits, function(t) {
-            !isTRUE(t$disabled) && is_known_study(t$id)
-          })
-          n_available <- sum(available)
-          n_total <- length(cat$traits)
-          stats_text <- if (n_available > 0) {
-            paste0(n_available, " traits available")
-          } else {
-            "Coming soon"
-          }
+    # Build a single category card (used by the two landing sections).
+    build_card <- function(cat) {
+      cat$traits <- expand_card_traits(cat)
+      available <- sapply(cat$traits, function(t) {
+        !isTRUE(t$disabled) && is_known_study(t$id)
+      })
+      n_available <- sum(available)
+      stats_text <- if (n_available > 0) {
+        paste0(n_available, " traits available")
+      } else {
+        "Coming soon"
+      }
 
-          div(class = "category-card",
-            div(class = "card-icon", cat$icon),
-            h3(cat$title),
-            p(class = "card-description", cat$description),
-            p(class = "card-stats", stats_text),
-            div(class = "trait-list",
-              lapply(cat$traits, function(trait) {
-                is_virtual <- trait$id %in% names(DEFAULT_VIRTUAL_STUDIES)
-                is_disabled <- isTRUE(trait$disabled) || !is_known_study(trait$id)
-                # Check regional data across all possible layouts
-                cats <- attr(DEFAULT_AVAILABLE_STUDIES, "categories")
-                cat_name <- if (!is.null(cats)) cats[[trait$id]] else NULL
-                has_regional <- if (is_virtual) {
-                  # Virtual study: any ancestry with a regional dir counts.
-                  vdirs <- DEFAULT_VIRTUAL_STUDIES[[trait$id]]$regional_dirs
-                  any(!is.na(unlist(vdirs)))
-                } else {
-                  !is_disabled && (
-                    (!is.null(cat_name) && dir.exists(file.path(DATA_PATH, cat_name, "regional", trait$id))) ||
-                    dir.exists(file.path(DATA_PATH, "regional", trait$id)) ||
-                    dir.exists(file.path(DATA_PATH, "regional_plots", trait$id))
-                  )
-                }
-                css_class <- paste("trait-btn",
-                  if (is_disabled) "disabled",
-                  if (has_regional) "has-regional"
-                )
-                if (is_disabled) {
-                  tags$span(class = css_class, title = trait$desc, trait$label)
-                } else {
-                  tags$span(
-                    class = css_class,
-                    title = trait$desc,
-                    onclick = paste0("Shiny.setInputValue('selected_study', '", trait$id, "', {priority: 'event'});"),
-                    trait$label
-                  )
-                }
-              })
+      div(class = "category-card",
+        div(class = "card-icon", cat$icon),
+        h3(cat$title),
+        p(class = "card-description", cat$description),
+        p(class = "card-stats", stats_text),
+        div(class = "trait-list",
+          lapply(cat$traits, function(trait) {
+            is_virtual <- trait$id %in% names(DEFAULT_VIRTUAL_STUDIES)
+            is_disabled <- isTRUE(trait$disabled) || !is_known_study(trait$id)
+            cats <- attr(DEFAULT_AVAILABLE_STUDIES, "categories")
+            cat_name <- if (!is.null(cats)) cats[[trait$id]] else NULL
+            has_regional <- if (is_virtual) {
+              vdirs <- DEFAULT_VIRTUAL_STUDIES[[trait$id]]$regional_dirs
+              any(!is.na(unlist(vdirs)))
+            } else {
+              !is_disabled && (
+                (!is.null(cat_name) && dir.exists(file.path(DATA_PATH, cat_name, "regional", trait$id))) ||
+                dir.exists(file.path(DATA_PATH, "regional", trait$id)) ||
+                dir.exists(file.path(DATA_PATH, "regional_plots", trait$id))
+              )
+            }
+            css_class <- paste("trait-btn",
+              if (is_disabled) "disabled",
+              if (has_regional) "has-regional"
             )
-          )
-        })
+            if (is_disabled) {
+              tags$span(class = css_class, title = trait$desc, trait$label)
+            } else {
+              tags$span(
+                class = css_class,
+                title = trait$desc,
+                onclick = paste0("Shiny.setInputValue('selected_study', '", trait$id, "', {priority: 'event'});"),
+                trait$label
+              )
+            }
+          })
+        )
+      )
+    }
+
+    output$landing_categories <- renderUI({
+      featured   <- Filter(function(c) isTRUE(c$section == "featured"),   atlas_categories)
+      additional <- Filter(function(c) isTRUE(c$section == "additional"), atlas_categories)
+      # Categories without an explicit section fall into "featured" so
+      # adding a new card without touching the helper still works.
+      extras     <- Filter(function(c) is.null(c$section), atlas_categories)
+      featured   <- c(featured, extras)
+
+      tagList(
+        div(class = "landing-section-header",
+            h2("Featured atlases", style = "margin: 4px 0 10px 0;")),
+        div(class = "category-grid",
+          lapply(featured, build_card)),
+        if (length(additional) > 0) tagList(
+          div(class = "landing-section-header",
+              h2("Additional phenotypes",
+                 style = "margin: 28px 0 10px 0; color: #555; font-size: 18px;")),
+          div(class = "category-grid",
+            lapply(additional, build_card))
+        )
       )
     })
 
