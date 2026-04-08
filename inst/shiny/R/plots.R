@@ -1,59 +1,5 @@
 # Regional association plot functions (LocusZoom-style)
 
-# Helper function to convert hex color to rgba with transparency
-hex_to_rgba <- function(hex, alpha = 0.2) {
-  rgb_vals <- col2rgb(hex)
-  return(sprintf("rgba(%d, %d, %d, %.2f)", rgb_vals[1], rgb_vals[2], rgb_vals[3], alpha))
-}
-
-# Regional association plot function (LocusZoom-style)
-# Creates a Manhattan-style plot for a genomic region
-plot_regional_association <- function(sumstats_dt, title = "", highlight_snp = NULL,
-                                      y_col = "nlog10P", color = "#3498db") {
-  if (is.null(sumstats_dt) || nrow(sumstats_dt) == 0) {
-    plot(NULL, xlim = c(0, 1), ylim = c(0, 1), xlab = "", ylab = "", axes = FALSE)
-    text(0.5, 0.5, "No data available", cex = 1.2)
-    return(invisible(NULL))
-  }
-
-  # Ensure data.table
-  if (!is.data.table(sumstats_dt)) {
-    sumstats_dt <- as.data.table(sumstats_dt)
-  }
-
-  # Get position and p-value columns
-  x <- sumstats_dt$POS
-  y <- sumstats_dt[[y_col]]
-
-  # Set up plot
-  par(mar = c(4, 4, 2, 1))
-
-  # Plot points
-  plot(x, y, pch = 19, cex = 0.6, col = adjustcolor(color, alpha.f = 0.6),
-       xlab = paste0("Position (Chromosome ", sumstats_dt$CHR[1], ")"),
-       ylab = expression(-log[10](P)),
-       main = title, cex.main = 0.9)
-
-  # Add genome-wide significance line
-  abline(h = 7.3, col = "red", lty = 2, lwd = 1)
-
-  # Add suggestive significance line
-  abline(h = 5, col = "blue", lty = 3, lwd = 0.8)
-
-  # Highlight lead SNP if provided
-  if (!is.null(highlight_snp) && highlight_snp %in% sumstats_dt$Name) {
-    lead_idx <- which(sumstats_dt$Name == highlight_snp)
-    if (length(lead_idx) > 0) {
-      points(x[lead_idx], y[lead_idx], pch = 18, cex = 2, col = "purple")
-      # Add label
-      text(x[lead_idx], y[lead_idx], labels = highlight_snp,
-           pos = 3, cex = 0.7, col = "purple", offset = 0.5)
-    }
-  }
-
-  invisible(NULL)
-}
-
 # Interactive regional association plot using plotly
 # Creates an interactive Manhattan-style plot with hover tooltips.
 # Only variants with -log10(P) > 5 (p < 1e-5) have hover annotations for
