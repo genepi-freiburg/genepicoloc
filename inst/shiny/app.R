@@ -12,6 +12,7 @@
 library(shiny)
 library(data.table)
 library(plotly)
+library(DT)
 
   # UI ----
   ui <- fluidPage(
@@ -78,6 +79,15 @@ library(plotly)
                          placeholder = "Type gene name...",
                          closeAfterSelect = TRUE
                        ),
+                       width = "100%"),
+                     # Chromosome zoom: restrict the mini Manhattan to one
+                     # chromosome. Choices are populated dynamically from
+                     # coloc_data() so MVP chr16-only test bundles only
+                     # show chr16.
+                     selectInput("manhattan_chr",
+                       "Chromosome:",
+                       choices = c("All" = "all"),
+                       selected = "all",
                        width = "100%")
                    )
                  ),
@@ -205,18 +215,28 @@ library(plotly)
                    )  # End wellPanel
                  ),  # End left column
 
-                 # Main panel: region-centric multi-omics view
-                 # (Convergence). The old Network + Regional Plot subtabs
-                 # were merged in here - click a trait tile to see its
-                 # RAP overlaid on the base, and click a gene on the gene
-                 # track for annotation details.
+                 # Middle panel: trait list for the selected category.
+                 # Replaces the old "Selected trait:" dropdown + bottom
+                 # tile grid. DT gives us built-in search, sort and
+                 # single-row selection for 100+ traits without the
+                 # layout bloat of a tile grid.
                  column(
-                   width = 10,
+                   width = 3,
+                   div(style = "padding: 4px 6px;",
+                     uiOutput("conv_drilldown_header"),
+                     DT::dataTableOutput("conv_trait_list", height = "100%")
+                   )
+                 ),
+
+                 # Main panel: region-centric multi-omics view.
+                 column(
+                   width = 7,
                    # Panel 1: trait of interest regional plot
                    h6("Trait of interest", style = "margin: 8px 0 2px 0; color: #555;"),
                    plotlyOutput("conv_base_plot", height = "200px"),
-                   # Panel 1b: Selected trait RAP (appears below base when user clicks a trait)
-                   uiOutput("conv_trait_plot_header"),
+                   # Panel 1b: Selected trait RAP (appears below base when
+                   # the user picks a trait in the middle-panel list)
+                   uiOutput("conv_selected_trait_title"),
                    conditionalPanel(
                      condition = "output.conv_trait_has_data",
                      plotlyOutput("conv_trait_plot", height = "200px")
@@ -226,10 +246,7 @@ library(plotly)
                    div(style = "font-size: 10px; color: #999; margin-bottom: 2px;",
                      "Click a gene for details."),
                    plotlyOutput("conv_gene_track", height = "100px"),
-                   uiOutput("gene_info_panel"),
-                   # Panel 3: trait tiles for selected category
-                   uiOutput("conv_drilldown_header"),
-                   uiOutput("conv_trait_tiles")
+                   uiOutput("gene_info_panel")
                  )  # End main column
                )  # End fluidRow
       ),
@@ -708,6 +725,25 @@ library(plotly)
     
     # === Mini Manhattan Plot ===
 
+    # Populate the chromosome selector from whichever chromosomes the
+    # current study actually has colocs on. Numeric sort, X last.
+    observe({
+      dt <- coloc_data()
+      if (is.null(dt) || nrow(dt) == 0) {
+        updateSelectInput(session, "manhattan_chr",
+                          choices = c("All" = "all"), selected = "all")
+        return()
+      }
+      chrs <- unique(as.character(dt$CHR_var))
+      chr_num <- suppressWarnings(as.integer(chrs))
+      chrs <- chrs[order(is.na(chr_num), chr_num, chrs)]
+      choices <- c("All" = "all", setNames(chrs, paste0("chr", chrs)))
+      current <- isolate(input$manhattan_chr)
+      sel <- if (!is.null(current) && current %in% choices) current else "all"
+      updateSelectInput(session, "manhattan_chr",
+                        choices = choices, selected = sel)
+    })
+
     output$mini_manhattan_ui <- renderUI({
       req(regions_data(), coloc_data())
       plotlyOutput("mini_manhattan", height = "180px")
@@ -717,6 +753,19 @@ library(plotly)
       req(regions_data(), coloc_data())
       regions <- regions_data()
       dt <- coloc_data()
+
+      # Chromosome filter (zoom): when the user picks a specific chromosome
+      # from the dropdown, restrict both `dt` and `regions` to that chr.
+      chr_sel <- input$manhattan_chr
+      if (!is.null(chr_sel) && chr_sel != "all") {
+        dt      <- dt[as.character(CHR_var) == chr_sel]
+        regions <- regions[as.character(CHR_var) == chr_sel]
+        if (nrow(dt) == 0) {
+          return(plotly_empty() %>% layout(
+            title = list(text = paste0("No colocs on chr", chr_sel),
+                         x = 0.5, y = 0.5)))
+        }
+      }
 
       # Multi-ancestry virtual study: cluster overlapping per-ancestry
       # regions into consensus regions so the Manhattan shows one dot per
@@ -1390,22 +1439,24 @@ library(plotly)
       }, ignoreInit = TRUE)
     })
 
-    # Drill-down header (shows selected category and clear button)
+    # Drill-down header: shows the currently selected category above the
+    # DT trait list. "Clear" is implicit - the user clicks a different
+    # category card in the left sidebar.
     output$conv_drilldown_header <- renderUI({
       sel <- conv_selected_cat()
       if (is.null(sel)) {
-        return(div(style = "font-size: 11px; color: #999; margin: 12px 0 4px 0; font-style: italic;",
-                   "Select a category above to see traits."))
+        return(div(style = "font-size: 11px; color: #999; margin: 4px 0 6px 0; font-style: italic;",
+                   "Select a category in the left sidebar."))
       }
       meta <- TRAIT_CATEGORIES[[sel]]
       counts <- conv_cat_counts()
       n_total <- tryCatch(counts[[sel]], error = function(e) 0L)
       if (is.null(n_total) || length(n_total) == 0 || is.na(n_total)) n_total <- 0L
-      n_shown <- min(n_total, 50L)
-      h6(style = "margin: 12px 0 4px 0;",
-         meta$icon, " ", meta$label,
-         tags$span(style = "font-size: 11px; color: #888; margin-left: 8px;",
-                   sprintf("(showing %d of %d)", n_shown, n_total)))
+      div(style = "margin: 2px 0 6px 0;",
+          h6(style = "margin: 0; color: #2c3e50;",
+             meta$icon, " ", meta$label,
+             tags$span(style = "font-size: 11px; color: #888; margin-left: 6px;",
+                       sprintf("(%d)", n_total))))
     })
 
     # Data for drill-down: filter by selected category, limit to 50 by signal strength.
@@ -1461,138 +1512,110 @@ library(plotly)
       dt
     })
 
-    # Top 50 subset for tile rendering performance
-    conv_drilldown_data_top <- reactive({
+    # Flat data.frame shape for the trait list DT + a parallel
+    # bundle-key vector (stable across sort/filter operations on the
+    # client, because DT's server-side selection maps back to original
+    # row indices). Rebuilt whenever the drilldown data changes.
+    conv_trait_table <- reactive({
       dt <- conv_drilldown_data()
-      if (is.null(dt) || nrow(dt) <= 50) return(dt)
-      dt[1:50]
-    })
-
-    # Drill-down tiles: top 50 traits by -log10P (full list via dropdown)
-    output$conv_trait_tiles <- renderUI({
-      dt <- conv_drilldown_data_top()
       if (is.null(dt) || nrow(dt) == 0) {
-        return(div(style = "font-size: 11px; color: #999; font-style: italic; margin: 12px 0;",
-                   "Select a category from the left panel to see traits."))
+        return(list(df = NULL, keys = character(0)))
+      }
+      is_virt_dd <- is_virtual_study(current_study()) &&
+                    "consensus_key" %in% names(dt)
+
+      trait_name_fn <- function(row) {
+        nm <- tryCatch(get_trait_display_name(row),
+                       error = function(e) basename(row$sumstats_2_file))
+        if (is.null(nm) || is.na(nm) || !nzchar(nm)) basename(row$sumstats_2_file) else nm
+      }
+      names_vec <- vapply(seq_len(nrow(dt)),
+                          function(i) trait_name_fn(dt[i]),
+                          character(1))
+
+      badge_vec <- if (is_virt_dd) {
+        as.character(dt$ancestries)
+      } else {
+        as.character(dt$source_study)
       }
 
-      sel_cat <- conv_selected_cat()
-      cat_meta <- TRAIT_CATEGORIES[[sel_cat]]
+      nlp_vec <- if ("sumstats_2_max_nlog10P" %in% names(dt)) {
+        round(as.numeric(dt$sumstats_2_max_nlog10P), 1)
+      } else rep(NA_real_, nrow(dt))
 
-      # Build metadata for each tile and the id->bundle_key map. For
-      # virtual studies the drilldown already carries a `consensus_key`
-      # and `ancestries` column; prefer those so clicking a tile selects
-      # the consensus trait (overlay) rather than one ancestry.
-      is_virt_dd <- is_virtual_study(current_study()) && "consensus_key" %in% names(dt)
-      tiles_list <- dt[, {
-        study <- source_study[1]
-        anc <- if ("ancestry" %in% names(.SD)) ancestry[1] else NA_character_
-        trait_name <- tryCatch(get_trait_display_name(.SD),
-                               error = function(e) basename(sumstats_2_file[1]))
-        if (is.null(trait_name) || is.na(trait_name) || trait_name == "") {
-          trait_name <- basename(sumstats_2_file[1])
-        }
-        study_color <- if (exists("study_colors") && study %in% names(study_colors)) {
-          study_colors[[study]]
-        } else cat_meta$color
-        nlp <- if ("sumstats_2_max_nlog10P" %in% names(.SD)) sumstats_2_max_nlog10P[1] else NA
-        bk <- if (is_virt_dd) consensus_key[1] else make_bundle_key(study, sumstats_2_file[1], anc)
-        anc_badge <- if (is_virt_dd && "ancestries" %in% names(.SD)) ancestries[1] else NA_character_
-        list(
-          tile_id = paste0("conv_t_", .I),
-          bundle_key = bk,
-          trait_name = trait_name,
-          study = study,
-          study_color = study_color,
-          nlp = nlp,
-          anc_badge = anc_badge
-        )
-      }, by = .I]
+      keys <- if (is_virt_dd) {
+        as.character(dt$consensus_key)
+      } else {
+        vapply(seq_len(nrow(dt)), function(i)
+          make_bundle_key(dt$source_study[i], dt$sumstats_2_file[i],
+                          if ("ancestry" %in% names(dt)) dt$ancestry[i] else NA_character_),
+          character(1))
+      }
 
-      # Update node/tile -> bundle_key map
-      conv_node_keys(setNames(tiles_list$bundle_key, tiles_list$tile_id))
-
-      # Build tile elements
-      tiles <- lapply(seq_len(nrow(tiles_list)), function(i) {
-        tl <- tiles_list[i]
-        is_selected <- !is.null(conv_selected_trait()) &&
-                        conv_selected_trait() == tl$bundle_key
-        border_color <- if (is_selected) "#3498db" else "#e0e0e0"
-        border_width <- if (is_selected) "2px" else "1px"
-        bg <- if (is_selected) "#f0f8ff" else "white"
-        p_text <- if (is.na(tl$nlp)) "-" else sprintf("%.1f", tl$nlp)
-
-        div(
-          class = "conv-tile",
-          onclick = paste0("Shiny.setInputValue('conv_trait_click','",
-                            tl$tile_id, "', {priority:'event'});"),
-          style = paste0(
-            "cursor: pointer; padding: 6px 8px; margin: 3px; ",
-            "border: ", border_width, " solid ", border_color, "; ",
-            "border-radius: 6px; background: ", bg, "; ",
-            "transition: all 0.15s; ",
-            "display: flex; flex-direction: column; gap: 2px; ",
-            "min-height: 52px;"
-          ),
-          title = paste0(tl$trait_name, " (", tl$study,
-                         ", -log10P=", p_text, ")"),
-          # Trait name (truncated with ellipsis via CSS)
-          div(style = "font-size: 11px; font-weight: 600; color: #2c3e50; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
-              tl$trait_name),
-          # Study badge + p-value on one line.
-          # For virtual studies, replace the study badge with ancestry
-          # badges so the tile immediately shows how broadly the trait
-          # colocalized.
-          div(style = "display: flex; justify-content: space-between; align-items: center; gap: 4px;",
-              if (!is.null(tl$anc_badge) && !is.na(tl$anc_badge) && nzchar(tl$anc_badge)) {
-                tags$span(
-                  style = paste0(
-                    "display: inline-block; padding: 1px 5px; ",
-                    "border-radius: 8px; font-size: 9px; font-weight: 600; ",
-                    "color: white; background: ", tl$study_color, "; ",
-                    "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ",
-                    "max-width: 70%;"
-                  ),
-                  tl$anc_badge
-                )
-              } else {
-                tags$span(
-                  style = paste0(
-                    "display: inline-block; padding: 1px 5px; ",
-                    "border-radius: 8px; font-size: 9px; font-weight: 600; ",
-                    "color: white; background: ", tl$study_color, "; ",
-                    "white-space: nowrap; overflow: hidden; text-overflow: ellipsis; ",
-                    "max-width: 70%;"
-                  ),
-                  tl$study
-                )
-              },
-              tags$span(
-                style = "font-size: 10px; color: #555; font-weight: 600;",
-                paste0("-log10P=", p_text)
-              )
-          )
-        )
-      })
-
-      # Wrap tiles in a responsive grid (5 columns on wide screens)
-      div(
-        style = "display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 4px; margin-top: 8px;",
-        tiles
+      list(
+        df = data.frame(
+          Trait = names_vec,
+          Ancestries = badge_vec,
+          nlog10P = nlp_vec,
+          stringsAsFactors = FALSE
+        ),
+        keys = keys
       )
     })
 
+    # Render the DT trait list. Single-row selection feeds
+    # conv_selected_trait via the rows_selected observer below.
+    output$conv_trait_list <- DT::renderDataTable({
+      tbl <- conv_trait_table()
+      if (is.null(tbl$df) || nrow(tbl$df) == 0) {
+        return(DT::datatable(
+          data.frame(Trait = character(0), Ancestries = character(0), nlog10P = numeric(0)),
+          selection = "none",
+          options = list(dom = 't', language = list(emptyTable = "Select a category in the left sidebar to see traits."))
+        ))
+      }
+
+      # Preselect the current conv_selected_trait if it maps back to a
+      # row in this table (otherwise DT defaults to nothing).
+      sel_key <- conv_selected_trait()
+      sel_row <- if (!is.null(sel_key)) which(tbl$keys == sel_key) else integer(0)
+      sel_row <- sel_row[1]
+
+      DT::datatable(
+        tbl$df,
+        selection = list(mode = "single",
+                         selected = if (length(sel_row) && !is.na(sel_row)) sel_row else NULL,
+                         target = "row"),
+        rownames = FALSE,
+        class = "compact stripe hover nowrap",
+        options = list(
+          dom = 'ft',            # search box (f) + table (t)
+          pageLength = -1,       # show all rows
+          scrollY = "560px",
+          scrollCollapse = TRUE,
+          paging = FALSE,
+          order = list(list(2, 'desc')),  # default sort by nlog10P
+          columnDefs = list(
+            list(className = "dt-right", targets = 2),
+            list(width = "55%", targets = 0),
+            list(width = "25%", targets = 1),
+            list(width = "20%", targets = 2)
+          ),
+          language = list(search = "Filter:")
+        )
+      )
+    }, server = TRUE)
+
     # Track which trait is selected for regional plot display
     conv_selected_trait <- reactiveVal(NULL)
-    # Map node id -> bundle key (populated by drilldown renderer)
-    conv_node_keys <- reactiveVal(character(0))
 
-    observeEvent(input$conv_trait_click, {
-      node_id <- input$conv_trait_click
-      keys <- conv_node_keys()
-      bundle_key <- keys[[node_id]]
-      if (!is.null(bundle_key)) {
-        conv_selected_trait(bundle_key)
+    # DT row-selection -> consensus/bundle key.
+    observeEvent(input$conv_trait_list_rows_selected, {
+      row <- input$conv_trait_list_rows_selected
+      if (is.null(row) || length(row) == 0) return()
+      keys <- conv_trait_table()$keys
+      if (length(keys) >= row[1]) {
+        conv_selected_trait(keys[row[1]])
       }
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
@@ -1748,66 +1771,19 @@ library(plotly)
       )
     })
 
-    output$conv_trait_plot_header <- renderUI({
-      req(conv_selected_trait())
-      dt <- conv_drilldown_data()
-      if (is.null(dt) || nrow(dt) == 0) {
-        return(h6(style = "margin: 12px 0 2px 0; color: #555;",
-                  icon("chart-line"), " Selected trait"))
+    # Static title above the lower RAP. Shows the selected trait name
+    # and (for virtual studies) the ancestry badge. Pure output - the
+    # selection happens in the middle-panel DT list.
+    output$conv_selected_trait_title <- renderUI({
+      sel <- conv_selected_trait()
+      if (is.null(sel)) {
+        return(h6(style = "margin: 12px 0 2px 0; color: #999; font-style: italic;",
+                  icon("chart-line"), " Select a trait in the list panel to compare"))
       }
-
-      # Build "label -> bundle_key" choices for all traits in the current
-      # category (same order as the tiles: by -log10P desc). Virtual
-      # multi-ancestry studies use consensus keys with ancestry badges.
-      is_virt_dd <- is_virtual_study(current_study()) && "consensus_key" %in% names(dt)
-      choices_list <- lapply(seq_len(nrow(dt)), function(i) {
-        row <- dt[i]
-        study <- row$source_study
-        anc <- if ("ancestry" %in% names(row)) row$ancestry else NA_character_
-        trait_name <- tryCatch(get_trait_display_name(row),
-                               error = function(e) basename(row$sumstats_2_file))
-        if (is.null(trait_name) || is.na(trait_name) || trait_name == "") {
-          trait_name <- basename(row$sumstats_2_file)
-        }
-        nlp <- if ("sumstats_2_max_nlog10P" %in% names(row)) row$sumstats_2_max_nlog10P else NA
-        if (is_virt_dd) {
-          ancs <- row$ancestries
-          label <- paste0(trait_name, " [", ancs, "], -log10P=",
-                          if (is.na(nlp)) "-" else sprintf("%.1f", nlp))
-          key <- row$consensus_key
-        } else {
-          disp_study <- if (!is.na(anc) && nzchar(anc)) paste0(study, " ", anc) else study
-          label <- paste0(trait_name, " (", disp_study, ", -log10P=",
-                          if (is.na(nlp)) "-" else sprintf("%.1f", nlp), ")")
-          key <- make_bundle_key(study, row$sumstats_2_file, anc)
-        }
-        list(label = label, key = key)
-      })
-      labels <- vapply(choices_list, `[[`, character(1), "label")
-      keys   <- vapply(choices_list, `[[`, character(1), "key")
-      choices <- setNames(keys, labels)
-
-      div(style = "display: flex; align-items: center; gap: 8px; margin: 12px 0 2px 0;",
-        h6(style = "margin: 0; color: #555; white-space: nowrap;",
-           icon("chart-line"), " Selected trait:"),
-        div(style = "flex: 1;",
-          selectizeInput("conv_trait_dropdown", label = NULL,
-                         choices = choices,
-                         selected = conv_selected_trait(),
-                         width = "100%",
-                         options = list(closeAfterSelect = TRUE))
-        )
-      )
+      label <- conv_selected_trait_label()
+      h6(style = "margin: 12px 0 2px 0; color: #2c3e50;",
+         icon("chart-line"), " ", label)
     })
-
-    # Dropdown change -> update selected trait (and tile highlight follows)
-    observeEvent(input$conv_trait_dropdown, {
-      val <- input$conv_trait_dropdown
-      if (is.null(val) || length(val) == 0 || is.na(val) || val == "") return()
-      if (!identical(conv_selected_trait(), val)) {
-        conv_selected_trait(val)
-      }
-    }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
     # Download handler
     output$download_data <- downloadHandler(
