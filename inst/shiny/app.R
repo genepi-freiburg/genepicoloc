@@ -104,8 +104,7 @@ library(DT)
                      # Hidden dummy input to preserve reactivity for legacy coord selector
                      tags$div(style = "display: none;",
                        selectizeInput("selected_region_coord", NULL,
-                                      choices = NULL, selected = NULL),
-                       uiOutput("current_study_info")),
+                                      choices = NULL, selected = NULL)),
 
                      # Horizontal category strip (6 compact buttons)
                      uiOutput("conv_category_cards"),
@@ -157,12 +156,30 @@ library(DT)
   
   server <- function(input, output, session) {
 
-    # === Landing Page ===
+    # -----------------------------------------------------------------
+    # Server structure (top -> bottom)
+    #
+    #   Landing page render                   output$landing_categories
+    #   Reactive values (all reactiveVals)    current_study, selected_gene, ...
+    #   Event handlers
+    #     - study selection card click        observeEvent(selected_study)
+    #     - gene / region selectize sync      observe({ ... })
+    #     - Manhattan chr selector
+    #     - Manhattan click
+    #   Core data reactives                   coloc_data, regions_data, filtered_*
+    #   Mini Manhattan output                 output$mini_manhattan*
+    #   Convergence reactives                 conv_*
+    #   Regional bundle reactives             regional_data_path, regional_base_sumstats
+    #   Trait name helpers                    get_trait_name, get_trait_display_name
+    #   Gene info panel                       output$gene_info_panel
+    #   Download handler                      output$download_data
+    #
+    # Pure helpers (categories, bundle keys, region parsing, bundles,
+    # Manhattan builder, plots, gene track, annotations) live in
+    # inst/shiny/R/*.R and are auto-sourced before this file runs.
+    # -----------------------------------------------------------------
 
-    # (landing page category data and UI builders live in R/landing.R -
-    # atlas_categories, build_card, expand_card_traits, is_known_study.
-    # Bundle key helpers live in R/bundle_keys.R - make_bundle_key,
-    # make_consensus_trait_key, resolve_consensus_in_bundle, ANC_CODES.)
+    # === Landing Page ===
 
     output$landing_categories <- renderUI({
       featured   <- Filter(function(c) isTRUE(c$section == "featured"),   atlas_categories)
@@ -187,14 +204,18 @@ library(DT)
       )
     })
 
-    # === Reactive Values ===
-
-    # Reactive value to store the current loaded study
-    current_study <- reactiveVal(NULL)
-
-    # Currently-clicked gene on the gene track (shared between the
-    # convergence gene track click handler and the gene info panel).
-    selected_gene <- reactiveVal(NULL)
+    # === Reactive values (all declared up front) ===
+    #
+    # current_study         - user's currently loaded study (card click)
+    # selected_gene         - clicked gene on the gene track
+    # region_to_value_map   - bare region_key -> gene-prefixed selectize id
+    # conv_selected_cat     - convergence drilldown: selected category
+    # conv_selected_trait   - convergence drilldown: selected trait key
+    current_study       <- reactiveVal(NULL)
+    selected_gene       <- reactiveVal(NULL)
+    region_to_value_map <- reactiveVal(character(0))
+    conv_selected_cat   <- reactiveVal(NULL)
+    conv_selected_trait <- reactiveVal(NULL)
 
     # === Event Handlers ===
     
@@ -235,16 +256,12 @@ library(DT)
       }
     })
 
-    # Update region selectors
-    # Map from bare region_key -> gene-prefixed selectize value
-    region_to_value_map <- reactiveVal(character(0))
-
+    # Update region selectors.
+    # region_to_value_map (declared at the top) holds the mapping from
+    # bare region keys to gene-prefixed selectize values.
     observe({
       req(regions_data())
       regions <- regions_data()
-      message("[gene_search] regions: ", nrow(regions),
-              " gene_annotation null?: ", is.null(gene_annotation),
-              " nrow: ", if (is.null(gene_annotation)) 0 else nrow(gene_annotation))
 
       # No regions for the current study (e.g. a uMet metabolite with zero
       # colocs passing filters): clear the selectizes and bail. Without this
@@ -285,9 +302,6 @@ library(DT)
           .(gene_name = i.gene_name, region_key, CHR_var,
             BP_START_var = orig_start, BP_STOP_var = orig_stop)
         ]
-
-        message("[gene_search] matched: ", nrow(matched),
-                " UMOD: ", nrow(matched[gene_name == "UMOD"]))
 
         if (nrow(matched) > 0) {
           # If a gene maps to multiple regions, disambiguate with suffix
@@ -330,7 +344,6 @@ library(DT)
         )
       }
 
-      message("[gene_search] final gene_choices length: ", length(gene_choices))
       updateSelectizeInput(session, "selected_region", choices = gene_choices,
                            server = TRUE)
       # Legacy coord selector - same choices
@@ -643,21 +656,6 @@ library(DT)
     filtered_data <- reactive({
       filtered_region_data()
     })
-    # === Outputs ===
-    
-    # Display current study info
-    output$current_study_info <- renderUI({
-      if (!is.null(current_study())) {
-        div(style = "font-size: 12px; color: #2c3e50; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
-            tags$strong(style = "color: #555;", "Study: "),
-            trait_label(current_study()))
-      } else {
-        div(style = "font-size: 12px; color: #999;", "No study loaded.")
-      }
-    })
-    
-    # (the old per-study checkbox selector was removed - category cards
-    # in the right-hand strip cover the same use case)
 
     # === Convergence view ===
 
@@ -708,20 +706,7 @@ library(DT)
       }
     })
 
-    # Clear gene info panel when navigating to a new region
-    observeEvent(current_region(), {
-      selected_gene(NULL)
-    }, ignoreNULL = TRUE, ignoreInit = TRUE)
-
     # === Panel 3: category overview cards ===
-
-    # Which category is currently selected for drill-down (NULL = none)
-    conv_selected_cat <- reactiveVal(NULL)
-
-    # Reset selection when region changes
-    observeEvent(current_region(), {
-      conv_selected_cat(NULL)
-    })
 
     # Category counts for current region
     conv_cat_counts <- reactive({
@@ -985,9 +970,6 @@ library(DT)
       )
     }, server = TRUE)
 
-    # Track which trait is selected for regional plot display
-    conv_selected_trait <- reactiveVal(NULL)
-
     # DT row-selection -> consensus/bundle key.
     observeEvent(input$conv_trait_list_rows_selected, {
       row <- input$conv_trait_list_rows_selected
@@ -998,19 +980,21 @@ library(DT)
       }
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
-    # When region changes: pick the first non-empty category and its top trait
+    # On region change: reset per-region state (gene info panel,
+    # currently-selected category and trait), then auto-select the
+    # first non-empty category. The trait inside that category is
+    # picked by a separate observer that reacts to conv_drilldown_data.
     observeEvent(current_region(), {
+      selected_gene(NULL)
+      conv_selected_trait(NULL)
+
       counts <- conv_cat_counts()
-      # Find first category with > 0 entries
       non_empty <- names(counts)[counts > 0]
       if (length(non_empty) == 0) {
         conv_selected_cat(NULL)
-        conv_selected_trait(NULL)
         return()
       }
       conv_selected_cat(non_empty[1])
-      # The drill-down data reactive will emit; we set the trait in a
-      # dedicated observer below (driven by conv_drilldown_data)
     }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
     # When drill-down data updates (region or category changed), auto-select
@@ -1160,13 +1144,13 @@ library(DT)
       }
     )
 
-    # === Regional Plot Logic (Region View) ===
+    # === Regional bundle data ===
 
-    # Path to regional plot data
-    # Supports three layouts:
-    #   1. Category: {DATA_PATH}/<category>/regional/<study>/   (multi-category atlas)
-    #   2. Bundled:  {DATA_PATH}/regional/<study>/              (single-category)
-    #   3. Legacy:   {DATA_PATH}/regional_plots/<study>/        (old layout)
+    # Path to the bundled regional RDS directory for the current study.
+    # For virtual multi-ancestry studies: returns the ancestry regional
+    # dir that contains the current representative region, fallback to
+    # the first available ancestry dir. For single-ancestry studies:
+    # returns the multi-category path first, fallback to single-category.
     regional_data_path <- reactive({
       req(current_study())
       study <- current_study()
@@ -1326,14 +1310,6 @@ library(DT)
       # For all other studies, use the same as get_trait_name (already clean)
       get_trait_name(row)
     }
-
-    # (region parsing helpers live in R/regions.R - parse_region_id,
-    # parse_region_key, parse_regional_filename, reconstruct_name)
-
-    # (bundled region loaders live in R/region_bundles.R -
-    # load_region_bundle, load_base_sumstats, load_trait_sumstats,
-    # load_multi_region_bundles. The helpers have process-wide caches
-    # keyed on file path so reactiveVal wrappers aren't needed.)
 
     # Load base study sumstats for current region. For virtual studies,
     # returns a named list(ancestry = dt) for overlay rendering; otherwise
