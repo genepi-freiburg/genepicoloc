@@ -3,81 +3,65 @@
 # The mini Manhattan is the top-of-page "pick a region" plot. It reads
 # two inputs from the server:
 #
-#   dt       - coloc_data(): one row per coloc hit
+#   dt       - coloc_data(): one row per coloc hit (always has `ancestry` column)
 #   regions  - regions_data(): one row per (CHR_var, BP_START_var,
 #              BP_STOP_var) with nearest_gene_1 / Prioritized_Gene /
 #              nearest_genes_10 metadata
 #
-# and one optional argument:
-#
-#   is_multi - TRUE when the current study is a virtual multi-ancestry
-#              one (coloc_data carries an `ancestry` column). Forward
-#              consensus clustering and ancestry-coverage coloring
-#              activate only in this mode.
-#
 # manhattan_consensus_table() returns a data.table with all columns the
 # renderer needs (x_pos, chr_color, region_key, hover, gene, is_selected).
-# The `selected_region_key` argument is the currently highlighted region
-# key (may be NA/NULL); the function just tags a boolean column, no
-# reactive reads.
+# Single-ancestry studies pass through the same clustering path (degenerates
+# to 1 ancestry per cluster, no merging).
 
 # Build the full `region_stats` table used by the Manhattan renderer.
-manhattan_consensus_table <- function(dt, regions, is_multi,
+manhattan_consensus_table <- function(dt, regions,
                                       selected_region_key = NA_character_) {
-  if (isTRUE(is_multi)) {
-    # Per (CHR, START, STOP) aggregation (per-ancestry regions may
-    # repeat if multiple coloc hits fall into them).
-    per_region <- dt[, .(max_nlog10P = max(sumstats_1_max_nlog10P, na.rm = TRUE),
-                         n_coloc = .N,
-                         ancs = list(sort(unique(ancestry)))),
-                     by = .(CHR_var, BP_START_var, BP_STOP_var)]
+  # Per (CHR, START, STOP) aggregation with ancestry tracking
+  per_region <- dt[, .(max_nlog10P = max(sumstats_1_max_nlog10P, na.rm = TRUE),
+                       n_coloc = .N,
+                       ancs = list(sort(unique(ancestry)))),
+                   by = .(CHR_var, BP_START_var, BP_STOP_var)]
 
-    # Cluster overlapping regions within each chromosome (single pass,
-    # sort by start, merge if next start <= running end).
-    per_region <- per_region[order(CHR_var, BP_START_var)]
-    per_region[, cluster_id := {
-      cid <- integer(.N); running_end <- -Inf; cur <- 0L
-      for (i in seq_len(.N)) {
-        if (BP_START_var[i] > running_end) {
-          cur <- cur + 1L
-          running_end <- BP_STOP_var[i]
-        } else if (BP_STOP_var[i] > running_end) {
-          running_end <- BP_STOP_var[i]
-        }
-        cid[i] <- cur
+  # Cluster overlapping regions within each chromosome (single pass,
+  # sort by start, merge if next start <= running end).
+  per_region <- per_region[order(CHR_var, BP_START_var)]
+  per_region[, cluster_id := {
+    cid <- integer(.N); running_end <- -Inf; cur <- 0L
+    for (i in seq_len(.N)) {
+      if (BP_START_var[i] > running_end) {
+        cur <- cur + 1L
+        running_end <- BP_STOP_var[i]
+      } else if (BP_STOP_var[i] > running_end) {
+        running_end <- BP_STOP_var[i]
       }
-      cid
-    }, by = CHR_var]
+      cid[i] <- cur
+    }
+    cid
+  }, by = CHR_var]
 
-    # Representative per-ancestry region key per cluster = the one with
-    # the most colocs (fallback: the widest). Click routing uses this
-    # key so downstream filtered_region_data() still finds matching
-    # rows without knowing about consensus coordinates.
-    per_region[, width := BP_STOP_var - BP_START_var]
-    per_region[, rep_row := order(-n_coloc, -width)[1] == seq_len(.N),
-               by = .(CHR_var, cluster_id)]
-    rep_keys <- per_region[rep_row == TRUE,
-      .(CHR_var, cluster_id,
-        rep_start = BP_START_var, rep_stop = BP_STOP_var)]
+  # Representative region key per cluster = the one with the most colocs
+  # (fallback: the widest). Click routing uses this key so downstream
+  # filtered_region_data() finds matching rows.
+  per_region[, width := BP_STOP_var - BP_START_var]
+  per_region[, rep_row := order(-n_coloc, -width)[1] == seq_len(.N),
+             by = .(CHR_var, cluster_id)]
+  rep_keys <- per_region[rep_row == TRUE,
+    .(CHR_var, cluster_id,
+      rep_start = BP_START_var, rep_stop = BP_STOP_var)]
 
-    # Collapse to consensus region per cluster.
-    region_stats <- per_region[, .(
-      BP_START_var = min(BP_START_var),
-      BP_STOP_var  = max(BP_STOP_var),
-      max_nlog10P  = max(max_nlog10P, na.rm = TRUE),
-      n_coloc      = sum(n_coloc),
-      ancs         = list(sort(unique(unlist(ancs))))
-    ), by = .(CHR_var, cluster_id)]
-    region_stats <- merge(region_stats, rep_keys,
-                          by = c("CHR_var", "cluster_id"), all.x = TRUE)
-    region_stats[, n_ancestries := lengths(ancs)]
-    region_stats[, anc_label := vapply(ancs, paste, character(1), collapse = ", ")]
-    region_stats[, cluster_id := NULL]
-  } else {
-    region_stats <- dt[, .(max_nlog10P = max(sumstats_1_max_nlog10P, na.rm = TRUE),
-                           n_coloc = .N),
-                       by = .(CHR_var, BP_START_var, BP_STOP_var)]
-  }
+  # Collapse to consensus region per cluster.
+  region_stats <- per_region[, .(
+    BP_START_var = min(BP_START_var),
+    BP_STOP_var  = max(BP_STOP_var),
+    max_nlog10P  = max(max_nlog10P, na.rm = TRUE),
+    n_coloc      = sum(n_coloc),
+    ancs         = list(sort(unique(unlist(ancs))))
+  ), by = .(CHR_var, cluster_id)]
+  region_stats <- merge(region_stats, rep_keys,
+                        by = c("CHR_var", "cluster_id"), all.x = TRUE)
+  region_stats[, n_ancestries := lengths(ancs)]
+  region_stats[, anc_label := vapply(ancs, paste, character(1), collapse = ", ")]
+  region_stats[, cluster_id := NULL]
 
   # Numeric chr for x-axis, cumulative layout positions
   region_stats[, CHR_num := as.integer(gsub("X", "23", gsub("Y", "24", CHR_var)))]
@@ -90,59 +74,41 @@ manhattan_consensus_table <- function(dt, regions, is_multi,
                         by = "CHR_num")
   region_stats[, x_pos := mid_pos + offset]
 
-  # Gene labels from the per-region metadata
-  if (isTRUE(is_multi)) {
-    # Consensus region coordinates don't match the per-ancestry
-    # BP_START_var in `regions`, so pick the per-ancestry row whose
-    # midpoint is closest to each consensus region's midpoint on the
-    # same chromosome. Also carry nearest_genes_10 through so the
-    # tooltip can show the full gene neighborhood.
-    cols <- c("CHR_var", "BP_START_var", "BP_STOP_var",
-              "nearest_gene_1", "Prioritized_Gene")
-    if ("nearest_genes_10" %in% names(regions)) cols <- c(cols, "nearest_genes_10")
-    reg_meta <- unique(regions[, ..cols])
-    reg_meta[, r_mid := (BP_START_var + BP_STOP_var) / 2]
-    has_n10 <- "nearest_genes_10" %in% names(reg_meta)
-    gene_for_cluster <- region_stats[, {
-      cands <- reg_meta[CHR_var == .BY$CHR_var]
-      if (nrow(cands) == 0) {
-        list(nearest_gene_1 = NA_character_,
-             Prioritized_Gene = NA_character_,
-             nearest_genes_10 = NA_character_)
-      } else {
-        j <- which.min(abs(cands$r_mid - mid_pos))
-        list(nearest_gene_1 = cands$nearest_gene_1[j],
-             Prioritized_Gene = cands$Prioritized_Gene[j],
-             nearest_genes_10 = if (has_n10) cands$nearest_genes_10[j] else NA_character_)
-      }
-    }, by = .(CHR_var, BP_START_var, BP_STOP_var)]
-    region_stats <- merge(region_stats, gene_for_cluster,
-                          by = c("CHR_var", "BP_START_var", "BP_STOP_var"),
-                          all.x = TRUE)
-  } else {
-    region_stats <- merge(region_stats,
-      unique(regions[, .(CHR_var, BP_START_var, nearest_gene_1, Prioritized_Gene)]),
-      by = c("CHR_var", "BP_START_var"), all.x = TRUE)
-  }
+  # Gene labels from the per-region metadata. Use nearest-midpoint
+  # matching (consensus coords may not exactly match per-ancestry coords).
+  cols <- c("CHR_var", "BP_START_var", "BP_STOP_var",
+            "nearest_gene_1", "Prioritized_Gene")
+  if ("nearest_genes_10" %in% names(regions)) cols <- c(cols, "nearest_genes_10")
+  reg_meta <- unique(regions[, ..cols])
+  reg_meta[, r_mid := (BP_START_var + BP_STOP_var) / 2]
+  has_n10 <- "nearest_genes_10" %in% names(reg_meta)
+  gene_for_cluster <- region_stats[, {
+    cands <- reg_meta[CHR_var == .BY$CHR_var]
+    if (nrow(cands) == 0) {
+      list(nearest_gene_1 = NA_character_,
+           Prioritized_Gene = NA_character_,
+           nearest_genes_10 = NA_character_)
+    } else {
+      j <- which.min(abs(cands$r_mid - mid_pos))
+      list(nearest_gene_1 = cands$nearest_gene_1[j],
+           Prioritized_Gene = cands$Prioritized_Gene[j],
+           nearest_genes_10 = if (has_n10) cands$nearest_genes_10[j] else NA_character_)
+    }
+  }, by = .(CHR_var, BP_START_var, BP_STOP_var)]
+  region_stats <- merge(region_stats, gene_for_cluster,
+                        by = c("CHR_var", "BP_START_var", "BP_STOP_var"),
+                        all.x = TRUE)
   region_stats[, gene := ifelse(!is.na(Prioritized_Gene), Prioritized_Gene, nearest_gene_1)]
 
-  # Region click key: for multi-ancestry virtual studies this points at
-  # the representative per-ancestry region so the downstream filter
-  # recognizes it. For single-ancestry studies it's just the row's
-  # coordinates.
-  if (isTRUE(is_multi)) {
-    region_stats[, region_key := paste0(CHR_var, ":", rep_start, "-", rep_stop)]
-  } else {
-    region_stats[, region_key := paste0(CHR_var, ":", BP_START_var, "-", BP_STOP_var)]
-  }
+  # Region click key: representative per-ancestry region coords
+  region_stats[, region_key := paste0(CHR_var, ":", rep_start, "-", rep_stop)]
 
-  # Dot color: ancestry-coverage gradient in multi mode, alternating
-  # chromosome colors otherwise.
-  if (isTRUE(is_multi)) {
-    region_stats[, chr_color := ANCESTRY_COVERAGE_COLORS[as.character(n_ancestries)]]
-  } else {
-    region_stats[, chr_color := ifelse(CHR_num %% 2 == 0, "#3498db", "#2c3e50")]
-  }
+  # Dot color: multi-ancestry = coverage gradient, single = chr alternating
+  region_stats[, chr_color := ifelse(
+    n_ancestries > 1,
+    ANCESTRY_COVERAGE_COLORS[as.character(pmin(n_ancestries, 4))],
+    ifelse(CHR_num %% 2 == 0, "#3498db", "#2c3e50")
+  )]
 
   # Selection highlight
   sel <- selected_region_key
@@ -150,27 +116,17 @@ manhattan_consensus_table <- function(dt, regions, is_multi,
   region_stats[, is_selected := !is.na(sel) & region_key == sel]
 
   # Hover text
-  if (isTRUE(is_multi)) {
-    has_n10 <- "nearest_genes_10" %in% names(region_stats)
-    region_stats[, hover := paste0(
-      "<b>", gene, "</b><br>",
-      if (has_n10) paste0("Nearby: ",
-                          ifelse(is.na(nearest_genes_10), "", nearest_genes_10),
-                          "<br>") else "",
-      "chr", CHR_var, ":", format(BP_START_var, big.mark = ","),
-      "-", format(BP_STOP_var, big.mark = ","), "<br>",
-      "-log10(P): ", round(max_nlog10P, 1), "<br>",
-      n_coloc, " colocalizations<br>",
-      n_ancestries, "/4 ancestries: ", anc_label
-    )]
-  } else {
-    region_stats[, hover := paste0(
-      "<b>", gene, "</b><br>",
-      "chr", CHR_var, ":", format(BP_START_var, big.mark = ","), "<br>",
-      "-log10(P): ", round(max_nlog10P, 1), "<br>",
-      n_coloc, " colocalizations"
-    )]
-  }
+  region_stats[, hover := paste0(
+    "<b>", gene, "</b><br>",
+    ifelse(!is.na(nearest_genes_10) & nzchar(nearest_genes_10),
+           paste0("Nearby: ", nearest_genes_10, "<br>"), ""),
+    "chr", CHR_var, ":", format(BP_START_var, big.mark = ","),
+    "-", format(BP_STOP_var, big.mark = ","), "<br>",
+    "-log10(P): ", round(max_nlog10P, 1), "<br>",
+    n_coloc, " colocalizations",
+    ifelse(n_ancestries > 1,
+           paste0("<br>", n_ancestries, " ancestries: ", anc_label), "")
+  )]
 
   region_stats
 }

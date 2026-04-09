@@ -417,9 +417,8 @@ library(DT)
         }
       }
 
-      is_multi <- !is.null(current_virtual_info()) && "ancestry" %in% names(dt)
       region_stats <- manhattan_consensus_table(
-        dt, regions, is_multi,
+        dt, regions,
         selected_region_key = current_region()
       )
 
