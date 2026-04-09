@@ -40,75 +40,190 @@ DATA_PATH <- getOption("genepicoloc.data_path",
   Sys.getenv("GENEPICOLOC_DATA",
     if (dir.exists("/app/data")) "/app/data" else "data"))
 
-# Auto-discover available studies from RDS files
-# Supports layouts (checked in order):
-#   1. Category: data/<category>/coloc/<trait>.RDS   (new multi-category atlas)
-#   2. Flat:     data/coloc/<trait>.RDS              (single-category atlas)
-#   3. Legacy:   data/<trait>_annot_filt.RDS         (old flat layout)
-#   4. Nested:   data/<folder>/annot/annot_filt.RDS  (old CKDGen layout)
+# Unified study registry
+# -------------------------------------------------------------------------
+# Every study gets the same structure regardless of ancestry count:
+#   study_id -> list(
+#     category      = "CKDGen_r4",
+#     ancestries    = c("EUR"),           # always a character vector
+#     coloc_files   = list(EUR = path),   # named by ancestry
+#     regional_dirs = list(EUR = path),   # named by ancestry (NA if missing)
+#     real_ids      = c("eGFR")           # filesystem trait ids that were merged
+#   )
 #
-# Returns named list of trait -> file path, with attribute "category"
-# mapping trait -> category name (NULL if single-category layout).
-discover_studies <- function(data_path) {
-  studies <- list()
-  categories <- list()
+# Multi-ancestry studies (e.g. MVPkid_BUN_BSP_Mean_INT_{AFR,EUR,...}) are
+# collapsed into one entry with multiple ancestries. Single-ancestry studies
+# get ancestries = c("EUR") (or the detected ancestry if suffix is present).
+#
+# Supports layouts (checked in order):
+#   1. Category: data/<category>/coloc/<trait>.RDS
+#   2. Flat:     data/coloc/<trait>.RDS
+#   3. Legacy:   data/<trait>_annot_filt.RDS
+#   4. Nested:   data/<folder>/annot/annot_filt.RDS
 
-  # Try multi-category layout first: data/<category>/coloc/*.RDS
+discover_all_studies <- function(data_path) {
+  # Step 1: collect all individual coloc files with their categories
+  raw_studies <- list()   # name -> file path
+  raw_categories <- list()  # name -> category
+
   subdirs <- list.dirs(data_path, recursive = FALSE, full.names = TRUE)
+
+  # Multi-category: data/<category>/coloc/*.RDS
   for (d in subdirs) {
     coloc_dir <- file.path(d, "coloc")
     if (dir.exists(coloc_dir)) {
       cat_name <- basename(d)
-      coloc_files <- list.files(coloc_dir, pattern = "\\.RDS$", full.names = TRUE)
-      for (f in coloc_files) {
+      for (f in list.files(coloc_dir, pattern = "\\.RDS$", full.names = TRUE)) {
         name <- tools::file_path_sans_ext(basename(f))
-        studies[[name]] <- f
-        categories[[name]] <- cat_name
+        raw_studies[[name]] <- f
+        raw_categories[[name]] <- cat_name
       }
     }
   }
-  if (length(studies) > 0) {
-    attr(studies, "categories") <- categories
-    return(studies)
-  }
 
-  # Try single-category flat layout: data/coloc/*.RDS
-  coloc_dir <- file.path(data_path, "coloc")
-  if (dir.exists(coloc_dir)) {
-    coloc_files <- list.files(coloc_dir, pattern = "\\.RDS$", full.names = TRUE)
-    for (f in coloc_files) {
-      name <- tools::file_path_sans_ext(basename(f))
-      studies[[name]] <- f
+  # Single-category flat: data/coloc/*.RDS
+  if (length(raw_studies) == 0) {
+    coloc_dir <- file.path(data_path, "coloc")
+    if (dir.exists(coloc_dir)) {
+      for (f in list.files(coloc_dir, pattern = "\\.RDS$", full.names = TRUE)) {
+        name <- tools::file_path_sans_ext(basename(f))
+        raw_studies[[name]] <- f
+      }
     }
-    if (length(studies) > 0) return(studies)
   }
 
-  # Try legacy flat layout: data/<trait>_annot_filt.RDS
-  flat_files <- list.files(data_path, pattern = "_annot_filt\\.RDS$", full.names = TRUE)
-  if (length(flat_files) > 0) {
-    for (f in flat_files) {
+  # Legacy flat: data/<trait>_annot_filt.RDS
+  if (length(raw_studies) == 0) {
+    for (f in list.files(data_path, pattern = "_annot_filt\\.RDS$", full.names = TRUE)) {
       name <- gsub("_annot_filt\\.RDS$", "", basename(f))
-      studies[[name]] <- f
-    }
-    return(studies)
-  }
-
-  # Try old nested layout: data/<folder>/annot/annot_filt.RDS
-  for (d in subdirs) {
-    f <- file.path(d, "annot", "annot_filt.RDS")
-    if (file.exists(f)) {
-      name <- basename(d)
-      studies[[name]] <- f
+      raw_studies[[name]] <- f
     }
   }
 
-  studies
+  # Nested: data/<folder>/annot/annot_filt.RDS
+  if (length(raw_studies) == 0) {
+    for (d in subdirs) {
+      f <- file.path(d, "annot", "annot_filt.RDS")
+      if (file.exists(f)) {
+        name <- basename(d)
+        raw_studies[[name]] <- f
+      }
+    }
+  }
+
+  if (length(raw_studies) == 0) return(list())
+
+  # Step 2: group by ancestry suffix
+  ids <- names(raw_studies)
+  anc_pat <- "_(AFR|AMR|EAS|EUR|META)$"
+  stems <- sub(anc_pat, "", ids)
+  has_anc <- stems != ids
+
+  # Find multi-ancestry groups (2+ ancestries sharing a stem + category)
+  multi_stems <- character(0)
+  if (any(has_anc)) {
+    for (stem in unique(stems[has_anc])) {
+      idx <- which(stems == stem & has_anc)
+      if (length(idx) < 2) next
+      # All siblings must share the same category
+      cat_names <- unlist(lapply(ids[idx], function(i) raw_categories[[i]]))
+      if (length(unique(cat_names)) == 1) {
+        multi_stems <- c(multi_stems, stem)
+      }
+    }
+  }
+
+  registry <- list()
+
+  # Step 3a: build multi-ancestry entries
+  consumed <- character(0)  # track ids consumed by multi-ancestry grouping
+  for (stem in multi_stems) {
+    idx <- which(stems == stem & has_anc)
+    matched_ids <- ids[idx]
+    ancs <- sub(paste0("^", stem, "_"), "", matched_ids)
+    category <- raw_categories[[matched_ids[1]]]
+
+    coloc_files <- setNames(as.list(unlist(raw_studies[matched_ids])), ancs)
+    regional_dirs <- setNames(lapply(matched_ids, function(i) {
+      p <- file.path(data_path, category, "regional", i)
+      if (dir.exists(p)) p else NA_character_
+    }), ancs)
+
+    registry[[stem]] <- list(
+      category = category,
+      ancestries = ancs,
+      coloc_files = coloc_files,
+      regional_dirs = regional_dirs,
+      real_ids = matched_ids
+    )
+    consumed <- c(consumed, matched_ids)
+  }
+
+  # Step 3b: build single-ancestry entries for everything else
+  remaining <- setdiff(ids, consumed)
+  for (id in remaining) {
+    category <- raw_categories[[id]]  # may be NULL for legacy layouts
+    # Detect ancestry from suffix if present (single-ancestry with suffix)
+    anc <- if (has_anc[which(ids == id)]) sub(paste0(".*_"), "", id) else "EUR"
+
+    coloc_files <- setNames(list(raw_studies[[id]]), anc)
+    regional_dirs <- setNames(list({
+      if (!is.null(category)) {
+        p <- file.path(data_path, category, "regional", id)
+        if (dir.exists(p)) p else NA_character_
+      } else NA_character_
+    }), anc)
+
+    registry[[id]] <- list(
+      category = category,
+      ancestries = anc,
+      coloc_files = coloc_files,
+      regional_dirs = regional_dirs,
+      real_ids = id
+    )
+  }
+
+  registry
 }
 
-DEFAULT_AVAILABLE_STUDIES <- discover_studies(DATA_PATH)
+DEFAULT_STUDY_REGISTRY <- discover_all_studies(DATA_PATH)
+
+# Backward-compat shims (used during transition, will be removed)
+DEFAULT_AVAILABLE_STUDIES <- {
+  s <- list()
+  cats <- list()
+  for (nm in names(DEFAULT_STUDY_REGISTRY)) {
+    entry <- DEFAULT_STUDY_REGISTRY[[nm]]
+    if (length(entry$ancestries) > 1) {
+      # Multi-ancestry: expose individual per-ancestry ids
+      for (anc in entry$ancestries) {
+        real_id <- entry$real_ids[grep(paste0("_", anc, "$"), entry$real_ids)]
+        if (length(real_id) == 1) {
+          s[[real_id]] <- entry$coloc_files[[anc]]
+          if (!is.null(entry$category)) cats[[real_id]] <- entry$category
+        }
+      }
+    } else {
+      # Single ancestry
+      real_id <- entry$real_ids[1]
+      s[[real_id]] <- entry$coloc_files[[1]]
+      if (!is.null(entry$category)) cats[[real_id]] <- entry$category
+    }
+  }
+  attr(s, "categories") <- cats
+  s
+}
+
+DEFAULT_VIRTUAL_STUDIES <- {
+  vs <- list()
+  for (nm in names(DEFAULT_STUDY_REGISTRY)) {
+    entry <- DEFAULT_STUDY_REGISTRY[[nm]]
+    if (length(entry$ancestries) > 1) vs[[nm]] <- entry
+  }
+  vs
+}
 
 # Okabe-Ito colorblind-safe palette for ancestry overlays.
-# Used in Manhattan dots (coverage gradient fallback) and RAP traces.
 ANCESTRY_COLORS <- c(
   AFR  = "#D55E00",  # vermillion
   AMR  = "#009E73",  # bluish green
@@ -124,67 +239,6 @@ ANCESTRY_COVERAGE_COLORS <- c(
   "3" = "#e34a33",
   "4" = "#b30000"
 )
-
-# Virtual (multi-ancestry) studies
-# -------------------------------------------------------------------------
-# Some atlas categories (currently MVP_kidney) split one trait across several
-# ancestry-specific studies, e.g. MVPkid_BUN_BSP_Mean_INT_{AFR,AMR,EUR,META}.
-# discover_virtual_studies() collapses them into a single virtual trait id
-# (MVPkid_BUN_BSP_Mean_INT) with an $ancestries list so the Shiny app can
-# load all ancestries together, merge colocs, and overlay RAPs.
-#
-# Returns a named list: virtual_id -> list(
-#   category     = "MVP_kidney",
-#   ancestries   = c("AFR","AMR","EUR","META"),
-#   coloc_files  = named list (ancestry -> absolute RDS path),
-#   regional_dirs = named list (ancestry -> regional dir path or NA),
-#   real_ids     = c("MVPkid_..._AFR", "MVPkid_..._AMR", ...)  # the underlying
-#                  trait ids in DEFAULT_AVAILABLE_STUDIES that got merged
-# )
-discover_virtual_studies <- function(studies) {
-  cats <- attr(studies, "categories")
-  if (is.null(cats)) return(list())
-
-  ids <- names(studies)
-  # Pattern: <stem>_<ANC>  with ANC in ALL uppercase ancestry codes.
-  anc_pat <- "_(AFR|AMR|EAS|EUR|META)$"
-  stems <- sub(anc_pat, "", ids)
-  has_anc <- stems != ids  # matched pattern
-
-  if (!any(has_anc)) return(list())
-
-  virt <- list()
-  for (stem in unique(stems[has_anc])) {
-    idx <- which(stems == stem & has_anc)
-    if (length(idx) < 2) next  # need at least 2 ancestries to be "virtual"
-
-    matched_ids <- ids[idx]
-    ancs <- sub(paste0("^", stem, "_"), "", matched_ids)
-
-    # All sibling ids must share the same atlas category.
-    cat_names <- unlist(lapply(matched_ids, function(i) cats[[i]]))
-    if (length(unique(cat_names)) != 1) next
-    category <- cat_names[1]
-
-    coloc_files <- setNames(as.list(unlist(studies[matched_ids])), ancs)
-    regional_dirs <- setNames(lapply(matched_ids, function(i) {
-      p <- file.path(DATA_PATH, category, "regional", i)
-      if (dir.exists(p)) p else NA_character_
-    }), ancs)
-
-    virt[[stem]] <- list(
-      category = category,
-      ancestries = ancs,
-      coloc_files = coloc_files,
-      regional_dirs = regional_dirs,
-      real_ids = matched_ids
-    )
-  }
-
-  virt
-}
-
-DEFAULT_VIRTUAL_STUDIES <- discover_virtual_studies(DEFAULT_AVAILABLE_STUDIES)
 
 # Default study base path (for CKDGen nested layout compatibility)
 DEFAULT_STUDY_BASE_PATH <- DATA_PATH
