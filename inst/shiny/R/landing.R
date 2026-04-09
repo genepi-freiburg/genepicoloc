@@ -2,7 +2,7 @@
 #
 # Pure UI builders - no Shiny reactives are read here. All the data
 # this file needs is already available at module load time:
-#   DEFAULT_AVAILABLE_STUDIES, DEFAULT_VIRTUAL_STUDIES (from config.R)
+#   DEFAULT_STUDY_REGISTRY                              (from config.R)
 #   DATA_PATH                                           (from config.R)
 #   umet_label                                          (from annotation_db.R)
 #
@@ -75,11 +75,9 @@ atlas_categories <- list(
   )
 )
 
-# Is this trait id resolvable? Accepts real study ids (present in
-# DEFAULT_AVAILABLE_STUDIES) OR virtual multi-ancestry ids.
+# Is this trait id resolvable?
 is_known_study <- function(id) {
-  id %in% names(DEFAULT_AVAILABLE_STUDIES) ||
-    id %in% names(DEFAULT_VIRTUAL_STUDIES)
+  id %in% names(DEFAULT_STUDY_REGISTRY)
 }
 
 # Build the traits list for one landing card.
@@ -95,9 +93,11 @@ expand_card_traits <- function(cat) {
   if (length(cat$traits) > 0) return(cat$traits)
 
   if (isTRUE(cat$autopopulate_virtual)) {
-    if (length(DEFAULT_VIRTUAL_STUDIES) == 0) return(list())
-    return(lapply(names(DEFAULT_VIRTUAL_STUDIES), function(vid) {
-      v <- DEFAULT_VIRTUAL_STUDIES[[vid]]
+    # Autopopulate from multi-ancestry studies in the registry
+    multi <- Filter(function(e) length(e$ancestries) > 1, DEFAULT_STUDY_REGISTRY)
+    if (length(multi) == 0) return(list())
+    return(lapply(names(multi), function(vid) {
+      v <- multi[[vid]]
       lbl <- sub("^MVPkid_", "", vid)
       list(id = vid, label = lbl,
            desc = paste0(length(v$ancestries), " ancestries: ",
@@ -107,15 +107,15 @@ expand_card_traits <- function(cat) {
 
   if (is.null(cat$autopopulate)) return(cat$traits)
 
-  cats_attr <- attr(DEFAULT_AVAILABLE_STUDIES, "categories")
-  if (is.null(cats_attr)) return(list())
-  ids <- names(cats_attr)[unlist(cats_attr) == cat$autopopulate]
+  # Find all registry entries matching the requested category
+  ids <- names(Filter(function(e) {
+    !is.null(e$category) && e$category == cat$autopopulate
+  }, DEFAULT_STUDY_REGISTRY))
 
-  # Drop trait_ids whose coloc RDS has zero rows. Metabolites with no
-  # high-confidence colocs would render as empty Region Views, so we
-  # hide them from the landing card entirely.
+  # Drop entries whose coloc RDS has zero rows
   ids <- Filter(function(id) {
-    path <- DEFAULT_AVAILABLE_STUDIES[[id]]
+    entry <- DEFAULT_STUDY_REGISTRY[[id]]
+    path <- entry$coloc_files[[1]]
     if (is.null(path) || !file.exists(path)) return(FALSE)
     tryCatch(nrow(readRDS(path)) > 0, error = function(e) FALSE)
   }, ids)
@@ -146,19 +146,11 @@ build_card <- function(cat) {
     shiny::p(class = "card-stats", stats_text),
     shiny::div(class = "trait-list",
       lapply(cat$traits, function(trait) {
-        is_virtual <- trait$id %in% names(DEFAULT_VIRTUAL_STUDIES)
         is_disabled <- isTRUE(trait$disabled) || !is_known_study(trait$id)
-        cats <- attr(DEFAULT_AVAILABLE_STUDIES, "categories")
-        cat_name <- if (!is.null(cats)) cats[[trait$id]] else NULL
-        has_regional <- if (is_virtual) {
-          vdirs <- DEFAULT_VIRTUAL_STUDIES[[trait$id]]$regional_dirs
-          any(!is.na(unlist(vdirs)))
-        } else {
-          !is_disabled && (
-            (!is.null(cat_name) && dir.exists(file.path(DATA_PATH, cat_name, "regional", trait$id))) ||
-            dir.exists(file.path(DATA_PATH, "regional", trait$id))
-          )
-        }
+        entry <- DEFAULT_STUDY_REGISTRY[[trait$id]]
+        has_regional <- if (!is.null(entry)) {
+          any(!is.na(unlist(entry$regional_dirs)))
+        } else FALSE
         css_class <- paste("trait-btn",
           if (is_disabled) "disabled",
           if (has_regional) "has-regional"

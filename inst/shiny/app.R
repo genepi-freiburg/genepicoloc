@@ -796,36 +796,25 @@ library(DT)
       dt <- dt[source_study %in% studies_in_cat]
       if (nrow(dt) == 0) return(NULL)
 
-      if (!is.null(current_study()) && is_virtual_study(current_study()) &&
-          "ancestry" %in% names(dt)) {
-        dt[, .ck := make_consensus_trait_key(
-          make_bundle_key(source_study, sumstats_2_file, ancestry,
-                          is_virtual = TRUE))]
-        # Rank rows by signal so the "first row per consensus" is the
-        # strongest ancestry signal.
-        if ("sumstats_2_max_nlog10P" %in% names(dt)) {
-          setorder(dt, -sumstats_2_max_nlog10P)
-        }
-        dt <- dt[, {
-          # Capture group-level ancestry BEFORE any nested data.table op;
-          # once we enter `first[, ... ]` the inner .SD refers to `first`
-          # (one row) rather than the outer group.
-          group_ancs <- sort(unique(ancestry))
-          group_ck   <- .ck[1]
-          first <- .SD[1]  # strongest row (group is pre-sorted by signal)
-          first[, ancestries    := paste(group_ancs, collapse = ",")]
-          first[, n_ancestries  := length(group_ancs)]
-          first[, consensus_key := group_ck]
-          first
-        }, by = .ck]
-        dt[, .ck := NULL]
-        if ("sumstats_2_max_nlog10P" %in% names(dt)) {
-          setorder(dt, -sumstats_2_max_nlog10P)
-        }
-        return(dt)
+      # Collapse per-ancestry rows into consensus traits. For single-
+      # ancestry studies this is a no-op (1 row per trait stays 1 row).
+      is_multi <- length(unique(dt$ancestry)) > 1
+      dt[, .ck := make_consensus_trait_key(
+        make_bundle_key(source_study, sumstats_2_file, ancestry,
+                        is_virtual = is_multi))]
+      if ("sumstats_2_max_nlog10P" %in% names(dt)) {
+        setorder(dt, -sumstats_2_max_nlog10P)
       }
-
-      # Sort by sumstats_2 signal strength (full list; tiles cap to 50)
+      dt <- dt[, {
+        group_ancs <- sort(unique(ancestry))
+        group_ck   <- .ck[1]
+        first <- .SD[1]
+        first[, ancestries    := paste(group_ancs, collapse = ",")]
+        first[, n_ancestries  := length(group_ancs)]
+        first[, consensus_key := group_ck]
+        first
+      }, by = .ck]
+      dt[, .ck := NULL]
       if ("sumstats_2_max_nlog10P" %in% names(dt)) {
         setorder(dt, -sumstats_2_max_nlog10P)
       }
@@ -841,9 +830,6 @@ library(DT)
       if (is.null(dt) || nrow(dt) == 0) {
         return(list(df = NULL, keys = character(0)))
       }
-      is_virt_dd <- is_virtual_study(current_study()) &&
-                    "consensus_key" %in% names(dt)
-
       trait_name_fn <- function(row) {
         nm <- tryCatch(get_trait_display_name(row),
                        error = function(e) basename(row$sumstats_2_file))
@@ -853,7 +839,9 @@ library(DT)
                           function(i) trait_name_fn(dt[i]),
                           character(1))
 
-      badge_vec <- if (is_virt_dd) {
+      # Show ancestries for multi-ancestry, source_study for single
+      badge_vec <- if ("ancestries" %in% names(dt) &&
+                       any(grepl(",", dt$ancestries))) {
         as.character(dt$ancestries)
       } else {
         as.character(dt$source_study)
@@ -867,13 +855,8 @@ library(DT)
         round(as.numeric(dt$PP.H4.abf), 3)
       } else rep(NA_real_, nrow(dt))
 
-      keys <- if (is_virt_dd) {
-        as.character(dt$consensus_key)
-      } else {
-        vapply(seq_len(nrow(dt)), function(i)
-          make_bundle_key(dt$source_study[i], dt$sumstats_2_file[i]),
-          character(1))
-      }
+      # Always use consensus_key (present for all studies after Phase 5)
+      keys <- as.character(dt$consensus_key)
 
       list(
         df = data.frame(
