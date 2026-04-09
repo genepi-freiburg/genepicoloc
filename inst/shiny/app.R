@@ -477,97 +477,59 @@ library(DT)
       }
     })
     
-    # Load and process data
+    # Load and process data - unified path for all studies.
+    # Every study gets an `ancestry` column (single-ancestry = "EUR").
     coloc_data <- reactive({
-      # First priority: auto-loaded study from home page
-      if (!is.null(current_study())) {
-        study <- current_study()
+      if (is.null(current_study())) return(NULL)
+      study <- current_study()
+      entry <- DEFAULT_STUDY_REGISTRY[[study]]
+      if (is.null(entry)) return(NULL)
 
-        # --- Virtual multi-ancestry study: rbind all ancestries ---
-        if (is_virtual_study(study)) {
-          vinfo <- DEFAULT_VIRTUAL_STUDIES[[study]]
-          parts <- lapply(vinfo$ancestries, function(anc) {
-            f <- vinfo$coloc_files[[anc]]
-            if (is.null(f) || !file.exists(f)) return(NULL)
-            dt <- readRDS(f)
-            if (!is.data.table(dt)) dt <- as.data.table(dt)
-            if (nrow(dt) == 0) return(NULL)
-            dt[, ancestry := anc]
-            # Strip ancestry suffix from per-study metadata columns so the
-            # rest of the app sees a single "MVP_R4_*" schema instead of
-            # MVP_R4_{AFR,AMR,...}_*.
-            suffix <- paste0("^MVP_R4_", anc, "_")
-            renamed <- grep(suffix, names(dt), value = TRUE)
-            if (length(renamed) > 0) {
-              setnames(dt, renamed, sub(suffix, "MVP_R4_", renamed))
-            }
-            # Unify source_study so it is stable across ancestries
-            if ("source_study" %in% names(dt)) {
-              dt[, source_study := "MVP_R4"]
-            }
-            dt
-          })
-          parts <- parts[!vapply(parts, is.null, logical(1))]
-          if (length(parts) == 0) return(NULL)
-          data <- data.table::rbindlist(parts, fill = TRUE)
-
-          # Add common fallback columns (same as real-study branch below).
-          if (!"Prioritized_Gene" %in% names(data)) {
-            data[, Prioritized_Gene := nearest_gene_1]
-          }
-          if (!"clump_index_Name" %in% names(data)) {
-            data[, clump_index_Name := NA_character_]
-          }
-          if (!"clump_index_P" %in% names(data)) {
-            data[, clump_index_P := NA_real_]
-          }
-          if (!"region_center_pos" %in% names(data)) {
-            data[, region_center_pos := as.numeric(BP_START_var + BP_STOP_var) / 2]
-          }
-
-          showNotification(
-            paste0("Loaded ", study, " (",
-                   paste(sort(unique(data$ancestry)), collapse = ", "), ")"),
-            type = "message", duration = 3
-          )
-          return(data)
+      # Load all ancestry files and tag with ancestry column
+      parts <- lapply(entry$ancestries, function(anc) {
+        f <- entry$coloc_files[[anc]]
+        if (is.null(f) || !file.exists(f)) return(NULL)
+        dt <- readRDS(f)
+        if (!data.table::is.data.table(dt)) dt <- data.table::as.data.table(dt)
+        if (nrow(dt) == 0) return(NULL)
+        dt[, ancestry := anc]
+        # Strip per-ancestry prefixes from metadata columns (e.g.
+        # MVP_R4_AFR_* -> MVP_R4_*) so downstream sees a unified schema.
+        anc_prefix <- paste0("_", anc, "_")
+        renamed <- grep(anc_prefix, names(dt), value = TRUE, fixed = TRUE)
+        if (length(renamed) > 0) {
+          setnames(dt, renamed, sub(anc_prefix, "_", renamed, fixed = TRUE))
         }
-
-        # --- Regular single-study path ---
-        file_path <- resolve_annot_path(study)
-        if (file.exists(file_path)) {
-          data <- readRDS(file_path)
-          # Ensure data is a data.table
-          if (!is.data.table(data)) {
-            data <- as.data.table(data)
-          }
-
-          # Add missing columns with fallbacks
-          if (!"Prioritized_Gene" %in% names(data)) {
-            data[, Prioritized_Gene := nearest_gene_1]
-          }
-          if (!"clump_index_Name" %in% names(data)) {
-            data[, clump_index_Name := NA_character_]
-          }
-          if (!"clump_index_P" %in% names(data)) {
-            data[, clump_index_P := NA_real_]
-          }
-          if (!"region_center_pos" %in% names(data)) {
-            data[, region_center_pos := as.numeric(BP_START_var + BP_STOP_var) / 2]
-          }
-
-          # Filter out disabled studies
-
-          showNotification(
-            paste("Successfully loaded:", study),
-            type = "message",
-            duration = 3
-          )
-          return(data)
+        # Unify source_study (strip ancestry suffix if present)
+        if ("source_study" %in% names(dt)) {
+          dt[, source_study := sub(paste0("_", anc, "$"), "", source_study)]
         }
+        dt
+      })
+      parts <- parts[!vapply(parts, is.null, logical(1))]
+      if (length(parts) == 0) return(NULL)
+      data <- data.table::rbindlist(parts, fill = TRUE)
+
+      # Add common fallback columns
+      if (!"Prioritized_Gene" %in% names(data)) {
+        data[, Prioritized_Gene := nearest_gene_1]
+      }
+      if (!"clump_index_Name" %in% names(data)) {
+        data[, clump_index_Name := NA_character_]
+      }
+      if (!"clump_index_P" %in% names(data)) {
+        data[, clump_index_P := NA_real_]
+      }
+      if (!"region_center_pos" %in% names(data)) {
+        data[, region_center_pos := as.numeric(BP_START_var + BP_STOP_var) / 2]
       }
 
-      return(NULL)
+      ancs <- sort(unique(data$ancestry))
+      showNotification(
+        paste0("Loaded ", study, " (", paste(ancs, collapse = ", "), ")"),
+        type = "message", duration = 3
+      )
+      data
     })
     
     # Get unique regions
@@ -604,13 +566,22 @@ library(DT)
       regions
     })
     
-    # Resolve the virtual study metadata for the current_study reactive
-    # in one place so every caller that needs to branch on "is this a
-    # virtual multi-ancestry study?" pulls from the same source.
-    current_virtual_info <- reactive({
+    # Study metadata for the current study. Always returns the registry
+    # entry (never NULL for a valid study). During transition, callers
+    # that check `!is.null(current_virtual_info())` to detect multi-
+    # ancestry will still work because this returns NULL for unknown studies.
+    current_study_info <- reactive({
       study <- current_study()
-      if (is.null(study) || !is_virtual_study(study)) return(NULL)
-      DEFAULT_VIRTUAL_STUDIES[[study]]
+      if (is.null(study)) return(NULL)
+      DEFAULT_STUDY_REGISTRY[[study]]
+    })
+
+    # Backward compat: returns NULL for single-ancestry studies
+    # (will be removed once all callers migrate to current_study_info)
+    current_virtual_info <- reactive({
+      info <- current_study_info()
+      if (is.null(info) || length(info$ancestries) <= 1) return(NULL)
+      info
     })
 
     # Filter data for selected region - full (no max_traits limit)

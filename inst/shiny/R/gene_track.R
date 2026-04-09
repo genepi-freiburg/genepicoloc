@@ -170,31 +170,29 @@ plot_gene_track <- function(region_chr, region_start, region_end, max_genes = 30
 STUDY_BASE_PATH <- DEFAULT_STUDY_BASE_PATH
 available_studies <- DEFAULT_AVAILABLE_STUDIES
 
-# Helper: resolve RDS file path (supports both flat and nested layouts).
-# Virtual multi-ancestry studies don't have a single file; return the first
-# available ancestry file as a sentinel so file.exists() checks in callers
-# (e.g. observeEvent(selected_study)) succeed. The real multi-file load
-# happens in coloc_data() via is_virtual_study().
+# Helper: resolve RDS file path for a study. Returns the first existing
+# coloc file from the registry entry (works for both single and multi-ancestry).
 resolve_annot_path <- function(study_name) {
-  if (exists("DEFAULT_VIRTUAL_STUDIES") &&
-      study_name %in% names(DEFAULT_VIRTUAL_STUDIES)) {
-    paths <- unlist(DEFAULT_VIRTUAL_STUDIES[[study_name]]$coloc_files)
+  entry <- DEFAULT_STUDY_REGISTRY[[study_name]]
+  if (!is.null(entry)) {
+    paths <- unlist(entry$coloc_files)
     existing <- paths[file.exists(paths)]
     if (length(existing) > 0) return(existing[1])
     return(NULL)
   }
-  entry <- available_studies[[study_name]]
-  if (is.null(entry)) return(NULL)
-  # If entry is a full path to RDS (flat layout)
-  if (grepl("\\.RDS$", entry) && file.exists(entry)) return(entry)
-  # Nested layout: folder/annot/annot_filt.RDS
-  file.path(STUDY_BASE_PATH, entry, "annot", "annot_filt.RDS")
+  # Fallback for ids not in registry (e.g. per-ancestry real_ids)
+  entry_old <- available_studies[[study_name]]
+  if (is.null(entry_old)) return(NULL)
+  if (grepl("\\.RDS$", entry_old) && file.exists(entry_old)) return(entry_old)
+  file.path(STUDY_BASE_PATH, entry_old, "annot", "annot_filt.RDS")
 }
 
-# Is a given id a virtual multi-ancestry study?
-is_virtual_study <- function(study_name) {
-  exists("DEFAULT_VIRTUAL_STUDIES") &&
-    !is.null(study_name) &&
-    study_name %in% names(DEFAULT_VIRTUAL_STUDIES)
+# Does this study have multiple ancestries?
+is_multi_ancestry <- function(study_name) {
+  entry <- DEFAULT_STUDY_REGISTRY[[study_name]]
+  !is.null(entry) && length(entry$ancestries) > 1
 }
+
+# Backward compat alias (will be removed)
+is_virtual_study <- is_multi_ancestry
 
