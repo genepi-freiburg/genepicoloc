@@ -100,7 +100,7 @@ name_by_position <- function(sumstats = NULL,
                              dbSNP_dir = NULL,
                              keep_lower = FALSE,
                              chunk_size = 10000,
-                             tmpdir = tempdir()) {
+                             tmpdir = if (dir.exists("/scratch/local")) "/scratch/local" else tempdir()) {
 
   message("=== Variant Name Matching ===")
 
@@ -232,7 +232,8 @@ name_by_position <- function(sumstats = NULL,
         tabix_bin = tabix_bin,
         dbSNP_file = dbSNP_file,
         dbSNP_dir = dbSNP_dir,
-        use_per_chr = use_per_chr
+        use_per_chr = use_per_chr,
+        tmpdir = temp_dir
       )
 
       if (!is.null(chunk_result) && nrow(chunk_result) > 0) {
@@ -344,7 +345,8 @@ name_by_position <- function(sumstats = NULL,
         tabix_bin = tabix_bin,
         dbSNP_file = dbSNP_file,
         dbSNP_dir = dbSNP_dir,
-        use_per_chr = use_per_chr
+        use_per_chr = use_per_chr,
+        tmpdir = temp_dir
       )
 
       if (!is.null(chunk_result) && nrow(chunk_result) > 0) {
@@ -373,7 +375,8 @@ name_by_position <- function(sumstats = NULL,
       tabix_bin = tabix_bin,
       dbSNP_file = dbSNP_file,
       dbSNP_dir = dbSNP_dir,
-      use_per_chr = use_per_chr
+      use_per_chr = use_per_chr,
+      tmpdir = temp_dir
     )
 
     if (is.null(result) || nrow(result) == 0) {
@@ -421,7 +424,8 @@ name_by_position <- function(sumstats = NULL,
 #' @return Data frame with matched variants, or NULL if no matches
 #' @keywords internal
 .process_variants_chunk <- function(df_chunk, CHR_name, POS_name, A1_name, A2_name,
-                                     tabix_bin, dbSNP_file, dbSNP_dir, use_per_chr) {
+                                     tabix_bin, dbSNP_file, dbSNP_dir, use_per_chr,
+                                     tmpdir = tempdir()) {
 
   chromosomes <- unique(df_chunk[[CHR_name]])
   message("Processing ", length(chromosomes), " chromosome(s)...")
@@ -674,7 +678,7 @@ genepi_liftover <- function(sumstats = NULL,
                             liftOver_chain,
                             keep_lower = FALSE,
                             chunk_size = 100000,
-                            tmpdir = tempdir()) {
+                            tmpdir = if (dir.exists("/scratch/local")) "/scratch/local" else tempdir()) {
 
   message("=== Genomic Coordinate Lift Over ===")
 
