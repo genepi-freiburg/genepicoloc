@@ -28,8 +28,13 @@ RUN apt-get update && \
       libssl-dev libcurl4-openssl-dev && \
     rm -rf /var/lib/apt/lists/*
 
+ARG http_proxy
+ARG https_proxy
+
 # Install R packages from Posit PPM (precompiled binaries, much faster)
-RUN R -e "install.packages(c('data.table', 'plotly', 'markdown', 'DT'), repos='https://packagemanager.posit.co/cran/__linux__/jammy/latest')"
+# Auto-detect Ubuntu codename for correct PPM binary repo
+RUN . /etc/os-release && \
+    R -e "install.packages(c('data.table', 'plotly', 'markdown', 'DT'), repos='https://packagemanager.posit.co/cran/__linux__/$UBUNTU_CODENAME/latest')"
 
 # Create app directory
 WORKDIR /app
