@@ -322,6 +322,14 @@ name_by_position <- function(sumstats = NULL,
   # Add row ID for tracking
   df$.row_id <- seq_len(nrow(df))
 
+  # Temp directory for tabix position files (may not exist if sumstats
+  # was passed directly rather than via input_file)
+  if (!exists("temp_dir")) {
+    temp_dir <- tempfile(pattern = "name_by_pos_", tmpdir = tmpdir)
+    dir.create(temp_dir)
+    on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  }
+
   # Determine if chunking is needed
   use_chunking <- !is.null(chunk_size) && n_input > chunk_size
 
