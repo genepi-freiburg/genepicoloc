@@ -58,36 +58,33 @@ load_trait_sumstats <- function(data_path, region_str, trait_selector) {
   region_data$traits[[trait_selector]]
 }
 
-# For a virtual multi-ancestry study, find all per-ancestry region
-# RDS files that overlap the consensus cluster containing region_str.
-# The consensus coordinates are re-derived from the filesystem by
-# scanning each ancestry's regional_dirs entry, so the overlay is
-# always consistent with what's on disk.
+# Find all per-ancestry region RDS files that overlap the consensus
+# cluster containing region_str. Works for both single-ancestry and
+# multi-ancestry studies (single-ancestry returns a 1-element list).
 #
-# @param region_str A representative per-ancestry region key (e.g.
+# @param region_str A representative region key (e.g.
 #   "16:19330554-21586583"). The loader seeds the consensus window
 #   from this region and grows it to cover any overlapping file.
-# @param virtual_info The DEFAULT_VIRTUAL_STUDIES entry for the
-#   current study, i.e. list(category, ancestries, coloc_files,
-#   regional_dirs, real_ids).
+# @param study_info A DEFAULT_STUDY_REGISTRY entry, i.e.
+#   list(category, ancestries, coloc_files, regional_dirs, real_ids).
 # @return A named list(ancestry = region_data) where each entry has
 #   $base, $traits, and $.consensus = list(chr, start, stop).
-load_multi_region_bundles <- function(region_str, virtual_info) {
-  if (is.null(virtual_info)) return(NULL)
+load_region_bundles <- function(region_str, study_info) {
+  if (is.null(study_info)) return(NULL)
 
   rk <- parse_region_key(region_str)
   if (is.null(rk)) return(NULL)
   chr <- rk$chr; seed_start <- rk$start; seed_stop <- rk$stop
 
-  study_tag <- paste(unlist(virtual_info$coloc_files), collapse = "|")
+  study_tag <- paste(unlist(study_info$coloc_files), collapse = "|")
   cache_key <- paste(study_tag, chr, seed_start, seed_stop, sep = "||")
   cached <- .multi_bundle_cache[[cache_key]]
   if (!is.null(cached)) return(cached)
 
   # Collect all candidate files across ancestries on this chromosome.
   candidates <- list()
-  for (anc in names(virtual_info$regional_dirs)) {
-    d <- virtual_info$regional_dirs[[anc]]
+  for (anc in names(study_info$regional_dirs)) {
+    d <- study_info$regional_dirs[[anc]]
     if (is.na(d) || !dir.exists(d)) next
     fs <- list.files(d, pattern = "\\.RDS$", full.names = FALSE)
     for (f in fs) {
@@ -132,4 +129,9 @@ load_multi_region_bundles <- function(region_str, virtual_info) {
 
   assign(cache_key, result, envir = .multi_bundle_cache)
   result
+}
+
+# Backward compat alias (will be removed)
+load_multi_region_bundles <- function(region_str, virtual_info) {
+  load_region_bundles(region_str, virtual_info)
 }

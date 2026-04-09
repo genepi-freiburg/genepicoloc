@@ -277,7 +277,7 @@ plot_regional_overlay <- function(bundles, title = "", y_col = "nlog10P",
       list(type = "line", x0 = 0, x1 = 1, xref = "paper",
            y0 = 5, y1 = 5, line = list(color = "blue", dash = "dot", width = 0.8))
     ),
-    showlegend = TRUE,
+    showlegend = length(bundles) > 1,
     legend = list(orientation = "h", x = 0, y = 1.05),
     hovermode = "closest",
     margin = list(t = 40, b = 60, l = 60, r = 20)

@@ -592,19 +592,15 @@ library(DT)
       if (is.null(rk)) return(coloc_data()[0])
       chr <- rk$chr; start_pos <- rk$start; end_pos <- rk$stop
 
-      # Virtual multi-ancestry: widen the match to the consensus window so
-      # colocs from all ancestries that hit the same locus are included.
-      vinfo <- current_virtual_info()
-      if (!is.null(vinfo)) {
-        bundles <- load_multi_region_bundles(current_region(), vinfo)
-        cons <- if (!is.null(bundles) && length(bundles) > 0) bundles[[1]]$.consensus else NULL
-        if (!is.null(cons)) {
-          dt <- coloc_data()[as.character(CHR_var) == as.character(cons$chr) &
-                              BP_START_var <= cons$stop &
-                              BP_STOP_var  >= cons$start]
-        } else {
-          dt <- coloc_data()[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
-        }
+      # Widen the match to the consensus window so colocs from all
+      # ancestries that hit the same locus are included.
+      info <- current_study_info()
+      bundles <- if (!is.null(info)) load_region_bundles(current_region(), info) else NULL
+      cons <- if (!is.null(bundles) && length(bundles) > 0) bundles[[1]]$.consensus else NULL
+      if (!is.null(cons)) {
+        dt <- coloc_data()[as.character(CHR_var) == as.character(cons$chr) &
+                            BP_START_var <= cons$stop &
+                            BP_STOP_var  >= cons$start]
       } else {
         dt <- coloc_data()[CHR_var == chr & BP_START_var == start_pos & BP_STOP_var == end_pos]
       }
@@ -991,67 +987,66 @@ library(DT)
     # so plot_regional_association_interactive() overlays the traces.
     # Attach an attribute `coloc_ancestries` listing which ancestries
     # actually colocalized this trait (rest shown as raw-sumstats context).
+    # Load trait sumstats for the selected trait. Always returns a named
+    # list(ancestry = dt) for overlay rendering (single-ancestry = 1 element).
     conv_trait_sumstats <- reactive({
       req(regional_data_path(), current_region(), conv_selected_trait())
       sel <- conv_selected_trait()
+      info <- current_study_info()
 
-      vinfo <- current_virtual_info()
-      if (!is.null(vinfo)) {
-        bundles <- load_multi_region_bundles(current_region(), vinfo)
-        if (is.null(bundles) || length(bundles) == 0) return(NULL)
-        out <- lapply(names(bundles), function(anc) {
-          bk <- names(bundles[[anc]]$traits)
-          ak <- resolve_consensus_in_bundle(sel, bk, anc)
-          if (is.null(ak)) return(NULL)
-          bundles[[anc]]$traits[[ak]]
-        })
-        names(out) <- names(bundles)
-        out <- out[!vapply(out, is.null, logical(1))]
-        if (length(out) == 0) return(NULL)
+      bundles <- load_region_bundles(current_region(), info)
+      if (is.null(bundles) || length(bundles) == 0) return(NULL)
 
-        # Tag which ancestries actually colocalized (from the drilldown
-        # data for the current consensus_key). Used by the overlay to
-        # fade non-colocalized traces.
-        dd <- conv_drilldown_data()
-        coloc_ancs <- character(0)
-        if (!is.null(dd) && "consensus_key" %in% names(dd)) {
-          row <- dd[consensus_key == sel]
-          if (nrow(row) > 0) {
-            coloc_ancs <- strsplit(row$ancestries[1], ",", fixed = TRUE)[[1]]
-          }
+      out <- lapply(names(bundles), function(anc) {
+        bk <- names(bundles[[anc]]$traits)
+        ak <- resolve_consensus_in_bundle(sel, bk, anc)
+        if (is.null(ak)) return(NULL)
+        bundles[[anc]]$traits[[ak]]
+      })
+      names(out) <- names(bundles)
+      out <- out[!vapply(out, is.null, logical(1))]
+      if (length(out) == 0) return(NULL)
+
+      # Tag which ancestries actually colocalized (from the drilldown
+      # data for the current consensus_key). Used by the overlay to
+      # fade non-colocalized traces.
+      dd <- conv_drilldown_data()
+      coloc_ancs <- character(0)
+      if (!is.null(dd) && "consensus_key" %in% names(dd)) {
+        row <- dd[consensus_key == sel]
+        if (nrow(row) > 0) {
+          coloc_ancs <- strsplit(row$ancestries[1], ",", fixed = TRUE)[[1]]
         }
-        attr(out, "coloc_ancestries") <- coloc_ancs
-        return(out)
       }
-
-      load_trait_sumstats(regional_data_path(), current_region(), sel)
+      attr(out, "coloc_ancestries") <- coloc_ancs
+      out
     })
 
     # Display trait name for header
     conv_selected_trait_label <- reactive({
       sel <- conv_selected_trait()
       if (is.null(sel)) return(NULL)
-      # Virtual studies: look up the consensus row in the drilldown data
-      # and render "<name> [ANC1,ANC2,...]".
-      if (is_virtual_study(current_study())) {
-        dd <- conv_drilldown_data()
-        if (!is.null(dd) && "consensus_key" %in% names(dd)) {
-          row <- dd[consensus_key == sel]
-          if (nrow(row) > 0) {
-            nm <- tryCatch(get_trait_display_name(row[1]),
-                           error = function(e) NULL)
-            if (!is.null(nm) && !is.na(nm) && nm != "") {
-              return(paste0(nm, " [", row$ancestries[1], "]"))
+      # Try consensus key lookup from drilldown data (works for all studies)
+      dd <- conv_drilldown_data()
+      if (!is.null(dd) && "consensus_key" %in% names(dd)) {
+        row <- dd[consensus_key == sel]
+        if (nrow(row) > 0) {
+          nm <- tryCatch(get_trait_display_name(row[1]),
+                         error = function(e) NULL)
+          if (!is.null(nm) && !is.na(nm) && nm != "") {
+            anc_str <- if ("ancestries" %in% names(row)) row$ancestries[1] else ""
+            if (nzchar(anc_str) && grepl(",", anc_str)) {
+              return(paste0(nm, " [", anc_str, "]"))
             }
+            return(paste0(nm, " (", row$source_study[1], ")"))
           }
         }
       }
-      # Parse "study__file"
+      # Fallback: parse "study__file"
       parts <- strsplit(sel, "__", fixed = TRUE)[[1]]
       if (length(parts) < 2) return(sel)
       study <- parts[1]
       file_part <- paste(parts[-1], collapse = "__")
-      # Try to find display name from filtered_region_data
       dt <- filtered_region_data()
       if (!is.null(dt) && nrow(dt) > 0) {
         row <- dt[source_study == study & basename(sumstats_2_file) == file_part]
@@ -1087,10 +1082,10 @@ library(DT)
       }
       label <- conv_selected_trait_label()
       coords <- conv_region_coords()
-      # For virtual studies x_range should span the consensus window.
-      vinfo <- current_virtual_info()
-      xr <- if (!is.null(vinfo)) {
-        bundles <- load_multi_region_bundles(current_region(), vinfo)
+      # x_range spans the consensus window (covers all ancestries).
+      info <- current_study_info()
+      xr <- if (!is.null(info)) {
+        bundles <- load_region_bundles(current_region(), info)
         cons <- if (!is.null(bundles) && length(bundles) > 0) bundles[[1]]$.consensus else NULL
         if (!is.null(cons)) c(cons$start, cons$stop) else NULL
       } else if (!is.null(coords)) {
@@ -1116,51 +1111,29 @@ library(DT)
 
     # === Regional bundle data ===
 
-    # Path to the bundled regional RDS directory for the current study.
-    # For virtual multi-ancestry studies: returns the ancestry regional
-    # dir that contains the current representative region, fallback to
-    # the first available ancestry dir. For single-ancestry studies:
-    # returns the multi-category path first, fallback to single-category.
+    # Path to a regional RDS directory for the current study. Returns
+    # the first ancestry dir that contains the selected region's RDS,
+    # or the first existing dir as fallback. Used by load_region_bundle()
+    # for single-file lookups; load_region_bundles() scans all dirs itself.
     regional_data_path <- reactive({
       req(current_study())
-      study <- current_study()
+      info <- current_study_info()
+      if (is.null(info)) return(NULL)
 
-      # Virtual multi-ancestry study: return the first ancestry regional
-      # dir that actually contains the selected representative region's
-      # RDS file (so `load_region_bundle` picks the right one). Fall
-      # back to the first existing dir.
-      if (is_virtual_study(study)) {
-        vdirs <- DEFAULT_VIRTUAL_STUDIES[[study]]$regional_dirs
-        vdirs <- vdirs[!is.na(unlist(vdirs))]
-        if (length(vdirs) == 0) return(NULL)
+      rdirs <- info$regional_dirs[!is.na(unlist(info$regional_dirs))]
+      if (length(rdirs) == 0) return(NULL)
 
-        sel <- current_region()
-        if (!is.null(sel) && !is.na(sel)) {
-          rid <- parse_region_id(sel)
-          if (!is.null(rid)) {
-            for (d in unlist(vdirs)) {
-              if (file.exists(file.path(d, paste0(rid, ".RDS")))) return(d)
-            }
+      # Try to find the dir that contains the selected region
+      sel <- current_region()
+      if (!is.null(sel) && !is.na(sel)) {
+        rid <- parse_region_id(sel)
+        if (!is.null(rid)) {
+          for (d in unlist(rdirs)) {
+            if (file.exists(file.path(d, paste0(rid, ".RDS")))) return(d)
           }
         }
-        return(unlist(vdirs)[1])
       }
-
-      # Single-ancestry study. Category layout first (the current atlas
-      # layout), then single-category fallback. The "legacy" regional_plots
-      # layout is gone.
-      # TODO: collapse once every study is routed through the virtual
-      # multi-ancestry codepath (single-ancestry studies with
-      # ancestries = c("EUR") or similar).
-      cats <- attr(available_studies, "categories")
-      if (!is.null(cats) && !is.null(cats[[study]])) {
-        cat_path <- file.path(DATA_PATH, cats[[study]], "regional", study)
-        if (dir.exists(cat_path)) return(cat_path)
-      }
-      bundled_path <- file.path(DATA_PATH, "regional", study)
-      if (dir.exists(bundled_path)) return(bundled_path)
-
-      NULL
+      unlist(rdirs)[1]
     })
 
     # Helper to extract trait name from filtered_data row
@@ -1281,18 +1254,14 @@ library(DT)
       get_trait_name(row)
     }
 
-    # Load base study sumstats for current region. For virtual studies,
-    # returns a named list(ancestry = dt) for overlay rendering; otherwise
-    # returns a single data.table.
+    # Load base study sumstats for current region. Always returns a named
+    # list(ancestry = dt) for overlay rendering (single-ancestry = 1 element).
     regional_base_sumstats <- reactive({
       req(regional_data_path(), current_region())
-      vinfo <- current_virtual_info()
-      if (!is.null(vinfo)) {
-        bundles <- load_multi_region_bundles(current_region(), vinfo)
-        if (is.null(bundles) || length(bundles) == 0) return(NULL)
-        return(lapply(bundles, `[[`, "base"))
-      }
-      load_base_sumstats(regional_data_path(), current_region())
+      info <- current_study_info()
+      bundles <- load_region_bundles(current_region(), info)
+      if (is.null(bundles) || length(bundles) == 0) return(NULL)
+      lapply(bundles, `[[`, "base")
     })
 
     # Render gene info panel
