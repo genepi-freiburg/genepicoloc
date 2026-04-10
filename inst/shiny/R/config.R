@@ -115,7 +115,7 @@ discover_all_studies <- function(data_path) {
 
   # Step 2: group by ancestry suffix
   ids <- names(raw_studies)
-  anc_pat <- "_(AFR|AMR|EAS|EUR|META)$"
+  anc_pat <- "_(AFR|AMR|CSA|EAS|EUR|FIN|META|MID|NFE|SAS)$"
   stems <- sub(anc_pat, "", ids)
   has_anc <- stems != ids
 
