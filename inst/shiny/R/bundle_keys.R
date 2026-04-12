@@ -51,6 +51,10 @@ make_consensus_trait_key <- function(bundle_key) {
 # locate the matching ancestry-specific bundle key inside that bundle.
 # Returns a single key (character) or NULL if nothing matches.
 resolve_consensus_in_bundle <- function(consensus_key, bundle_keys, anc) {
+  # Direct match: single-ancestry studies store keys without ancestry suffix,
+  # so the consensus key may already be present as-is in the bundle.
+  if (consensus_key %in% bundle_keys) return(consensus_key)
+
   parts <- strsplit(consensus_key, "__", fixed = TRUE)[[1]]
   if (length(parts) != 2) return(NULL)
   prefix <- parts[1]; fn <- parts[2]
