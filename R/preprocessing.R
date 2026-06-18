@@ -209,7 +209,12 @@ retrieve_sumstats_tabix <- function(sumstats_file,
   }
 
   # Recover column names if tabix didn't return the header
-  # (happens when the file was indexed without matching -c flag)
+  # (happens when the file was indexed without matching -c flag).
+  # Only do this when the file's first line actually looks like a header:
+  # some sumstats (e.g. GTEx v8) are intentionally headerless and must keep
+  # their V1..Vn column names for downstream format_*() to parse them. In that
+  # case "head -1" returns a data row, and renaming to it would corrupt the
+  # columns (the row width happens to match), so guard against that.
   if (tabix_attr == "tabix_ok" && ncol(sumstats) > 0 &&
       all(grepl("^V[0-9]+$", colnames(sumstats)))) {
     header <- tryCatch({
@@ -218,7 +223,13 @@ retrieve_sumstats_tabix <- function(sumstats_file,
                          intern = TRUE),
            what = character(), quiet = TRUE)
     }, error = function(e) NULL)
-    if (!is.null(header) && length(header) == ncol(sumstats)) {
+    # Heuristic: a real header has identifier-like tokens (at least one
+    # non-numeric, no token that is purely numeric or a genomic coordinate).
+    looks_like_header <- !is.null(header) &&
+      length(header) == ncol(sumstats) &&
+      !any(grepl("^-?[0-9]+(\\.[0-9]+)?$", header)) &&
+      !any(grepl("^chr[0-9XYM]+$", header, ignore.case = TRUE))
+    if (looks_like_header) {
       data.table::setnames(sumstats, header)
     }
   }

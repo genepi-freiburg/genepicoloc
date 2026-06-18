@@ -292,10 +292,17 @@ genepicoloc_wrapper <- function(dir_out,
         p_min_save = p_min_save
       )
       
-      # Validate output
-      if (result$n_coloc != n_expected) {
-        warning(sprintf("Subjob %d: File count mismatch. Expected %d files, got %d coloc files", 
-                        job_idx, n_expected, result$n_coloc))
+      # Validate output. NB: a strict 1-file-per-combo check is wrong for
+      # multi-phenotype studies (eQTL: one file per gene, so n_coloc >> n combos),
+      # which made this warning fire on every normal run. The actionable signal
+      # is zero output for a non-empty batch - that means every combo errored
+      # (errors are surfaced in genepicoloc_job; this is the batch-level alarm).
+      if (n_expected > 0 && result$n_coloc == 0) {
+        warning(sprintf(paste0("Subjob %d produced ZERO coloc files for %d combo(s). ",
+                               "Every combo in this batch failed - check the per-combo ",
+                               "error warnings above (studies: %s)."),
+                        job_idx, n_expected,
+                        paste(unique(args_df$sumstats_2_study[start_idx:end_idx]), collapse = ", ")))
       }
       
       # Progress reporting
@@ -472,7 +479,26 @@ genepicoloc_job <- function(sumstats_1_form,
   } else {
     results <- do.call(parallel::mcmapply, c(mapply_args, list(mc.cores = mc_cores)))
   }
-  
+
+  # Surface per-combo errors that mcmapply would otherwise swallow. A worker
+  # that errors leaves a 'try-error' in its result slot but does not stop the
+  # run, so an entire study can silently produce zero output (see GTEx headerless
+  # bug). Report which sumstats_2 combos failed and a sample of the messages.
+  err_idx <- which(vapply(results, function(x) inherits(x, "try-error"), logical(1)))
+  if (length(err_idx) > 0) {
+    failed_studies <- args_df$sumstats_2_study[err_idx]
+    msgs <- unique(vapply(results[err_idx], function(x)
+      conditionMessage(attr(x, "condition")), character(1)))
+    warning(sprintf(
+      "%d of %d coloc combos errored and were skipped. Affected studies: %s. Example messages: %s",
+      length(err_idx), length(results),
+      paste(sort(table(failed_studies)), collapse = ", "),
+      paste(utils::head(msgs, 3), collapse = " | ")), call. = FALSE)
+    message(sprintf("WARNING: %d/%d combos failed. Per-study failure counts:",
+                    length(err_idx), length(results)))
+    print(table(failed_studies))
+  }
+
   # Archive the results - only handle sumstats if saving
   if (save_sumstats) {
     tar_cmd_sumstats <- sprintf(

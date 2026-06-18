@@ -24,7 +24,9 @@ tabix_GTEXv8 <- function(sumstats_file, coloc_regions_PASS) {
   file.remove(attr(tabix_cmd, "file_regions"))
   if (identical(sys_out, 0L) && nrow(sumstats) == 0) {
     attr(sumstats, "tabix") <- "tabix_ok_no_data"
-    sumstats_fixed <- as.data.frame(matrix(ncol = 19, nrow=0))
+    # Build an empty 19-column data.table (not data.frame): downstream
+    # format_GTEXv8()/match_cols() require a data.table.
+    sumstats_fixed <- data.table::as.data.table(matrix(ncol = 19, nrow = 0))
     class(sumstats_fixed) <- c("sumstats", class(sumstats_fixed))
     for (i in c("tabix", "sumstats_file", "coloc_regions_PASS", "sumstats_pheno")) {
       attr(sumstats_fixed, i) <- attr(sumstats, i)
@@ -51,9 +53,18 @@ format_GTEXv8 <- function(sumstats) {
     stop("Column mismatch when reading ", attr(sumstats, "sumstats_file"))
   }
   # format
-  sumstats$nlog10P <- -log10(sumstats$V14)
-  sumstats$Name <- paste0(sumstats$V1, ":", sumstats$V4, ":", sumstats$V5, ":", sumstats$V6)
-  sumstats$rsids <- NA
+  # Guard the empty case (region with no GTEx variants): paste0() on zero-length
+  # vectors recycles the separators to length 1, which $<- rejects against a
+  # 0-row frame. Create the derived columns with the correct (zero) length.
+  if (nrow(sumstats) == 0) {
+    sumstats$nlog10P <- numeric(0)
+    sumstats$Name <- character(0)
+    sumstats$rsids <- character(0)
+  } else {
+    sumstats$nlog10P <- -log10(sumstats$V14)
+    sumstats$Name <- paste0(sumstats$V1, ":", sumstats$V4, ":", sumstats$V5, ":", sumstats$V6)
+    sumstats$rsids <- NA
+  }
   # colnames
   sumstats <- match_cols(sumstats=sumstats,
                          Name="Name",
