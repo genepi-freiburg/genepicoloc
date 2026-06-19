@@ -48,6 +48,22 @@ atlas_categories <- list(
     autopopulate_virtual = TRUE
   ),
   list(
+    id = "umod_2023",
+    section = "featured",
+    icon = "\U0001F4A7",
+    title = "Uromodulin (UMOD)",
+    description = paste(
+      "Uromodulin plasma levels (UMOD meta-analysis, UKB 50k + Regenie)",
+      "colocalized against 16 molecular and clinical datasets, including",
+      "kidney and GTEx eQTL, plasma/urine pQTL, metabolites, and",
+      "multi-ancestry PheWAS."
+    ),
+    traits = list(
+      list(id = "uromodulin", label = "Uromodulin (plasma)",
+           desc = "UMOD plasma levels vs 16 QTL/PheWAS datasets")
+    )
+  ),
+  list(
     id = "kidney_mri",
     section = "additional",
     icon = "\U0001F9F2",
