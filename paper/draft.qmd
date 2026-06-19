@@ -1,5 +1,5 @@
 ---
-title: "genepicoloc: A Kidney Genomics Colocalization Atlas Integrating Proteomics, Metabolomics, and Clinical Phenotypes"
+title: "genepicoloc: Connecting GWAS Loci to Molecular Traits and Complex Phenotypes with Interactive Colocalization Browse"
 author:
   - name: Oleg Borisov
     affiliations:
@@ -36,8 +36,12 @@ expression, and kidney MRI volumes. We find that plasma protein QTLs provide
 the strongest colocalization signal for kidney traits (14,710 colocalizations),
 substantially outperforming blood eQTLs (1,194), and identify 136 loci where
 eGFR-associated variants also determine kidney structure as measured by MRI.
-The atlas is accessible through an interactive Shiny application enabling
-network visualization and regional association plots.
+We extend the atlas with multi-ancestry colocalization for MVP kidney traits
+across five ancestries (AFR, AMR, EAS, EUR, META), enabling cross-ancestry
+comparison of shared genetic architecture at each locus.
+The atlas is accessible through an interactive Shiny application featuring
+a genome-wide mini-Manhattan, regional association plot overlays, and
+multi-ancestry visualization.
 
 # Introduction
 
@@ -114,13 +118,21 @@ network visualization and regional association plots.
 | GWAS | CKDGen r4 | 6 | Cross-kidney-trait coloc |
 | Imaging | UKB kidney MRI | 5 | Kidney volume phenotypes |
 
-## Visualization
+## Multi-ancestry extension
 
-- Interactive Shiny application with network visualization (visNetwork)
-- Region-centered view: genomic region -> colocalized traits
-- Trait-centered view: selected trait -> genomic regions
-- Regional association plots (LocusZoom-style) with plotly
-- Gene annotation panel (NCBI, Reactome, HPO)
+- MVP Round 4 kidney traits colocalized across five ancestries (AFR, AMR, EAS, EUR, META)
+- Virtual multi-ancestry studies: per-ancestry coloc results merged into unified views
+- Consensus region clustering: overlapping per-ancestry regions merged via single-pass interval merge
+- Ancestry-specific regional association plot overlays with per-ancestry coloring
+
+## Interactive visualization
+
+- Shiny application with three tabs: Atlas landing, Region View, Documentation
+- Mini-Manhattan: genome-wide overview with gene labels, click-to-select regions
+- Convergence panel: category-stratified trait tiles (eQTL, pQTL, PheWAS, metabolomics, imaging)
+- Regional association plots (LocusZoom-style) with plotly: base study + selected trait overlay
+- Multi-ancestry overlay: per-ancestry traces with faded non-colocalized ancestries
+- Gene annotation panel (NCBI, Reactome, HPO, HGNC) with clickable gene track
 
 # Results
 
@@ -200,6 +212,11 @@ not expressed in blood.
 - Kidney eQTL (N=73-686): 498 colocalizations for eGFR
 - Despite 50x smaller sample size, kidney eQTL has 5.6x more colocalizations
 - Highlights tissue-specificity of kidney GWAS signals
+- This recapitulates a general granularity-vs-power trade-off: in a large-scale
+  evaluation of >1.3M eQTL-GWAS coloc tests, lower-granularity high-N studies
+  yielded the most colocalizations overall, but each eQTL from
+  higher-resolution, context-specific studies was more likely to colocalize -
+  emphasizing the value of disease-relevant tissue eQTLs [@reales2026]
 - Caveat: kidney eQTL uses p < 1e-5 threshold (may include false positives)
 
 # Discussion
@@ -232,12 +249,57 @@ not expressed in blood.
 - Reduces installation complexity (coloc has multiple dependencies)
 - Enables lightweight deployment and CRAN submission
 
+## Multi-ancestry colocalization
+
+- MVP kidney traits across 5 ancestries reveal ancestry-specific and shared signals
+- UMOD/PDILT locus: colocalizes in EUR and META but not AFR or AMR - consistent with known EUR-specific LD structure
+- Multi-ancestry overlay RAPs enable visual comparison of association patterns
+- Consensus regions highlight loci with broad vs ancestry-specific colocalization
+
 ## Limitations
 
-- Single causal variant assumption (ABF, not SuSiE-based fine-mapping)
-- Kidney eQTL data has p < 1e-5 threshold limitation
-- CKDGen r4 GWAS are European-ancestry predominant
-- Regional plots require substantial disk space (50GB+ for full atlas)
+Our colocalization approach uses the ABF method, which assumes a single causal
+variant per locus. Methods that relax this assumption exist - notably
+coloc.susie [@wallace2020], which combines SuSiE fine-mapping [@wang2020] with
+colocalization to handle multiple causal variants. However, coloc.susie requires
+matched in-sample LD matrices, which are unavailable for most of our target
+datasets (deCODE, GCKD, CKDGen meta-analyses, FinnGen). Moreover, fine-mapping of meta-analyzed summary statistics is known to be
+frequently miscalibrated, with the majority of loci showing suspicious patterns
+that call into question fine-mapping accuracy [@kanai2022]. Since our primary
+query GWAS are large-scale CKDGen meta-analyses combining heterogeneous cohorts
+with different phenotyping, imputation panels, and sample sizes, fine-mapping
+would be particularly unreliable in this setting. Our multi-ancestry colocalization with MVP
+partially addresses what fine-mapping would add: different LD structures across
+ancestries help distinguish shared from ancestry-specific signals at each locus,
+analogous to the logic underlying multi-ancestry fine-mapping approaches.
+
+We note that genepicoloc is a resource and atlas paper - the core contribution
+is the pipeline, the interactive browser, and the systematic colocalization
+across kidney-specific datasets, rather than causal variant identification. No
+universal PP.H4 cutoff exists; the appropriate threshold depends on whether
+colocalization is used as a screen (favoring sensitivity) or for confident
+calling (favoring an FDR-controlled, often higher, threshold) [@reales2026]. We
+adopt PP.H4 > 0.8 as a deliberate screening threshold for atlas inclusion. This,
+combined with the biological plausibility
+of showcase regions (UMOD, GCKR, SHROOM3, SLC2A9 - all well-established kidney
+genes), and visual validation through regional association plot overlays,
+provide confidence in the reported colocalizations.
+
+Additional limitations include:
+
+- A reported colocalization is not equivalent to causal-gene identification: a
+  large fraction of GWAS peaks colocalize with multiple genes (37-47% in a
+  recent large-scale evaluation), often reflecting co-regulation through shared
+  regulatory elements rather than false positives [@reales2026]. Gene-level
+  colocalizations in this atlas should therefore be treated as candidate
+  effector genes requiring orthogonal triangulation
+- Kidney eQTL data uses a p < 1e-5 significance threshold, which may include
+  false positives among the reported colocalizations
+- CKDGen round 4 GWAS are predominantly European-ancestry; the MVP
+  multi-ancestry extension partially addresses this but covers only kidney
+  phenotypes
+- Regional association plot storage requires substantial disk space (50GB+ for
+  the full atlas), which constrains deployment options
 
 ## Data and code availability
 
